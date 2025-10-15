@@ -1,0 +1,10 @@
+{
+"deny_keys": [
+"cpf", "ssn", "tax_id", "email", "phone", "address",
+"credit_card", "pan", "cvv", "password", "token", "secret",
+"api_key", "refresh_token"
+],
+"deny_substrings": [
+"Bearer ", "Basic ", "Authorization:", "Set-Cookie"
+]
+}
