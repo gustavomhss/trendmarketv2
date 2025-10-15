@@ -1,0 +1,6 @@
+{
+  "title": "D3 — Drift (PSI/KL)",
+  "panels": [
+    {"type": "timeseries", "title": "Drift por feature", "targets": [{"expr": "max by (feature) (drift_score)"}]}
+  ]
+}
