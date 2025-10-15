@@ -1,0 +1,7 @@
+{
+  "title": "D2 — Staleness & CDC Lag",
+  "panels": [
+    {"type": "timeseries", "title": "Freshness por source", "targets": [{"expr": "max by (source) (data_freshness_seconds)"}]},
+    {"type": "timeseries", "title": "CDC Lag max por stream", "targets": [{"expr": "max by (stream) (cdc_lag_seconds)"}]}
+  ]
+}
