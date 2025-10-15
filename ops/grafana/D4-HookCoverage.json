@@ -1,0 +1,7 @@
+{
+  "title": "D4 — Hook Coverage (A110)",
+  "panels": [
+    {"type": "gauge", "title": "hook_coverage_ratio", "targets": [{"expr": "min by (env) (hook_coverage_ratio)"}]},
+    {"type": "table", "title": "Execuções por hook", "targets": [{"expr": "sum by (hook_id,status) (increase(hook_executions_total[1h]))"}]}
+  ]
+}
