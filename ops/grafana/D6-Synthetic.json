@@ -1,0 +1,7 @@
+{
+  "title": "D6 — Synthetic Prober",
+  "panels": [
+    {"type": "timeseries", "title": "OK ratio (synthetic)", "targets": [{"expr": "avg_over_time(synthetic_ok_ratio[5m])"}]},
+    {"type": "stat", "title": "Requests (última execução)", "targets": [{"expr": "last_over_time(synthetic_requests_total[5m])"}]}
+  ]
+}
