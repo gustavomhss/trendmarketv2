@@ -1,0 +1,67 @@
+name: CRD Epic — Exec
+
+
+on:
+workflow_dispatch:
+inputs:
+profile:
+description: Perfil (fast | full)
+type: choice
+default: fast
+options: [fast, full]
+environment:
+description: Ambiente alvo (dev | staging)
+type: choice
+default: dev
+options: [dev, staging]
+epic_path:
+description: Caminho do arquivo do épico (MD)
+required: true
+default: docs/obs/CRD-8-epic.md
+agents_md:
+description: Caminho do AGENTS.md
+required: true
+default: AGENTS.md
+run_matrix:
+description: Executar matriz (fast/full × dev/staging)?
+type: boolean
+default: false
+issue_comment:
+types: [created]
+
+
+permissions:
+contents: read
+actions: write
+checks: write
+
+
+concurrency:
+group: exec-${{ github.ref }}
+cancel-in-progress: true
+
+
+jobs:
+exec_single:
+if: github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'false' || contains(github.event.comment.body, '/crd exec')
+uses: ./.github/workflows/_crd-orr.yml
+with:
+profile: ${{ github.event_name == 'issue_comment' && fromJson('{"p":"'"${{ github.event.comment.body }}"'"}').p || inputs.profile }}
+environment: ${{ inputs.environment }}
+epic_path: ${{ inputs.epic_path }}
+agents_md: ${{ inputs.agents_md }}
+
+
+exec_matrix:
+if: github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'true' || contains(github.event.comment.body, '/crd matrix')
+strategy:
+fail-fast: false
+matrix:
+profile: [fast, full]
+environment: [dev, staging]
+uses: ./.github/workflows/_crd-orr.yml
+with:
+profile: ${{ matrix.profile }}
+environment: ${{ matrix.environment }}
+epic_path: ${{ inputs.epic_path }}
+agents_md: ${{ inputs.agents_md }}
