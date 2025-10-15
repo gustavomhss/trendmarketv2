@@ -1,0 +1,7 @@
+# build/artefatos locais
+/target/
+/out/
+**/*.zip
+.DS_Store
+.idea/
+.vscode/
