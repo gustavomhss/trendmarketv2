@@ -1,0 +1,7 @@
+{
+  "title": "D5 — SLO & Error Budget",
+  "panels": [
+    {"type": "timeseries", "title": "p95 swap vs SLO", "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(amm_op_latency_seconds_bucket{op=\"swap\"}[5m])))"}]},
+    {"type": "timeseries", "title": "Burn-rate (placeholder)", "targets": [{"expr": "scalar(0)"}]}
+  ]
+}
