@@ -1,0 +1,71 @@
+groups:
+- name: a110_observability
+rules:
+# W‑OBS‑001 — p95(swap)
+- alert: OBS_P95_Swap_TooHigh
+expr: histogram_quantile(0.95, sum by (le) (rate(amm_op_latency_seconds_bucket{op="swap"}[5m]))) > 0.06
+for: 10m
+labels:
+severity: warn
+team: ce
+annotations:
+summary: "p95(swap) acima do SLO (60ms)"
+description: "p95 da operação swap excedeu 60ms por 10m. Verificar regressões, GC e cardinalidade."
+
+
+- alert: OBS_P95_Swap_TooHigh_Crit
+expr: histogram_quantile(0.95, sum by (le) (rate(amm_op_latency_seconds_bucket{op="swap"}[5m]))) > 0.06
+for: 30m
+labels:
+severity: critical
+team: ce
+annotations:
+summary: "p95(swap) crítico acima de 60ms"
+description: "Persistência >30m. Ação imediata necessária."
+
+
+# W‑OBS‑002 — staleness (oracle)
+- alert: OBS_Oracle_Stale
+expr: max by (source) (data_freshness_seconds{source="oracle"}) > 5
+for: 5m
+labels: { severity: warn, team: ce }
+annotations:
+summary: "Freshness oracle > 5s"
+description: "Dados de oracle acima do alvo de 5s na janela."
+
+
+# W‑OBS‑003 — CDC lag
+- alert: OBS_CDC_Lag_Warn
+expr: max by (stream) (cdc_lag_seconds) > 10
+for: 10m
+labels: { severity: warn, team: ce }
+annotations:
+summary: "CDC lag > 10s (WARN)"
+description: "Lag de CDC acima de 10s por 10m."
+
+
+- alert: OBS_CDC_Lag_Crit
+expr: max by (stream) (cdc_lag_seconds) > 30
+for: 5m
+labels: { severity: critical, team: ce }
+annotations:
+summary: "CDC lag > 30s (CRIT)"
+description: "Lag de CDC crítico por 5m."
+
+
+# W‑OBS‑004 — drift (features críticas)
+- alert: OBS_Drift_Critical_Feature_Warn
+expr: max by (feature) (drift_score{feature=~".*(price|volume|spread).*"}) > 0.2
+for: 30m
+labels: { severity: warn, team: ce }
+annotations:
+summary: "Drift (PSI/KL) > 0.2 em feature crítica"
+description: "PSI/KL acima de 0.2 por 30m. Verificar regime e baseline."
+
+
+- alert: OBS_Drift_Critical_Feature_Crit
+expr: max by (feature) (drift_score{feature=~".*(price|volume|spread).*"}) > 0.4
+for: 15m
+labels: { severity: critical, team: ce }
+annotations:
+description: "Cobertura abaixo do SLO na janela. Listar hooks 0‑run."
