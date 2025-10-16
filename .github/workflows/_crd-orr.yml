@@ -15,7 +15,6 @@ on:
       agents_md:
         required: true
         type: string
-    secrets: {}
 
 permissions:
   contents: read
