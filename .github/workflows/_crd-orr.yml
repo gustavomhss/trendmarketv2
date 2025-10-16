@@ -3,41 +3,15 @@ name: _CRD ORR (Reusable)
 on:
   workflow_call:
     inputs:
-      ref:
-        type: string
-        required: false
-      run_bundle:
-        type: boolean
-        required: false
-        default: true
-      profile:
-        type: string
-        required: false
-        default: fast
-      environment:
-        type: string
-        required: false
-        default: dev
-      epic_path:
-        type: string
-        required: false
-        default: docs/obs/CRD-8-epic.md
-      agents_md:
-        type: string
-        required: false
-        default: AGENTS.md
-      project_dir:
-        type: string
-        required: false
-        default: .
-      project_repo:
-        type: string
-        required: false
-        default: ""
-      project_ref:
-        type: string
-        required: false
-        default: ""
+      ref: { type: string, required: false }
+      run_bundle: { type: boolean, required: false, default: true }
+      profile: { type: string, required: false, default: fast }
+      environment: { type: string, required: false, default: dev }
+      epic_path: { type: string, required: false, default: docs/obs/CRD-8-epic.md }
+      agents_md: { type: string, required: false, default: AGENTS.md }
+      project_dir: { type: string, required: false, default: . }
+      project_repo: { type: string, required: false, default: "" }
+      project_ref: { type: string, required: false, default: "" }
 permissions:
   contents: read
 jobs:
@@ -60,6 +34,7 @@ jobs:
           path: _project
           fetch-depth: 0
           submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Locate project dir
         id: locate
