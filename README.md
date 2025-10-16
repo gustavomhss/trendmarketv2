@@ -6,6 +6,8 @@
 3. **Exec (full):** profile `full` (SBOM, audit, testes) → verifique `ACCEPTANCE_OK` e `GATECHECK_OK` e `summary.json`.
 
 ## Estrutura útil
+> **Importante**: Este projeto substitui completamente o repositório antigo `credit-engine-core`.
+> Se você vir qualquer menção ao repositório antigo em issues, PRs ou documentação, trate como **bug**.
 - `docs/obs/CRD-8-epic.md` — especificação (fonte textual)
 - `ops/` — configs (Collector, Watchers, Dashboards)
 - `scripts/` — ORR T1→T12 e utilitários
