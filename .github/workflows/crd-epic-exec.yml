@@ -1,3 +1,4 @@
+# .github/workflows/crd-epic-exec.yml
 name: CRD Epic - Exec
 on:
   workflow_dispatch:
@@ -45,6 +46,9 @@ jobs:
       environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
+      project_repo: gustavomhss/credit-engine-core
+      project_ref: main
+      project_dir: .
 
   exec_matrix:
     if: ${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false')) || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
@@ -59,3 +63,6 @@ jobs:
       environment: ${{ matrix.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
+      project_repo: gustavomhss/credit-engine-core
+      project_ref: main
+      project_dir: .
