@@ -9,8 +9,6 @@ on:
       environment: { type: string, required: false, default: dev }
       epic_path: { type: string, required: false, default: docs/obs/CRD-8-epic.md }
       agents_md: { type: string, required: false, default: AGENTS.md }
-      project_repo: { type: string, required: false, default: "" }
-      project_ref: { type: string, required: false, default: "" }
       project_dir: { type: string, required: false, default: . }
       scripts_dir: { type: string, required: false, default: "" }
 permissions:
@@ -19,68 +17,30 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout caller repo
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
           submodules: recursive
 
-      - name: Checkout project repo
-        if: ${{ inputs.project_repo != '' }}
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ inputs.project_repo }}
-          ref: ${{ inputs.project_ref || 'main' }}
-          path: _project
-          fetch-depth: 0
-          submodules: recursive
-          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Trace workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          pwd
-          ls -la
-          [ -d _project ] && ls -la _project || true
-
-      - name: Locate scripts root
+      - name: Locate scripts dir
         id: locate
         shell: bash
         run: |
           set -euo pipefail
-          bases="."
-          [ -d _project ] && bases="_project ."
-          found=""
-          for base in $bases; do
-            dir="$base/${{ inputs.project_dir }}"
-            [ -d "$dir" ] || continue
-            if [ -n "${{ inputs.scripts_dir }}" ] && [ -f "$dir/${{ inputs.scripts_dir }}/orr_env_probe.sh" ]; then
-              found="$(cd "$dir/${{ inputs.scripts_dir }}" && pwd)"
-              break
-            fi
-            if [ -f "$dir/scripts/orr_env_probe.sh" ]; then
-              found="$(cd "$dir/scripts" && pwd)"
-              break
-            fi
-            cand="$(find "$dir" -type f -name 'orr_env_probe.sh' 2>/dev/null | head -n1 || true)"
-            if [ -n "$cand" ]; then
-              found="$(cd "$(dirname "$cand")" && pwd)"
-              break
-            fi
-          done
-          if [ -z "$found" ]; then
-            echo "::error::orr_env_probe.sh não encontrado em $bases/${{ inputs.project_dir }}"; 
-            for base in $bases; do
-              dir="$base/${{ inputs.project_dir }}"
-              [ -d "$dir" ] && { echo "::group::tree $dir"; find "$dir" -maxdepth 3 -mindepth 1 -print | sed -n '1,200p'; echo "::endgroup::"; }
-            done
-            exit 1
+          base="${{ inputs.project_dir }}"
+          [ -d "$base" ] || { echo "::error::project_dir não existe: $base"; exit 1; }
+          if [ -n "${{ inputs.scripts_dir }}" ] && [ -f "$base/${{ inputs.scripts_dir }}/orr_env_probe.sh" ]; then
+            S="$base/${{ inputs.scripts_dir }}"
+          else
+            cand="$(find "$base" -type f -name 'orr_env_probe.sh' -print -quit || true)"
+            [ -n "$cand" ] || { echo "::error::orr_env_probe.sh não encontrado sob $base. Ajuste inputs.project_dir/scripts_dir."; exit 1; }
+            S="$(dirname "$cand")"
           fi
-          root="$(cd "$found/.." && pwd)"
-          echo "dir=$root" >> "$GITHUB_OUTPUT"
-          echo "scripts=$found" >> "$GITHUB_OUTPUT"
+          D="$(cd "$S/.." && pwd)"
+          echo "scripts=$S" >> "$GITHUB_OUTPUT"
+          echo "dir=$D" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -96,7 +56,7 @@ jobs:
           for f in orr_env_probe.sh orr_t1_run.sh orr_t3_props_run.sh orr_t4_goldens_run.sh orr_t5_bench_run.sh orr_t6_metrics_run.sh orr_t7_ci_prep.sh orr_t7_collect_ci.sh; do
             [ -x "$S/$f" ] || { echo "::error file=$S/$f::missing or not executable"; exit 1; }
           done
-          [ -f "$S/../scripts/orr_t2_parse_unit.py" ] || [ -f "$S/orr_t2_parse_unit.py" ] || { echo "::error file=orr_t2_parse_unit.py::missing"; exit 1; }
+          [ -f "$S/orr_t2_parse_unit.py" ] || [ -f "$S/../scripts/orr_t2_parse_unit.py" ] || { echo "::error file=orr_t2_parse_unit.py::missing"; exit 1; }
           if [ "${{ inputs.run_bundle && '1' || '0' }}" != "0" ]; then
             [ -x "$S/orr_t8_bundle.sh" ] || { echo "::error file=$S/orr_t8_bundle.sh::missing"; exit 1; }
           fi
@@ -115,22 +75,12 @@ jobs:
           S="${{ steps.locate.outputs.scripts }}"
           "$S/orr_env_probe.sh" "$@"
           "$S/orr_t1_run.sh" "$@"
-          if [ -f "$S/orr_t2_parse_unit.py" ]; then
-            python3 "$S/orr_t2_parse_unit.py" "$@"
-          else
-            python3 "scripts/orr_t2_parse_unit.py" "$@"
-          fi
+          if [ -f "$S/orr_t2_parse_unit.py" ]; then python3 "$S/orr_t2_parse_unit.py" "$@"; else python3 "scripts/orr_t2_parse_unit.py" "$@"; fi
           "$S/orr_t3_props_run.sh" "$@"
           "$S/orr_t4_goldens_run.sh" "$@"
           "$S/orr_t5_bench_run.sh" "$@"
-          if [ -f "$S/orr_t5_collect_criterion.py" ]; then
-            python3 "$S/orr_t5_collect_criterion.py" "$@"
-          else
-            python3 "scripts/orr_t5_collect_criterion.py" "$@"
-          fi
+          if [ -f "$S/orr_t5_collect_criterion.py" ]; then python3 "$S/orr_t5_collect_criterion.py" "$@"; else python3 "scripts/orr_t5_collect_criterion.py" "$@"; fi
           "$S/orr_t6_metrics_run.sh" "$@"
           "$S/orr_t7_ci_prep.sh" "$@"
           "$S/orr_t7_collect_ci.sh" "$@"
-          if [ "${RUN_BUNDLE}" = "1" ]; then
-            "$S/orr_t8_bundle.sh" "$@"
-          fi
+          if [ "${RUN_BUNDLE}" = "1" ]; then "$S/orr_t8_bundle.sh" "$@"; fi
