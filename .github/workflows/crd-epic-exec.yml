@@ -1,4 +1,3 @@
-# .github/workflows/crd-epic-exec.yml
 name: CRD Epic - Exec
 
 
@@ -42,7 +41,8 @@ default: scripts
 
 
 issue_comment:
-types: [created]
+types:
+- created
 
 
 permissions:
@@ -58,7 +58,9 @@ cancel-in-progress: true
 
 jobs:
 exec_single:
-if: ${{ (github.event_name == 'workflow_dispatch' && !fromJSON(inputs.run_matrix || 'false')) || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd exec')) }}
+if: >-
+${{ (github.event_name == 'workflow_dispatch' && !fromJSON(inputs.run_matrix || 'false'))
+|| (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd exec')) }}
 uses: ./.github/workflows/_crd-orr.yml
 with:
 profile: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'full') && 'full' || 'fast') || inputs.profile }}
@@ -70,7 +72,9 @@ scripts_dir: ${{ inputs.scripts_dir }}
 
 
 exec_matrix:
-if: ${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false')) || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
+if: >-
+${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false'))
+|| (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
 strategy:
 fail-fast: false
 matrix:
