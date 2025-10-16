@@ -59,32 +59,32 @@ cancel-in-progress: true
 jobs:
 exec_single:
 if: >-
-${{ (github.event_name == 'workflow_dispatch' && !fromJSON(inputs.run_matrix || 'false'))
-|| (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd exec')) }}
-uses: ./.github/workflows/_crd-orr.yml
-with:
-profile: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'full') && 'full' || 'fast') || inputs.profile }}
-environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
-epic_path: ${{ inputs.epic_path }}
-agents_md: ${{ inputs.agents_md }}
-project_dir: ${{ inputs.project_dir }}
-scripts_dir: ${{ inputs.scripts_dir }}
+    ${{ (github.event_name == 'workflow_dispatch' && !fromJSON(inputs.run_matrix || 'false'))
+    || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd exec')) }}
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+    profile: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'full') && 'full' || 'fast') || inputs.profile }}
+    environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
+    epic_path: ${{ inputs.epic_path }}
+    agents_md: ${{ inputs.agents_md }}
+    project_dir: ${{ inputs.project_dir }}
+    scripts_dir: ${{ inputs.scripts_dir }}
 
 
 exec_matrix:
 if: >-
-${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false'))
-|| (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
-strategy:
-fail-fast: false
-matrix:
-profile: [fast, full]
-environment: [dev, staging]
-uses: ./.github/workflows/_crd-orr.yml
-with:
-profile: ${{ matrix.profile }}
-environment: ${{ matrix.environment }}
-epic_path: ${{ inputs.epic_path }}
-agents_md: ${{ inputs.agents_md }}
-project_dir: ${{ inputs.project_dir }}
-scripts_dir: ${{ inputs.scripts_dir }}
+    ${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false'))
+    || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
+    strategy:
+    fail-fast: false
+    matrix:
+    profile: [fast, full]
+    environment: [dev, staging]
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+    profile: ${{ matrix.profile }}
+    environment: ${{ matrix.environment }}
+    epic_path: ${{ inputs.epic_path }}
+    agents_md: ${{ inputs.agents_md }}
+    project_dir: ${{ inputs.project_dir }}
+    scripts_dir: ${{ inputs.scripts_dir }}
