@@ -1,5 +1,8 @@
 # AGENTS.md — CreditEngine Codex Engineer
 
+> **REPO CANÔNICO**: Todas as ações do agente devem ocorrer **exclusivamente** em `gustavomhss/trendmarketv2`.
+> Qualquer referência a `credit-engine-core` é **erro** e deve ser corrigida automaticamente (substituir por `trendmarketv2`) ou abortar com mensagem clara.
+
 > Arquivo curto, consumível por agentes (Codex/VS Code MCP/Agents SDK). Fonte de verdade em `docs/dna/`. Este guia especifica **o que** fazer; o **como** está nos artefatos da KB.
 
 ## TL;DR — Comandos Canônicos
