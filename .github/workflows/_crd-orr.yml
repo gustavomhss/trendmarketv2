@@ -3,101 +3,66 @@ name: _CRD ORR (Reusable)
 on:
   workflow_call:
     inputs:
-      profile:
-        required: true
+      ref:
+        description: "Git ref to checkout"
+        required: false
         type: string
-      environment:
-        required: true
-        type: string
-      epic_path:
-        required: true
-        type: string
-      agents_md:
-        required: true
-        type: string
-
-permissions:
-  contents: read
-  actions: write
+      run-bundle:
+        description: "Run the T8 bundle step"
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  orr:
+  run:
+    name: run
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      OUT_DIR: out/obs_gatecheck
-      LOG_DIR: out/obs_gatecheck/logs
-      EVI_DIR: out/obs_gatecheck/evidence
-      PROFILE: ${{ inputs.profile }}
-      TARGET_ENV: ${{ inputs.environment }}
-      EPIC_PATH: ${{ inputs.epic_path }}
-      AGENTS_MD: ${{ inputs.agents_md }}
-
-    services:
-      prom:
-        image: prom/prometheus:latest
-        ports:
-          - "9090:9090"
-        options: >-
-          --health-cmd="wget -qO- http://localhost:9090/-/ready || exit 1"
-          --health-interval=5s
-          --health-timeout=2s
-          --health-retries=30
-      otelcol:
-        image: otel/opentelemetry-collector-contrib:latest
-        ports:
-          - "13133:13133"
-          - "4317:4317"
-          - "4318:4318"
-      loki:
-        image: grafana/loki:2.9.4
-        ports:
-          - "3100:3100"
-      tempo:
-        image: grafana/tempo:latest
-        ports:
-          - "3200:3200"
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
-      - name: Setup Rust (cache)
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Utilitários
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl zip python3-pip
-          pip3 install --user yq
-
-      - name: Validar AGENTS.md e épico
-        run: |
-          test -f "$AGENTS_MD" || { echo '::error::AGENTS.md não encontrado'; exit 1; }
-          test -f "$EPIC_PATH" || { echo '::error::Arquivo do épico não encontrado'; exit 1; }
-          mkdir -p "$OUT_DIR" "$LOG_DIR" "$EVI_DIR"
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Semeadura do ORR (se ausente)
+        shell: bash
         run: |
-          mkdir -p scripts
+          set -euo pipefail
           if [ ! -f scripts/orr_all.sh ]; then
-            cat > scripts/orr_all.sh <<'SH'
+            mkdir -p scripts
+            cat <<'SH' > scripts/orr_all.sh
 #!/usr/bin/env bash
 set -euo pipefail
-OUT="out/obs_gatecheck"; EVI="$OUT/evidence"; LOG="$OUT/logs"; mkdir -p "$EVI" "$LOG"
-: "${RUN_PROFILE:=fast}"
-echo "[Planner] lendo ${EPIC_PATH}" | tee "$LOG/plan.txt"
-echo "T1_OK" | tee "$LOG/t1.txt"
-echo "T2_OK" | tee "$LOG/t2.txt"
-( cd "$OUT" && zip -qr bundle.zip evidence logs || true )
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+scripts/orr_env_probe.sh "$@"
+
+scripts/orr_t1_run.sh "$@"
+python3 scripts/orr_t2_parse_unit.py "$@"
+scripts/orr_t3_props_run.sh "$@"
+scripts/orr_t4_goldens_run.sh "$@"
+scripts/orr_t5_bench_run.sh "$@"
+python3 scripts/orr_t5_collect_criterion.py "$@"
+scripts/orr_t6_metrics_run.sh "$@"
+scripts/orr_t7_ci_prep.sh "$@"
+scripts/orr_t7_collect_ci.sh "$@"
+if [ "${RUN_BUNDLE:-1}" = "1" ]; then
+  scripts/orr_t8_bundle.sh "$@"
+fi
 SH
             chmod +x scripts/orr_all.sh
           fi
 
-      - name: Publicar artefatos
-        uses: actions/upload-artifact@v4
-        with:
-          name: orr-artifacts-${{ github.run_id }}
-          path: out/obs_gatecheck/
-          retention-days: 14
+      - name: Executar ORR completo
+        shell: bash
+        env:
+          RUN_BUNDLE: ${{ inputs.run-bundle && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          ./scripts/orr_all.sh
