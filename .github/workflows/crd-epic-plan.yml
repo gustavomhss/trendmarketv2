@@ -1,93 +1,109 @@
 name: CRD Epic — Plan
 
-
 on:
-workflow_dispatch:
-inputs:
-epic_path:
-description: Caminho do arquivo do épico (MD)
-required: true
-default: docs/obs/CRD-8-epic.md
-out_dir:
-description: Pasta de saída para plano/estado
-required: true
-default: out/obs_gatecheck/plan
-issue_comment:
-types: [created]
-
+  workflow_dispatch:
+    inputs:
+      epic_path:
+        description: Caminho do arquivo do épico (MD)
+        required: true
+        default: docs/obs/CRD-8-epic.md
+      out_dir:
+        description: Pasta de saída para plano/estado
+        required: true
+        default: out/obs_gatecheck/plan
+  issue_comment:
+    types: [created]
 
 permissions:
-contents: read
-actions: write
-
+  contents: read
+  actions: write
 
 concurrency:
-group: plan-${{ github.ref }}
-cancel-in-progress: true
-
+  group: plan-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-plan:
-if: github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, '/crd plan')
-runs-on: ubuntu-latest
-timeout-minutes: 10
-steps:
-- uses: actions/checkout@v4
+  plan:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, '/crd plan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
+    steps:
+      - uses: actions/checkout@v4
 
-- name: Resolver inputs (IssueOps)
-id: io
-run: |
-EPIC_PATH="${{ github.event.inputs.epic_path }}"
-OUT_DIR="${{ github.event.inputs.out_dir }}"
-if [ -z "$EPIC_PATH" ] && [ "${{ github.event_name }}" = "issue_comment" ]; then
-EPIC_PATH=$(echo "${{ github.event.comment.body }}" | awk '{print $3}')
-fi
-if [ -z "$OUT_DIR" ]; then OUT_DIR="out/obs_gatecheck/plan"; fi
-echo "epic_path=$EPIC_PATH" >> $GITHUB_OUTPUT
-echo "out_dir=$OUT_DIR" >> $GITHUB_OUTPUT
+      - name: Resolver inputs (IssueOps)
+        id: io
+        run: |
+          EPIC_PATH="${{ github.event.inputs.epic_path }}"
+          OUT_DIR="${{ github.event.inputs.out_dir }}"
 
+          if [ -z "$EPIC_PATH" ] && [ "${{ github.event_name }}" = "issue_comment" ]; then
+            EPIC_PATH=$(echo "${{ github.event.comment.body }}" | awk '{print $3}')
+          fi
 
-- name: Validar caminhos
-run: |
-test -f "${{ steps.io.outputs.epic_path }}" || { echo "::error::Épico não encontrado: ${{ steps.io.outputs.epic_path }}"; exit 1; }
-mkdir -p "${{ steps.io.outputs.out_dir }}"
+          if [ -z "$OUT_DIR" ]; then
+            OUT_DIR="out/obs_gatecheck/plan"
+          fi
 
+          echo "epic_path=$EPIC_PATH" >> "$GITHUB_OUTPUT"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
 
-- name: Extrair OBS-* e T*
-id: extract
-run: |
-EPIC="${{ steps.io.outputs.epic_path }}"
-OBS=$(grep -Eo 'OBS-[0-9]+' "$EPIC" | sort -u | tr '\n' ',' | sed 's/,$//')
-GATES=$(grep -Eo 'T[0-9]+' "$EPIC" | sort -u | tr '\n' ',' | sed 's/,$//')
-echo "obs=$OBS" >> $GITHUB_OUTPUT
-echo "gates=$GATES" >> $GITHUB_OUTPUT
+      - name: Validar caminhos
+        run: |
+          test -f "${{ steps.io.outputs.epic_path }}" || {
+            echo "::error::Épico não encontrado: ${{ steps.io.outputs.epic_path }}"
+            exit 1
+          }
+          mkdir -p "${{ steps.io.outputs.out_dir }}"
 
+      - name: Extrair OBS-* e T*
+        id: extract
+        run: |
+          EPIC="${{ steps.io.outputs.epic_path }}"
+          OBS=$(grep -Eo 'OBS-[0-9]+' "$EPIC" | sort -u | tr '\n' ',' | sed 's/,$//')
+          GATES=$(grep -Eo 'T[0-9]+' "$EPIC" | sort -u | tr '\n' ',' | sed 's/,$//')
+          echo "obs=$OBS" >> "$GITHUB_OUTPUT"
+          echo "gates=$GATES" >> "$GITHUB_OUTPUT"
 
-- name: Gerar grafo e estado
-env:
-OUT_DIR: ${{ steps.io.outputs.out_dir }}
-run: |
-cat > "$OUT_DIR/crd_task_graph.json" <<JSON
-{"epic":"${{ steps.io.outputs.epic_path }}","version":"v4","tasks":[${{ steps.extract.outputs.obs }}],"gates":[${{ steps.extract.outputs.gates }}]}
-JSON
-cat > "$OUT_DIR/state.json" <<JSON
-{"epic":"${{ steps.io.outputs.epic_path }}","version":"v4","last_phase":"T0","waves_completed":0,"completed":[],"partial":[],"missing":[]}
-JSON
-echo PLAN_OK
+      - name: Gerar grafo e estado
+        env:
+          OUT_DIR: ${{ steps.io.outputs.out_dir }}
+        run: |
+          cat > "$OUT_DIR/crd_task_graph.json" <<JSON
+          {
+            "epic": "${{ steps.io.outputs.epic_path }}",
+            "version": "v4",
+            "tasks": [${{ steps.extract.outputs.obs }}],
+            "gates": [${{ steps.extract.outputs.gates }}]
+          }
+          JSON
 
+          cat > "$OUT_DIR/state.json" <<JSON
+          {
+            "epic": "${{ steps.io.outputs.epic_path }}",
+            "version": "v4",
+            "last_phase": "T0",
+            "waves_completed": 0,
+            "completed": [],
+            "partial": [],
+            "missing": []
+          }
+          JSON
 
-- name: Publicar artefatos (plan)
-uses: actions/upload-artifact@v4
-with:
-name: crd-epic-plan-${{ github.ref_name }}-${{ github.run_id }}
-path: ${{ steps.io.outputs.out_dir }}/
-retention-days: 14
+          echo "PLAN_OK"
 
+      - name: Publicar artefatos (plan)
+        uses: actions/upload-artifact@v4
+        with:
+          name: crd-epic-plan-${{ github.ref_name }}-${{ github.run_id }}
+          path: ${{ steps.io.outputs.out_dir }}/
+          retention-days: 14
 
-- name: Summary
-run: |
-echo "### CRD Plan" >> $GITHUB_STEP_SUMMARY
-echo "**Épico:** ${{ steps.io.outputs.epic_path }}" >> $GITHUB_STEP_SUMMARY
-echo "**Tasks:** ${{ steps.extract.outputs.obs }}" >> $GITHUB_STEP_SUMMARY
-echo "**Gates:** ${{ steps.extract.outputs.gates }}" >> $GITHUB_STEP_SUMMARY
+      - name: Summary
+        run: |
+          {
+            echo "### CRD Plan"
+            echo "**Épico:** ${{ steps.io.outputs.epic_path }}"
+            echo "**Tasks:** ${{ steps.extract.outputs.obs }}"
+            echo "**Gates:** ${{ steps.extract.outputs.gates }}"
+          } >> "$GITHUB_STEP_SUMMARY"
