@@ -3,36 +3,13 @@ name: CRD Epic - Exec
 on:
   workflow_dispatch:
     inputs:
-      profile:
-        description: Perfil (fast | full)
-        type: choice
-        default: fast
-        options: [fast, full]
-      environment:
-        description: Ambiente alvo (dev | staging)
-        type: choice
-        default: dev
-        options: [dev, staging]
-      epic_path:
-        description: Caminho do arquivo do épico (MD)
-        required: true
-        default: docs/obs/CRD-8-epic.md
-      agents_md:
-        description: Caminho do AGENTS.md
-        required: true
-        default: AGENTS.md
-      run_matrix:
-        description: Executar matriz?
-        type: boolean
-        default: false
-      project_dir:
-        description: Subdiretório do projeto que contém os scripts
-        required: false
-        default: .
-      scripts_dir:
-        description: Caminho da pasta scripts relativo ao project_dir (vazio = auto-descobrir)
-        required: false
-        default: ""
+      profile: { description: Perfil (fast | full), type: choice, default: fast, options: [fast, full] }
+      environment: { description: Ambiente (dev | staging), type: choice, default: dev, options: [dev, staging] }
+      epic_path: { description: Caminho do épico (MD), required: true, default: docs/obs/CRD-8-epic.md }
+      agents_md: { description: Caminho do AGENTS.md, required: true, default: AGENTS.md }
+      run_matrix: { description: Executar matriz?, type: boolean, default: false }
+      project_dir: { description: Subdiretório do projeto, required: false, default: . }
+      scripts_dir: { description: Pasta de scripts relativa ao project_dir, required: false, default: scripts }
   issue_comment:
     types: [created]
 
