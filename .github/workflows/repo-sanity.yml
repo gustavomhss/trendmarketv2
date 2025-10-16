@@ -1,0 +1,30 @@
+name: Repo — Sanity (canonical & denylist)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  repo-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run repo guard (denylist)
+        shell: bash
+        run: bash scripts/ci_repo_guard.sh
+
+      - name: Upload guard report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-guard-report
+          path: out/repo_guard/**/*.txt
