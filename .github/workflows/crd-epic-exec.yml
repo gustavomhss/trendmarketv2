@@ -1,3 +1,4 @@
+# .github/workflows/crd-epic-exec.yml
 name: CRD Epic - Exec
 on:
   workflow_dispatch:
@@ -29,8 +30,7 @@ on:
         type: boolean
         default: false
   issue_comment:
-    types:
-      - created
+    types: [created]
 
 permissions:
   contents: read
@@ -51,16 +51,41 @@ jobs:
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
 
-  exec_matrix:
+  exec_fast_dev:
     if: (github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'true') || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix'))
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [fast, full]
-        environment: [dev, staging]
     uses: ./.github/workflows/_crd-orr.yml
     with:
-      profile: ${{ matrix.profile }}
-      environment: ${{ matrix.environment }}
+      profile: fast
+      environment: dev
+      epic_path: ${{ inputs.epic_path }}
+      agents_md: ${{ inputs.agents_md }}
+
+  exec_full_dev:
+    needs: exec_fast_dev
+    if: (github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'true') || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix'))
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+      profile: full
+      environment: dev
+      epic_path: ${{ inputs.epic_path }}
+      agents_md: ${{ inputs.agents_md }}
+
+  exec_fast_staging:
+    needs: exec_full_dev
+    if: (github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'true') || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix'))
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+      profile: fast
+      environment: staging
+      epic_path: ${{ inputs.epic_path }}
+      agents_md: ${{ inputs.agents_md }}
+
+  exec_full_staging:
+    needs: exec_fast_staging
+    if: (github.event_name == 'workflow_dispatch' && inputs.run_matrix == 'true') || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix'))
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+      profile: full
+      environment: staging
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
