@@ -1,3 +1,4 @@
+# .github/workflows/_crd-orr.yml
 name: _CRD ORR (Reusable)
 on:
   workflow_call:
@@ -9,6 +10,22 @@ on:
         type: boolean
         required: false
         default: true
+      profile:
+        type: string
+        required: false
+        default: fast
+      environment:
+        type: string
+        required: false
+        default: dev
+      epic_path:
+        type: string
+        required: false
+        default: docs/obs/CRD-8-epic.md
+      agents_md:
+        type: string
+        required: false
+        default: AGENTS.md
 permissions:
   contents: read
 jobs:
@@ -19,15 +36,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
-      - name: Setup Python 3_11
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Run ORR
         shell: bash
         env:
-          RUN_BUNDLE: ${{ inputs.run_bundle }}
+          RUN_BUNDLE: ${{ inputs.run_bundle && '1' || '0' }}
+          PROFILE: ${{ inputs.profile }}
+          TARGET_ENV: ${{ inputs.environment }}
+          EPIC_PATH: ${{ inputs.epic_path }}
+          AGENTS_MD: ${{ inputs.agents_md }}
         run: |
           set -euo pipefail
           scripts/orr_env_probe.sh "$@"
@@ -40,6 +62,6 @@ jobs:
           scripts/orr_t6_metrics_run.sh "$@"
           scripts/orr_t7_ci_prep.sh "$@"
           scripts/orr_t7_collect_ci.sh "$@"
-          if [ "${RUN_BUNDLE}" = "true" ]; then
+          if [ "${RUN_BUNDLE}" = "1" ]; then
             scripts/orr_t8_bundle.sh "$@"
           fi
