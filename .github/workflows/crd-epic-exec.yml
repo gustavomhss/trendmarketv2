@@ -46,7 +46,7 @@ jobs:
       environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
-      project_repo: gustavomhss/credit-engine-core
+      project_repo: gustavomhss/trendmarketv2
       project_ref: main
       project_dir: .
 
@@ -63,6 +63,6 @@ jobs:
       environment: ${{ matrix.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
-      project_repo: gustavomhss/credit-engine-core
+      project_repo: gustavomhss/trendmarketv2
       project_ref: main
       project_dir: .
