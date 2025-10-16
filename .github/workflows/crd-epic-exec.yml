@@ -26,11 +26,11 @@ on:
         type: boolean
         default: false
       project_dir:
-        description: Subdiretório do projeto no repo alvo
+        description: Subdiretório do projeto que contém os scripts
         required: false
         default: .
       scripts_dir:
-        description: Caminho da pasta scripts relativa ao project_dir
+        description: Caminho da pasta scripts relativo ao project_dir (vazio = auto-descobrir)
         required: false
         default: ""
   issue_comment:
@@ -54,8 +54,6 @@ jobs:
       environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
-      project_repo: gustavomhss/trendmarketv2
-      project_ref: main
       project_dir: ${{ inputs.project_dir }}
       scripts_dir: ${{ inputs.scripts_dir }}
 
@@ -72,7 +70,5 @@ jobs:
       environment: ${{ matrix.environment }}
       epic_path: ${{ inputs.epic_path }}
       agents_md: ${{ inputs.agents_md }}
-      project_repo: gustavomhss/trendmarketv2
-      project_ref: main
       project_dir: ${{ inputs.project_dir }}
       scripts_dir: ${{ inputs.scripts_dir }}
