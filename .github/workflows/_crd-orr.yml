@@ -1,3 +1,4 @@
+# .github/workflows/_crd-orr.yml
 name: _CRD ORR (Reusable)
 on:
   workflow_call:
@@ -29,46 +30,58 @@ on:
         type: string
         required: false
         default: .
+      project_repo:
+        type: string
+        required: false
+        default: ""
+      project_ref:
+        type: string
+        required: false
+        default: ""
 permissions:
   contents: read
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout caller repo
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
           submodules: recursive
 
-      - name: Trace workspace
-        shell: bash
-        run: |
-          set -euo pipefail
-          pwd
-          ls -la
+      - name: Checkout scripts repo (optional)
+        if: ${{ inputs.project_repo != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.project_repo }}
+          ref: ${{ inputs.project_ref || 'main' }}
+          path: _project
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Locate project dir
         id: locate
         shell: bash
         run: |
           set -euo pipefail
-          CANDIDATE="${{ inputs.project_dir }}"
-          if [ -x "$CANDIDATE/scripts/orr_env_probe.sh" ]; then
-            echo "dir=$CANDIDATE" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          FOUND=""
-          if MAP="$(git ls-files '*/scripts/orr_env_probe.sh' | head -n1)"; then
-            [ -n "$MAP" ] && FOUND="$(dirname "$(dirname "$MAP")")"
-          fi
-          if [ -z "$FOUND" ]; then
-            echo "::error::scripts/orr_env_probe.sh não encontrado; defina inputs.project_dir ou ajuste caminhos"
-            ls -R | sed -n '1,200p'
+          base="."
+          if [ -n "${{ inputs.project_repo }}" ]; then base="_project"; fi
+          dir="$base/${{ inputs.project_dir }}"
+          if [ ! -d "$dir" ]; then
+            echo "::error::project_dir não existe: $dir"
             exit 1
           fi
-          echo "dir=$FOUND" >> "$GITHUB_OUTPUT"
+          if [ ! -f "$dir/scripts/orr_env_probe.sh" ]; then
+            map="$(cd "$dir" && git ls-files '*/scripts/orr_env_probe.sh' | head -n1 || true)"
+            if [ -n "$map" ]; then dir="$dir/$(dirname "$(dirname "$map")")"; fi
+          fi
+          if [ ! -f "$dir/scripts/orr_env_probe.sh" ]; then
+            echo "::error::scripts/orr_env_probe.sh não encontrado em $dir"
+            exit 1
+          fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
