@@ -1,0 +1,7 @@
+# Qualquer menção ao repositório antigo deve falhar o CI
+credit-engine-core
+credit engine core
+creditenginecore
+https://github.com/.*/credit-engine-core
+
+# (Opcional) adicione aliases/variantes aqui
