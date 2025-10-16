@@ -4,13 +4,11 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: Git ref to checkout
-        required: false
         type: string
-      run_bundle:
-        description: Run the T8 bundle step
         required: false
+      run_bundle:
         type: boolean
+        required: false
         default: true
 
 permissions:
@@ -38,27 +36,27 @@ jobs:
           set -euo pipefail
           if [ ! -f scripts/orr_all.sh ]; then
             mkdir -p scripts
-            cat <<'SH' > scripts/orr_all.sh
-#!/usr/bin/env bash
-set -euo pipefail
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
-
-scripts/orr_env_probe.sh "$@"
-scripts/orr_t1_run.sh "$@"
-python3 scripts/orr_t2_parse_unit.py "$@"
-scripts/orr_t3_props_run.sh "$@"
-scripts/orr_t4_goldens_run.sh "$@"
-scripts/orr_t5_bench_run.sh "$@"
-python3 scripts/orr_t5_collect_criterion.py "$@"
-scripts/orr_t6_metrics_run.sh "$@"
-scripts/orr_t7_ci_prep.sh "$@"
-scripts/orr_t7_collect_ci.sh "$@"
-if [ "${RUN_BUNDLE:-1}" = "1" ]; then
-  scripts/orr_t8_bundle.sh "$@"
-fi
-SH
+            printf '%s\n' \
+'#!/usr/bin/env bash' \
+'set -euo pipefail' \
+'' \
+'ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"' \
+'cd "$ROOT_DIR"' \
+'' \
+'scripts/orr_env_probe.sh "$@"' \
+'scripts/orr_t1_run.sh "$@"' \
+'python3 scripts/orr_t2_parse_unit.py "$@"' \
+'scripts/orr_t3_props_run.sh "$@"' \
+'scripts/orr_t4_goldens_run.sh "$@"' \
+'scripts/orr_t5_bench_run.sh "$@"' \
+'python3 scripts/orr_t5_collect_criterion.py "$@"' \
+'scripts/orr_t6_metrics_run.sh "$@"' \
+'scripts/orr_t7_ci_prep.sh "$@"' \
+'scripts/orr_t7_collect_ci.sh "$@"' \
+'if [ "${RUN_BUNDLE:-1}" = "1" ]; then' \
+'  scripts/orr_t8_bundle.sh "$@"' \
+'fi' \
+> scripts/orr_all.sh
             chmod +x scripts/orr_all.sh
           fi
 
