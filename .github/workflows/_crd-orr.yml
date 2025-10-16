@@ -1,4 +1,3 @@
-# .github/workflows/_crd-orr.yml
 name: _CRD ORR (Reusable)
 on:
   workflow_call:
@@ -26,11 +25,14 @@ on:
         type: string
         required: false
         default: AGENTS.md
+      project_dir:
+        type: string
+        required: false
+        default: .
 permissions:
   contents: read
 jobs:
   run:
-    name: run
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,12 +40,55 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
+          submodules: recursive
+
+      - name: Trace workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwd
+          ls -la
+
+      - name: Locate project dir
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          CANDIDATE="${{ inputs.project_dir }}"
+          if [ -x "$CANDIDATE/scripts/orr_env_probe.sh" ]; then
+            echo "dir=$CANDIDATE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          FOUND=""
+          if MAP="$(git ls-files '*/scripts/orr_env_probe.sh' | head -n1)"; then
+            [ -n "$MAP" ] && FOUND="$(dirname "$(dirname "$MAP")")"
+          fi
+          if [ -z "$FOUND" ]; then
+            echo "::error::scripts/orr_env_probe.sh não encontrado; defina inputs.project_dir ou ajuste caminhos"
+            ls -R | sed -n '1,200p'
+            exit 1
+          fi
+          echo "dir=$FOUND" >> "$GITHUB_OUTPUT"
+
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Preflight
+        shell: bash
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          set -euo pipefail
+          for f in scripts/orr_env_probe.sh scripts/orr_t1_run.sh scripts/orr_t3_props_run.sh scripts/orr_t4_goldens_run.sh scripts/orr_t5_bench_run.sh scripts/orr_t6_metrics_run.sh scripts/orr_t7_ci_prep.sh scripts/orr_t7_collect_ci.sh; do
+            [ -x "$f" ] || { echo "::error file=$f::missing or not executable"; exit 1; }
+          done
+          [ -f scripts/orr_t2_parse_unit.py ] || { echo "::error file=scripts/orr_t2_parse_unit.py::missing"; exit 1; }
+          [ "${{ inputs.run_bundle && '1' || '0' }}" = "0" ] || [ -x scripts/orr_t8_bundle.sh ] || { echo "::error file=scripts/orr_t8_bundle.sh::missing"; exit 1; }
+
       - name: Run ORR
         shell: bash
+        working-directory: ${{ steps.locate.outputs.dir }}
         env:
           RUN_BUNDLE: ${{ inputs.run_bundle && '1' || '0' }}
           PROFILE: ${{ inputs.profile }}
