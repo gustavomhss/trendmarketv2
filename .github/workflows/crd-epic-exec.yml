@@ -22,9 +22,17 @@ on:
         required: true
         default: AGENTS.md
       run_matrix:
-        description: Executar matriz (fast/full × dev/staging)?
+        description: Executar matriz?
         type: boolean
         default: false
+      project_dir:
+        description: Subdiretório do projeto no repo alvo
+        required: false
+        default: .
+      scripts_dir:
+        description: Caminho da pasta scripts relativa ao project_dir
+        required: false
+        default: ""
   issue_comment:
     types: [created]
 
@@ -48,7 +56,8 @@ jobs:
       agents_md: ${{ inputs.agents_md }}
       project_repo: gustavomhss/trendmarketv2
       project_ref: main
-      project_dir: .
+      project_dir: ${{ inputs.project_dir }}
+      scripts_dir: ${{ inputs.scripts_dir }}
 
   exec_matrix:
     if: ${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false')) || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
@@ -65,4 +74,5 @@ jobs:
       agents_md: ${{ inputs.agents_md }}
       project_repo: gustavomhss/trendmarketv2
       project_ref: main
-      project_dir: .
+      project_dir: ${{ inputs.project_dir }}
+      scripts_dir: ${{ inputs.scripts_dir }}
