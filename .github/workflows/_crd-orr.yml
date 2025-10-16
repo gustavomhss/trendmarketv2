@@ -4,15 +4,14 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: "Git ref to checkout"
+        description: Git ref to checkout
         required: false
         type: string
-      run-bundle:
-        description: "Run the T8 bundle step"
+      run_bundle:
+        description: Run the T8 bundle step
         required: false
         type: boolean
         default: true
-    secrets: {}  # opcional
 
 permissions:
   contents: read
@@ -25,10 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Em workflow reutilizável, por padrão faria checkout do repo chamado.
-          # Se você quer o repositório do CHAMADOR, mantenha a linha abaixo.
-          repository: ${{ github.repository }}
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
 
       - name: Setup Python 3.11
@@ -50,7 +46,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 scripts/orr_env_probe.sh "$@"
-
 scripts/orr_t1_run.sh "$@"
 python3 scripts/orr_t2_parse_unit.py "$@"
 scripts/orr_t3_props_run.sh "$@"
@@ -70,10 +65,9 @@ SH
       - name: Executar ORR completo
         shell: bash
         env:
-          RUN_BUNDLE: ${{ inputs['run-bundle'] && '1' || '0' }}
+          RUN_BUNDLE: ${{ inputs.run_bundle && '1' || '0' }}
         run: |
           set -euo pipefail
-          # Opcional: verificação defensiva para não explodir se faltarem scripts
           for f in scripts/orr_env_probe.sh scripts/orr_t1_run.sh scripts/orr_t3_props_run.sh scripts/orr_t4_goldens_run.sh scripts/orr_t5_bench_run.sh scripts/orr_t6_metrics_run.sh scripts/orr_t7_ci_prep.sh scripts/orr_t7_collect_ci.sh; do
             [ -x "$f" ] || { echo "::error file=$f::arquivo ausente ou sem execução"; exit 1; }
           done
