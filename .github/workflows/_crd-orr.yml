@@ -44,19 +44,16 @@ jobs:
           --health-interval=5s
           --health-timeout=2s
           --health-retries=30
-
       otelcol:
         image: otel/opentelemetry-collector-contrib:latest
         ports:
           - "13133:13133"
           - "4317:4317"
           - "4318:4318"
-
       loki:
         image: grafana/loki:2.9.4
         ports:
           - "3100:3100"
-
       tempo:
         image: grafana/tempo:latest
         ports:
@@ -91,7 +88,7 @@ jobs:
 set -euo pipefail
 OUT="out/obs_gatecheck"; EVI="$OUT/evidence"; LOG="$OUT/logs"; mkdir -p "$EVI" "$LOG"
 : "${RUN_PROFILE:=fast}"
-echo "[Planner] lendo $EPIC_PATH" | tee "$LOG/plan.txt"
+echo "[Planner] lendo ${EPIC_PATH}" | tee "$LOG/plan.txt"
 echo "T1_OK" | tee "$LOG/t1.txt"
 echo "T2_OK" | tee "$LOG/t2.txt"
 ( cd "$OUT" && zip -qr bundle.zip evidence logs || true )
