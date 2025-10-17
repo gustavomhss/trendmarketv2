@@ -11,6 +11,19 @@ if not STATE_PATH.exists():
     sys.exit("amm_obs_state.json is missing; run T2 first")
 
 state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+level = state.get("meta", {}).get("observability_level", "full").lower()
+if level != "full":
+    payload = {
+        "total_spans": len(state.get("spans", [])),
+        "correlated_entries": [],
+        "correlated_ratio": None,
+        "observability_level": level,
+        "skipped": True,
+    }
+    OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print("TRACE_LOG_SMOKE_OK")
+    sys.exit(0)
+
 spans = state.get("spans", [])
 logs = state.get("logs", [])
 log_index = {(entry["trace_id"], entry["span_id"]): entry for entry in logs}

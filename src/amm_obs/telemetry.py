@@ -113,6 +113,68 @@ _LABEL_ORDER: Dict[str, Tuple[str, ...]] = {
     "hook_coverage_ratio": ("env",),
 }
 
+CARDINALITY_BUDGET: Dict[str, Dict[str, float]] = {
+    "amm_op_latency_seconds_bucket": {"budget": 400.0},
+    "data_freshness_seconds": {"budget": 180.0},
+    "cdc_lag_seconds": {"budget": 320.0},
+    "drift_score": {"budget": 80.0},
+    "hook_coverage_ratio": {"budget": 10.0},
+    "hook_executions_total": {"budget": 200.0},
+}
+
+SCRAPE_INTERVAL_SECONDS = 15
+RETENTION_DAYS = 30
+PRICE_PER_MILLION_SAMPLES = 0.30
+
+_SAMPLES_PER_DAY = 86400 / SCRAPE_INTERVAL_SECONDS
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_LOG_DENYLIST_PATH = _REPO_ROOT / "ops" / "security" / "log_denylist.json"
+
+
+def _load_log_policies() -> Tuple[Set[str], Tuple[str, ...]]:
+    try:
+        payload = json.loads(_LOG_DENYLIST_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return set(), tuple()
+    keys = {
+        key.strip().lower()
+        for key in payload.get("deny_keys", [])
+        if isinstance(key, str)
+    }
+    substrings = tuple(
+        entry.strip().lower()
+        for entry in payload.get("deny_substrings", [])
+        if isinstance(entry, str)
+    )
+    return keys, substrings
+
+
+_DENY_KEYS, _DENY_SUBSTRINGS = _load_log_policies()
+
+
+def _sanitize_value(value: object) -> object:
+    if isinstance(value, str):
+        lower = value.lower()
+        if any(token in lower for token in _DENY_SUBSTRINGS):
+            return "[REDACTED]"
+    return value
+
+
+def _sanitize_log_fields(fields: Dict[str, object]) -> Dict[str, object]:
+    sanitized: Dict[str, object] = {}
+    for key, value in fields.items():
+        if key.lower() in _DENY_KEYS:
+            continue
+        sanitized[key] = _sanitize_value(value)
+    return sanitized
+
+
+def _sanitize_message(message: str) -> str:
+    if any(token in message.lower() for token in _DENY_SUBSTRINGS):
+        return "[REDACTED]"
+    return message
+
 # --- Helper utilities --------------------------------------------------------
 
 
@@ -159,10 +221,17 @@ class AMMObservability:
         version: str = "v0.1.0",
         seed: int = 202402,
         operation_profile: Optional[Dict[str, Iterable[float]]] = None,
+        observability_level: Optional[str] = None,
     ) -> None:
         self.env = env
         self.service = service
         self.version = version
+        level = (observability_level or os.getenv("OBSERVABILITY_LEVEL", "full")).lower()
+        if level not in {"off", "min", "full"}:
+            raise ValueError(
+                "observability_level must be one of {'off','min','full'}"
+            )
+        self._level = level
         profile = operation_profile or DEFAULT_OPERATION_PROFILE
         self._profile: Dict[str, List[float]] = {
             op: list(values) for op, values in profile.items()
@@ -230,6 +299,20 @@ class AMMObservability:
                 attributes=attributes,
                 route=route,
             )
+            if self._level != "off":
+                self._events.append(event)
+            if self._level in {"min", "full"}:
+                self._latency_records.setdefault(op, []).append(latency)
+                self._record_hook_activity(op)
+                # Capture the first observation per operation as exemplar to link
+                # metrics with traces/logs deterministically.
+                if op not in self._exemplars:
+                    self._exemplars[op] = {
+                        "trace_id": trace_id,
+                        "span_id": span_id,
+                        "latency_seconds": latency,
+                        "start_time": event.start_time,
+                    }
             self._events.append(event)
             self._latency_records.setdefault(op, []).append(latency)
             self._record_hook_activity(op)
@@ -273,6 +356,15 @@ class AMMObservability:
                 "p95": _round(self._quantile(values, 0.95)),
                 "buckets": self._bucket_counts(values),
             }
+        supporting: Dict[str, object] = {}
+        if self._level in {"min", "full"}:
+            supporting = {
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
+                "drift_score": self._samples_to_dict(self._drift_scores),
+                "hook_executions_total": self._counter_samples(),
+                "hook_coverage_ratio": self._hook_coverage_snapshot(),
+            }
         return {
             "metric": "amm_op_latency_seconds",
             "unit": "seconds",
@@ -283,6 +375,15 @@ class AMMObservability:
             },
             "operations": ops_snapshot,
             "exemplars": self._exemplars,
+            "supporting": supporting,
+            "observability_level": self._level,
+            "cardinality": self.cardinality_breakdown(),
+        }
+
+    def export_prometheus(self) -> str:
+        if self._level == "off":
+            return "# Observability disabled (level=off)\n"
+
             "supporting": {
                 "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
                 "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
@@ -314,6 +415,7 @@ class AMMObservability:
             lines.append(
                 f"amm_op_latency_seconds_count{{{self._label_pairs(op)}}} {total}"
             )
+        if self._level in {"min", "full"} and self._data_freshness:
         if self._data_freshness:
             lines.extend(
                 [
@@ -326,6 +428,7 @@ class AMMObservability:
                 lines.append(
                     f"data_freshness_seconds{{{self._format_metric_labels('data_freshness_seconds', sample['labels'])}}} {sample['value']}"
                 )
+        if self._level in {"min", "full"} and self._cdc_lag:
         if self._cdc_lag:
             lines.extend(
                 [
@@ -338,6 +441,7 @@ class AMMObservability:
                 lines.append(
                     f"cdc_lag_seconds{{{self._format_metric_labels('cdc_lag_seconds', sample['labels'])}}} {sample['value']}"
                 )
+        if self._level in {"min", "full"} and self._drift_scores:
         if self._drift_scores:
             lines.extend(
                 [
@@ -349,6 +453,7 @@ class AMMObservability:
                 lines.append(
                     f"drift_score{{{self._format_metric_labels('drift_score', sample['labels'])}}} {sample['value']}"
                 )
+        if self._level in {"min", "full"} and self._hook_executions:
         if self._hook_executions:
             lines.extend(
                 [
@@ -367,6 +472,7 @@ class AMMObservability:
                 lines.append(
                     f"hook_executions_total{{{self._format_metric_labels('hook_executions_total', sample['labels'])}}} {sample['value']}"
                 )
+        if self._level in {"min", "full"} and self._hook_coverage is not None:
         if self._hook_coverage is not None:
             lines.extend(
                 [
@@ -377,6 +483,52 @@ class AMMObservability:
             lines.append(
                 f"hook_coverage_ratio{{{self._format_metric_labels('hook_coverage_ratio', self._hook_coverage['labels'])}}} {self._hook_coverage['value']}"
             )
+        breakdown = self.cardinality_breakdown()
+        metrics = breakdown.get("metrics", {})
+        if metrics:
+            lines.extend(
+                [
+                    "# HELP observability_series_budget_ratio Series usage against budget",
+                    "# TYPE observability_series_budget_ratio gauge",
+                ]
+            )
+            for metric, payload in metrics.items():
+                ratio = payload.get("ratio")
+                if ratio is None:
+                    continue
+                lines.append(
+                    f"observability_series_budget_ratio{{metric=\"{metric}\"}} {ratio}"
+                )
+            lines.extend(
+                [
+                    "# HELP observability_cost_estimate_usd Estimated monthly cost per metric",
+                    "# TYPE observability_cost_estimate_usd gauge",
+                ]
+            )
+            for metric, payload in metrics.items():
+                cost = payload.get("est_usd_month")
+                if cost is None:
+                    continue
+                lines.append(
+                    f"observability_cost_estimate_usd{{metric=\"{metric}\"}} {cost}"
+                )
+            total = breakdown.get("total_estimated_usd_month")
+            if total is not None:
+                lines.append(
+                    "# HELP observability_cost_estimate_usd_total Estimated monthly cost across metrics"
+                )
+                lines.append(
+                    "# TYPE observability_cost_estimate_usd_total gauge"
+                )
+                lines.append(
+                    f"observability_cost_estimate_usd_total {total}"
+                )
+        return "\n".join(lines) + "\n"
+
+    def serialize(self) -> Dict[str, object]:
+        spans: List[Dict[str, object]] = []
+        if self._level != "off":
+            spans = [
         return "\n".join(lines) + "\n"
 
     def serialize(self) -> Dict[str, object]:
@@ -399,6 +551,108 @@ class AMMObservability:
                     "attributes": e.attributes,
                 }
                 for e in self._events
+            ]
+        logs: List[Dict[str, object]] = []
+        if self._level == "full":
+            for e in self._events:
+                fields = _sanitize_log_fields(
+                    {
+                        "op": e.op,
+                        "latency_seconds": e.latency_seconds,
+                        "status": e.status,
+                    }
+                )
+                logs.append(
+                    {
+                        "trace_id": e.trace_id,
+                        "span_id": e.span_id,
+                        "timestamp": e.start_time,
+                        "level": "INFO" if e.status == "OK" else "ERROR",
+                        "message": _sanitize_message(f"{e.op} completed"),
+                        "fields": fields,
+                    }
+                )
+        return {
+            "meta": {
+                "env": self.env,
+                "service": self.service,
+                "version": self.version,
+                "generated_at": _format_ts(_utc_now()),
+                "observability_level": self._level,
+            },
+            "spans": spans,
+            "logs": logs,
+            "metrics": {
+                "amm_op_latency_seconds": self.metrics_snapshot(),
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness)
+                if self._level in {"min", "full"}
+                else [],
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag)
+                if self._level in {"min", "full"}
+                else [],
+                "drift_score": self._samples_to_dict(self._drift_scores)
+                if self._level in {"min", "full"}
+                else [],
+                "hook_executions_total": self._counter_samples()
+                if self._level in {"min", "full"}
+                else [],
+                "hook_coverage_ratio": self._hook_coverage_snapshot()
+                if self._level in {"min", "full"}
+                else {},
+                "cardinality": self.cardinality_breakdown(),
+            },
+        }
+
+    def cardinality_breakdown(self) -> Dict[str, object]:
+        metrics: Dict[str, Dict[str, object]] = {}
+        # Histogram buckets (including +Inf) per operation.
+        histogram_series = len(self._profile) * (len(HISTOGRAM_BUCKETS) + 1)
+        metrics["amm_op_latency_seconds_bucket"] = {"series": float(histogram_series)}
+        metrics["data_freshness_seconds"] = {
+            "series": float(len(self._data_freshness)),
+        }
+        metrics["cdc_lag_seconds"] = {
+            "series": float(len(self._cdc_lag)),
+        }
+        metrics["drift_score"] = {
+            "series": float(len(self._drift_scores)),
+        }
+        hook_exec_series = float(
+            len({(hook, status) for hooks in HOOK_EXECUTIONS_BY_OPERATION.values() for hook, status in hooks})
+        )
+        metrics["hook_executions_total"] = {"series": hook_exec_series}
+        metrics["hook_coverage_ratio"] = {"series": 1.0}
+
+        total_cost = 0.0
+        max_ratio = 0.0
+        worst_metric = None
+        for metric, payload in metrics.items():
+            series = payload["series"]
+            budget = CARDINALITY_BUDGET.get(metric, {}).get("budget")
+            if budget:
+                ratio = round(series / budget, 4)
+                payload["budget"] = budget
+                payload["ratio"] = ratio
+                if ratio > max_ratio:
+                    max_ratio = ratio
+                    worst_metric = metric
+            cost = round(
+                series * _SAMPLES_PER_DAY * RETENTION_DAYS * PRICE_PER_MILLION_SAMPLES / 1e6,
+                2,
+            )
+            payload["est_usd_month"] = cost
+            total_cost += cost
+
+        return {
+            "metrics": metrics,
+            "price_per_million_samples": PRICE_PER_MILLION_SAMPLES,
+            "retention_days": RETENTION_DAYS,
+            "scrape_interval_seconds": SCRAPE_INTERVAL_SECONDS,
+            "total_estimated_usd_month": round(total_cost, 2),
+            "max_ratio": max_ratio,
+            "max_ratio_metric": worst_metric,
+        }
+
             ],
             "logs": [
                 {
@@ -593,6 +847,7 @@ def run_dev_server(
         env=env or os.getenv("OBS_ENV", "dev"),
         service=service or os.getenv("OBS_SERVICE", "trendmarket-amm"),
         version=version or os.getenv("OBS_VERSION", "v0.1.0"),
+        observability_level=os.getenv("OBSERVABILITY_LEVEL", "full"),
     )
     telemetry.simulate_unit_load()
 

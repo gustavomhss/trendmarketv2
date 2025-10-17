@@ -19,6 +19,7 @@ obs = AMMObservability(
     env=os.getenv("OBS_ENV", "dev"),
     service=os.getenv("OBS_SERVICE", "trendmarket-amm"),
     version=os.getenv("OBS_VERSION", "v0.1.0"),
+    observability_level=os.getenv("OBSERVABILITY_LEVEL", "full"),
 )
 obs.simulate_unit_load()
 obs.write_metrics_unit(EVIDENCE / "metrics_unit.json")
@@ -51,6 +52,16 @@ summary = {
     ),
     "hook_coverage_ratio": supporting.get("hook_coverage_ratio", {}).get("value"),
 }
+cardinality = snapshot.get("cardinality", {})
+summary.update(
+    {
+        "total_estimated_cost_usd_month": cardinality.get(
+            "total_estimated_usd_month"
+        ),
+        "max_cardinality_ratio": cardinality.get("max_ratio"),
+        "max_cardinality_metric": cardinality.get("max_ratio_metric"),
+    }
+)
 summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 # Enforce label contract.

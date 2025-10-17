@@ -98,3 +98,27 @@ tests:
     alertname: OBS_Hook_Execution_Stalled
     exp_alerts:
     - exp_labels: { severity: 'warn', team: 'ce', hook_id: 'hook_pre_trade' }
+
+
+- interval: 1m
+  # Cardinalidade excedendo 70% do budget
+  input_series:
+  - series: 'observability_series_budget_ratio{metric="amm_op_latency_seconds_bucket"}'
+    values: '0.6x5 0.8x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: OBS_Cardinality_Budget_Warn
+    exp_alerts:
+    - exp_labels: { severity: 'warn', team: 'ce', metric: 'amm_op_latency_seconds_bucket' }
+
+
+- interval: 1m
+  # Cardinalidade ultrapassando 90% do budget
+  input_series:
+  - series: 'observability_series_budget_ratio{metric="data_freshness_seconds"}'
+    values: '0.5x5 0.95x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: OBS_Cardinality_Budget_Crit
+    exp_alerts:
+    - exp_labels: { severity: 'critical', team: 'ce', metric: 'data_freshness_seconds' }

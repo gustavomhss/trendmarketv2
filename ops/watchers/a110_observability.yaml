@@ -95,3 +95,24 @@ groups:
     annotations:
       summary: "Hook sem execuções em 1h"
       description: "O hook {{ $labels.hook_id }} não executou na última hora. Validar cobertura A110 e jobs dependentes."
+
+  # W-OBS-006 — Cardinalidade e custos
+  - alert: OBS_Cardinality_Budget_Warn
+    expr: max by (metric) (observability_series_budget_ratio{metric=~".+"}) > 0.7
+    for: 15m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Cardinalidade acima de 70% do orçamento"
+      description: "A métrica {{ $labels.metric }} consumiu {{ humanizePercentage $value }} do budget de séries. Reduzir labels ou revisar agregações."
+
+  - alert: OBS_Cardinality_Budget_Crit
+    expr: max by (metric) (observability_series_budget_ratio{metric=~".+"}) > 0.9
+    for: 10m
+    labels:
+      severity: critical
+      team: ce
+    annotations:
+      summary: "Cardinalidade crítica acima de 90%"
+      description: "A métrica {{ $labels.metric }} ultrapassou 90% do budget de séries. Mitigar imediatamente antes do blow-up de custos."

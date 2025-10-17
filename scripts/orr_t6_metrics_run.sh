@@ -10,6 +10,9 @@ cat > "$EVI/watchers_simulation.json" <<'JSON'
     {"alert": "OBS_CDC_Lag_Warn", "reason": "stream orders com lag > 10s"},
     {"alert": "OBS_Drift_Critical_Feature_Warn", "reason": "drift_score price_psi acima de 0.2"},
     {"alert": "OBS_Hook_Coverage_Low", "reason": "hook_coverage_ratio abaixo de 0.95"},
+    {"alert": "OBS_Hook_Execution_Stalled", "reason": "hook_pre_trade sem execuções em 1h"},
+    {"alert": "OBS_Cardinality_Budget_Warn", "reason": "observability_series_budget_ratio > 0.7"},
+    {"alert": "OBS_Cardinality_Budget_Crit", "reason": "observability_series_budget_ratio > 0.9"}
     {"alert": "OBS_Hook_Execution_Stalled", "reason": "hook_pre_trade sem execuções em 1h"}
   ]
 }
