@@ -11,6 +11,11 @@ from amm_obs.release import (
     write_release_manifest,
     write_release_metadata,
     write_release_notes,
+    generate_release_manifest,
+    write_release_manifest,
+    write_release_metadata,
+    generate_release_manifest,
+    write_release_manifest,
 )
 
 
@@ -40,6 +45,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     "profile": "full",
                     "ts": "2025-10-10T00:00:00Z",
                 },
+                {"acceptance": "OK", "gatecheck": "OK", "profile": "full"},
             )
 
             bundle = out_dir / "bundle.zip"
@@ -126,6 +132,7 @@ class ReleaseManifestTests(unittest.TestCase):
             _write_json(
                 out_dir / "summary.json",
                 {"acceptance": "FAIL", "gatecheck": "OK", "ts": "2025-10-10T00:00:00Z"},
+                out_dir / "summary.json", {"acceptance": "FAIL", "gatecheck": "OK"}
             )
 
             with self.assertRaises(ReleaseManifestError) as ctx:
@@ -143,6 +150,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     "gatecheck": "OK",
                     "ts": "2025-10-10T00:00:00Z",
                 },
+                out_dir / "summary.json", {"acceptance": "OK", "gatecheck": "OK"}
             )
             evidence = out_dir / "evidence"
             evidence.mkdir(parents=True, exist_ok=True)

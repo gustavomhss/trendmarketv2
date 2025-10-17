@@ -1,4 +1,5 @@
 """Utilities for generating the CRD-8 release manifest and metadata."""
+"""Utilities for generating the CRD-8 release manifest."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Optional
 
 
 class ReleaseManifestError(RuntimeError):
@@ -502,3 +504,4 @@ def write_release_notes(out_dir: Path) -> Path:
     notes_path = out_dir / "release_notes.md"
     notes_path.write_text(notes, encoding="utf-8")
     return notes_path
+]
