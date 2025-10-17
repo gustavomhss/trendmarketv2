@@ -1,39 +1,47 @@
 receivers:
-otlp:
-protocols:
-http:
-grpc:
+  otlp:
+    protocols:
+      http:
+      grpc:
+
 processors:
-batch: {}
-tailsampling:
-decision_wait: 5s
-policies:
-- name: errors
-type: status_code
-status_code: { status_codes: [ERROR] }
-- name: slow_spans
-type: latency
-latency: { threshold_ms: 100 }
+  batch: {}
+  tailsampling:
+    decision_wait: 5s
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [STATUS_CODE_ERROR]
+      - name: slow_spans
+        type: latency
+        latency:
+          threshold_ms: 100
+
 exporters:
-prometheusremotewrite:
-endpoint: http://127.0.0.1:9090/api/v1/write
-otlp/tempo:
-endpoint: http://127.0.0.1:4317
-tls:
-insecure: true
-loki:
-endpoint: http://127.0.0.1:3100/loki/api/v1/push
+  prometheusremotewrite:
+    endpoint: http://127.0.0.1:9090/api/v1/write
+  otlp/tempo:
+    endpoint: http://127.0.0.1:4317
+    tls:
+      insecure: true
+  loki:
+    endpoint: http://127.0.0.1:3100/loki/api/v1/push
+
 service:
-pipelines:
-metrics:
-receivers: [otlp]
-processors: [batch]
-exporters: [prometheusremotewrite]
-traces:
-receivers: [otlp]
-processors: [batch, tailsampling]
-exporters: [otlp/tempo]
-logs:
-receivers: [otlp]
-processors: [batch]
-exporters: [loki]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite]
+    traces:
+      receivers: [otlp]
+      processors: [batch, tailsampling]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [loki]
