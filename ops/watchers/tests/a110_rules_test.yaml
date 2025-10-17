@@ -13,7 +13,7 @@ tests:
   - eval_time: 15m
     alertname: OBS_P95_Swap_TooHigh
     exp_alerts:
-    - exp_labels: { severity: 'warn', team: 'ce' }
+    - exp_labels: { severity: 'warn', team: 'ce', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -25,7 +25,7 @@ tests:
   - eval_time: 10m
     alertname: OBS_Oracle_Stale
     exp_alerts:
-    - exp_labels: { severity: 'warn', team: 'ce', source: 'oracle' }
+    - exp_labels: { severity: 'warn', team: 'ce', source: 'oracle', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -37,7 +37,7 @@ tests:
   - eval_time: 15m
     alertname: OBS_CDC_Lag_Warn
     exp_alerts:
-    - exp_labels: { severity: 'warn', team: 'ce', stream: 'orders' }
+    - exp_labels: { severity: 'warn', team: 'ce', stream: 'orders', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -49,7 +49,7 @@ tests:
   - eval_time: 10m
     alertname: OBS_CDC_Lag_Crit
     exp_alerts:
-    - exp_labels: { severity: 'critical', team: 'ce', stream: 'orders' }
+    - exp_labels: { severity: 'critical', team: 'ce', stream: 'orders', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -61,7 +61,7 @@ tests:
   - eval_time: 50m
     alertname: OBS_Drift_Critical_Feature_Warn
     exp_alerts:
-    - exp_labels: { severity: 'warn', team: 'ce', feature: 'price_psi' }
+    - exp_labels: { severity: 'warn', team: 'ce', feature: 'price_psi', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -73,7 +73,7 @@ tests:
   - eval_time: 25m
     alertname: OBS_Drift_Critical_Feature_Crit
     exp_alerts:
-    - exp_labels: { severity: 'critical', team: 'ce', feature: 'volume_psi' }
+    - exp_labels: { severity: 'critical', team: 'ce', feature: 'volume_psi', service: 'trendmarket-amm', env: 'dev' }
 
 
 - interval: 1m
@@ -97,7 +97,7 @@ tests:
   - eval_time: 1h
     alertname: OBS_Hook_Execution_Stalled
     exp_alerts:
-    - exp_labels: { severity: 'warn', team: 'ce', hook_id: 'hook_pre_trade' }
+    - exp_labels: { severity: 'warn', team: 'ce', hook_id: 'hook_pre_trade', env: 'dev' }
 
 
 - interval: 1m
