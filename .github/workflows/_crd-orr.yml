@@ -1,93 +1,75 @@
-# .github/workflows/_crd-orr.yml
-name: _CRD ORR (Reusable)
+
+name: CRD Epic — ORR (Reusable)
+
 on:
   workflow_call:
     inputs:
-      ref: { type: string, required: false }
-      run_bundle: { type: boolean, required: false, default: true }
-      profile: { type: string, required: false, default: fast }
-      environment: { type: string, required: false, default: dev }
-      epic_path: { type: string, required: false, default: docs/obs/CRD-8-epic.md }
-      agents_md: { type: string, required: false, default: AGENTS.md }
-      project_dir: { type: string, required: false, default: . }
-      scripts_dir: { type: string, required: false, default: scripts }
+      profile:
+        type: string
+        required: false
+        default: fast
+      environment:
+        type: string
+        required: false
+        default: dev
+      epic_path:
+        type: string
+        required: false
+        default: docs/obs/CRD-8-epic.md
+      agents_md:
+        type: string
+        required: false
+        default: AGENTS.md
+      project_dir:
+        type: string
+        required: false
+        default: .
+      scripts_dir:
+        type: string
+        required: false
+        default: scripts
+
 permissions:
   contents: read
+  actions: write
+
 jobs:
-  run:
+  orr:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+      - name: Print inputs
+        run: |
+          echo "profile=${{ inputs.profile }}"
+          echo "environment=${{ inputs.environment }}"
+          echo "epic_path=${{ inputs.epic_path }}"
+          echo "agents_md=${{ inputs.agents_md }}"
+          echo "project_dir=${{ inputs.project_dir }}"
+          echo "scripts_dir=${{ inputs.scripts_dir }}"
+
+      - name: Ensure utils (jq/zip/curl)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq zip curl
+
+      - name: Run ORR pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${{ inputs.project_dir }}"
+          mkdir -p out/obs_gatecheck/logs out/obs_gatecheck/evidence
+          bash "${{ inputs.scripts_dir }}/orr_all.sh"
+
+      - name: Upload ORR bundle
+        uses: actions/upload-artifact@v4
         with:
-          python-version: "3.11"
+          name: obs-bundle-${{ inputs.profile }}-${{ inputs.environment }}
+          path: |
+            ${{ inputs.project_dir }}/out/obs_gatecheck/**
+          if-no-files-found: warn
 
-      - name: Bootstrap ORR scripts if missing
-        id: seed
-        shell: bash
-        run: |
-          set -euo pipefail
-          DIR="${{ inputs.project_dir }}"
-          S_IN="${{ inputs.scripts_dir }}"
-          S="${S_IN:-scripts}"
-          mkdir -p "$DIR/$S"
-          req_sh=(orr_env_probe.sh orr_t1_run.sh orr_t3_props_run.sh orr_t4_goldens_run.sh orr_t5_bench_run.sh orr_t6_metrics_run.sh orr_t7_ci_prep.sh orr_t7_collect_ci.sh orr_t8_bundle.sh)
-          for f in "${req_sh[@]}"; do
-            [ -f "$DIR/$S/$f" ] || {
-              cat >"$DIR/$S/$f" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-echo "$(basename "$0") OK"
-SH
-              chmod +x "$DIR/$S/$f"
-            }
-          done
-          [ -f "$DIR/$S/orr_t2_parse_unit.py" ] || cat >"$DIR/$S/orr_t2_parse_unit.py" <<'PY'
-print("orr_t2_parse_unit.py OK")
-PY
-          [ -f "$DIR/$S/orr_t5_collect_criterion.py" ] || cat >"$DIR/$S/orr_t5_collect_criterion.py" <<'PY'
-print("orr_t5_collect_criterion.py OK")
-PY
-          echo "scripts=$DIR/$S" >> "$GITHUB_OUTPUT"
-
-      - name: Preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-          S="${{ steps.seed.outputs.scripts }}"
-          for f in orr_env_probe.sh orr_t1_run.sh orr_t3_props_run.sh orr_t4_goldens_run.sh orr_t5_bench_run.sh orr_t6_metrics_run.sh orr_t7_ci_prep.sh orr_t7_collect_ci.sh; do
-            [ -x "$S/$f" ] || { echo "::error file=$S/$f::missing or not executable"; exit 1; }
-          done
-          [ -f "$S/orr_t2_parse_unit.py" ] || { echo "::error file=$S/orr_t2_parse_unit.py::missing"; exit 1; }
-          if [ "${{ inputs.run_bundle && '1' || '0' }}" != "0" ]; then
-            [ -x "$S/orr_t8_bundle.sh" ] || { echo "::error file=$S/orr_t8_bundle.sh::missing"; exit 1; }
-          fi
-
-      - name: Run ORR
-        shell: bash
-        env:
-          RUN_BUNDLE: ${{ inputs.run_bundle && '1' || '0' }}
-          PROFILE: ${{ inputs.profile }}
-          TARGET_ENV: ${{ inputs.environment }}
-          EPIC_PATH: ${{ inputs.epic_path }}
-          AGENTS_MD: ${{ inputs.agents_md }}
-        run: |
-          set -euo pipefail
-          S="${{ steps.seed.outputs.scripts }}"
-          "$S/orr_env_probe.sh" "$@"
-          "$S/orr_t1_run.sh" "$@"
-          python3 "$S/orr_t2_parse_unit.py" "$@"
-          "$S/orr_t3_props_run.sh" "$@"
-          "$S/orr_t4_goldens_run.sh" "$@"
-          "$S/orr_t5_bench_run.sh" "$@"
-          python3 "$S/orr_t5_collect_criterion.py" "$@"
-          "$S/orr_t6_metrics_run.sh" "$@"
-          "$S/orr_t7_ci_prep.sh" "$@"
-          "$S/orr_t7_collect_ci.sh" "$@"
-          if [ "${RUN_BUNDLE}" = "1" ]; then "$S/orr_t8_bundle.sh" "$@"; fi
