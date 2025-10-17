@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Finalize the CRD-8 release metadata for publication."""
+"""Persist release metadata derived from the ORR manifest."""
 
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,20 +20,27 @@ from amm_obs.release import ReleaseManifestError, write_release_metadata
 OUT = ROOT / "out" / "obs_gatecheck"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=OUT,
+        help="Diretório onde summary.json e manifest residem.",
+    )
     parser.add_argument(
         "--version",
         help="Override the derived release version (format YYYYMMDD).",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_args(argv)
+    out_dir = args.out.resolve()
 
     try:
-        metadata_path = write_release_metadata(OUT, version=args.version)
+        metadata_path = write_release_metadata(out_dir, version=args.version)
     except FileNotFoundError as exc:
         sys.exit(str(exc))
     except ReleaseManifestError as exc:

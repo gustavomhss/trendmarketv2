@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import tempfile
 import unittest
@@ -14,6 +15,9 @@ from amm_obs.release import (
 )
 
 
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -26,75 +30,88 @@ def _create_base_layout(tmpdir: Path) -> None:
     logs.mkdir(parents=True, exist_ok=True)
 
 
+def _seed_success_payload(out_dir: Path) -> None:
+    _create_base_layout(out_dir)
+
+    _write_json(
+        out_dir / "summary.json",
+        {
+            "acceptance": "OK",
+            "gatecheck": "OK",
+            "profile": "full",
+            "ts": "2025-10-10T00:00:00Z",
+        },
+    )
+
+    bundle = out_dir / "bundle.zip"
+    bundle.write_bytes(b"bundle")
+    (out_dir / "bundle.sha256.txt").write_text(
+        "deadbeef bundle.zip\n", encoding="utf-8"
+    )
+
+    evidence = out_dir / "evidence"
+    _write_json(
+        evidence / "metrics_summary.json",
+        {
+            "p95_swap_seconds": 0.041,
+            "synthetic_swap_ok_ratio": 1.0,
+        },
+    )
+    _write_json(
+        evidence / "costs_cardinality.json",
+        {
+            "total_estimated_usd_month": 42.5,
+            "max_ratio": 0.62,
+            "max_ratio_metric": "amm_op_latency_seconds_bucket",
+        },
+    )
+    _write_json(
+        evidence / "synthetic_probe.json",
+        {
+            "ok": 58,
+            "total": 58,
+            "ok_ratio": 1.0,
+        },
+    )
+    _write_json(
+        evidence / "trace_log_smoke.json",
+        {
+            "total_spans": 12,
+            "correlated_ratio": 1.0,
+            "observability_level": "full",
+        },
+    )
+    _write_json(
+        evidence / "pii_probe.json", {"status": "OK", "cpf": False}
+    )
+    _write_json(evidence / "chaos_summary.json", {"status": "GREEN"})
+    _write_json(evidence / "baseline_perf.json", {"qps": 125})
+    _write_json(evidence / "golden_traces.json", {"spans": 4})
+    _write_json(
+        evidence / "watchers_simulation.json",
+        {
+            "simulated": True,
+            "alerts_expected": [
+                {"alert": "OBS_P95_Swap_TooHigh", "reason": "SLO"}
+            ],
+        },
+    )
+
+
+def _load_script(name: str):
+    path = SCRIPTS_DIR / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)  # type: ignore[misc]
+    return module
+
+
 class ReleaseManifestTests(unittest.TestCase):
     def test_generate_release_manifest_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = Path(tmp)
-            _create_base_layout(out_dir)
-
-            _write_json(
-                out_dir / "summary.json",
-                {
-                    "acceptance": "OK",
-                    "gatecheck": "OK",
-                    "profile": "full",
-                    "ts": "2025-10-10T00:00:00Z",
-                },
-            )
-
-            bundle = out_dir / "bundle.zip"
-            bundle.write_bytes(b"bundle")
-            (out_dir / "bundle.sha256.txt").write_text(
-                "deadbeef bundle.zip\n", encoding="utf-8"
-            )
-
-            evidence = out_dir / "evidence"
-            _write_json(
-                evidence / "metrics_summary.json",
-                {
-                    "p95_swap_seconds": 0.041,
-                    "synthetic_swap_ok_ratio": 1.0,
-                },
-            )
-            _write_json(
-                evidence / "costs_cardinality.json",
-                {
-                    "total_estimated_usd_month": 42.5,
-                    "max_ratio": 0.62,
-                    "max_ratio_metric": "amm_op_latency_seconds_bucket",
-                },
-            )
-            _write_json(
-                evidence / "synthetic_probe.json",
-                {
-                    "ok": 58,
-                    "total": 58,
-                    "ok_ratio": 1.0,
-                },
-            )
-            _write_json(
-                evidence / "trace_log_smoke.json",
-                {
-                    "total_spans": 12,
-                    "correlated_ratio": 1.0,
-                    "observability_level": "full",
-                },
-            )
-            _write_json(
-                evidence / "pii_probe.json", {"status": "OK", "cpf": False}
-            )
-            _write_json(evidence / "chaos_summary.json", {"status": "GREEN"})
-            _write_json(evidence / "baseline_perf.json", {"qps": 125})
-            _write_json(evidence / "golden_traces.json", {"spans": 4})
-            _write_json(
-                evidence / "watchers_simulation.json",
-                {
-                    "simulated": True,
-                    "alerts_expected": [
-                        {"alert": "OBS_P95_Swap_TooHigh", "reason": "SLO"}
-                    ],
-                },
-            )
+            _seed_success_payload(out_dir)
 
             manifest = generate_release_manifest(out_dir)
 
@@ -151,6 +168,37 @@ class ReleaseManifestTests(unittest.TestCase):
             with self.assertRaises(ReleaseManifestError) as ctx:
                 generate_release_manifest(out_dir)
             self.assertIn("JSON inválido", str(ctx.exception))
+
+    def test_cli_wrappers_accept_custom_out_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "gatecheck"
+            _seed_success_payload(out_dir)
+
+            manifest_cli = _load_script("obs_release_manifest")
+            finalize_cli = _load_script("obs_release_finalize")
+            notes_cli = _load_script("obs_release_notes")
+
+            self.assertEqual(0, manifest_cli.main(["--out", str(out_dir)]))
+            manifest_path = out_dir / "release_manifest.json"
+            self.assertTrue(manifest_path.exists())
+
+            self.assertEqual(
+                0,
+                finalize_cli.main([
+                    "--out",
+                    str(out_dir),
+                    "--version",
+                    "20991231",
+                ]),
+            )
+            metadata_path = out_dir / "release_metadata.json"
+            self.assertTrue(metadata_path.exists())
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.assertEqual(metadata["version"], "20991231")
+
+            self.assertEqual(0, notes_cli.main(["--out", str(out_dir)]))
+            notes_path = out_dir / "release_notes.md"
+            self.assertTrue(notes_path.exists())
 
     def test_build_release_metadata_derives_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
