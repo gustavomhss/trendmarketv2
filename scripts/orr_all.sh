@@ -2,6 +2,7 @@
 set -euo pipefail
 
 OUT="out/obs_gatecheck"
+RELEASE_ARGS=(--out "$OUT")
 EVI="$OUT/evidence"
 LOG="$OUT/logs"
 mkdir -p "$EVI" "$LOG"
@@ -44,6 +45,6 @@ log "ACCEPTANCE_OK"; echo ACCEPTANCE_OK
 log "GATECHECK_OK"; echo GATECHECK_OK
 
 run T9_summary scripts/orr_t9_summary.sh
-run T13_release scripts/obs_release_manifest.py --out "$OUT"
-run T14_finalize scripts/obs_release_finalize.py --out "$OUT"
-run T15_notes scripts/obs_release_notes.py --out "$OUT"
+run T13_release scripts/obs_release_manifest.py "${RELEASE_ARGS[@]}"
+run T14_finalize scripts/obs_release_finalize.py "${RELEASE_ARGS[@]}"
+run T15_notes scripts/obs_release_notes.py "${RELEASE_ARGS[@]}"
