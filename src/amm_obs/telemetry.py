@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 # --- Metric configuration ----------------------------------------------------
@@ -57,6 +57,60 @@ DEFAULT_OPERATION_PROFILE: Dict[str, List[float]] = {
     "remove_liquidity": [0.031, 0.036, 0.043, 0.049],
     "pricing": [0.007, 0.009, 0.013, 0.017, 0.02],
     "cdc_consume": [0.062, 0.073, 0.081, 0.089],
+}
+
+DEFAULT_DATA_FRESHNESS = [
+    {"source": "oracle", "domain": "pricing", "seconds": 2.4},
+    {"source": "orderbook", "domain": "trading", "seconds": 1.6},
+    {"source": "liquidity_feed", "domain": "inventory", "seconds": 3.1},
+]
+
+DEFAULT_CDC_LAG = [
+    {"stream": "orders", "partition": "0", "seconds": 4.2},
+    {"stream": "orders", "partition": "1", "seconds": 5.1},
+    {"stream": "settlements", "partition": "0", "seconds": 7.8},
+]
+
+DEFAULT_DRIFT_SCORE = [
+    {"feature": "price_psi", "score": 0.12},
+    {"feature": "volume_psi", "score": 0.18},
+    {"feature": "spread_kl", "score": 0.07},
+]
+
+HOOK_CATALOG: Tuple[str, ...] = (
+    "hook_pre_trade",
+    "hook_risk_checks",
+    "hook_settlement_dispatch",
+    "hook_cdc_sync",
+)
+
+HOOK_EXECUTIONS_BY_OPERATION: Dict[str, List[Tuple[str, str]]] = {
+    "swap": [
+        ("hook_pre_trade", "success"),
+        ("hook_risk_checks", "success"),
+    ],
+    "add_liquidity": [
+        ("hook_pre_trade", "success"),
+        ("hook_settlement_dispatch", "success"),
+    ],
+    "remove_liquidity": [
+        ("hook_pre_trade", "success"),
+        ("hook_settlement_dispatch", "success"),
+    ],
+    "pricing": [
+        ("hook_risk_checks", "success"),
+    ],
+    "cdc_consume": [
+        ("hook_cdc_sync", "success"),
+    ],
+}
+
+_LABEL_ORDER: Dict[str, Tuple[str, ...]] = {
+    "data_freshness_seconds": ("source", "domain", "service", "env"),
+    "cdc_lag_seconds": ("stream", "partition", "service", "env"),
+    "drift_score": ("feature", "service", "env"),
+    "hook_executions_total": ("hook_id", "status", "env"),
+    "hook_coverage_ratio": ("env",),
 }
 
 # --- Helper utilities --------------------------------------------------------
@@ -121,6 +175,22 @@ class AMMObservability:
         self._events: List[_Event] = []
         self._exemplars: Dict[str, Dict[str, object]] = {}
         self._profile_index: Dict[str, int] = {op: 0 for op in self._profile}
+        self._data_freshness = self._build_gauge_samples(
+            "data_freshness_seconds", DEFAULT_DATA_FRESHNESS, "seconds"
+        )
+        self._cdc_lag = self._build_gauge_samples(
+            "cdc_lag_seconds", DEFAULT_CDC_LAG, "seconds"
+        )
+        self._drift_scores = self._build_gauge_samples(
+            "drift_score", DEFAULT_DRIFT_SCORE, "score"
+        )
+        self._hook_catalog: Tuple[str, ...] = HOOK_CATALOG
+        self._hook_executions: Dict[Tuple[str, str], int] = {}
+        self._executed_hooks: Set[str] = set()
+        self._hook_coverage = {
+            "labels": self._compose_labels("hook_coverage_ratio", {}),
+            "value": 0.0,
+        }
 
     # ------------------------------------------------------------------ events
     def record_operation(
@@ -162,6 +232,7 @@ class AMMObservability:
             )
             self._events.append(event)
             self._latency_records.setdefault(op, []).append(latency)
+            self._record_hook_activity(op)
             # Capture the first observation per operation as exemplar to link
             # metrics with traces/logs deterministically.
             if op not in self._exemplars:
@@ -183,6 +254,7 @@ class AMMObservability:
         for op, latencies in self._profile.items():
             for latency in latencies:
                 self.record_operation(op, latency, route=f"/{op}")
+        self._refresh_hook_coverage()
 
     # ----------------------------------------------------------------- exports
     def metrics_snapshot(self) -> Dict[str, object]:
@@ -211,6 +283,13 @@ class AMMObservability:
             },
             "operations": ops_snapshot,
             "exemplars": self._exemplars,
+            "supporting": {
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
+                "drift_score": self._samples_to_dict(self._drift_scores),
+                "hook_executions_total": self._counter_samples(),
+                "hook_coverage_ratio": self._hook_coverage_snapshot(),
+            },
         }
 
     def export_prometheus(self) -> str:
@@ -234,6 +313,69 @@ class AMMObservability:
             )
             lines.append(
                 f"amm_op_latency_seconds_count{{{self._label_pairs(op)}}} {total}"
+            )
+        if self._data_freshness:
+            lines.extend(
+                [
+                    "# HELP data_freshness_seconds Data freshness lag",
+                    "# TYPE data_freshness_seconds gauge",
+                    "# UNIT data_freshness_seconds seconds",
+                ]
+            )
+            for sample in self._data_freshness:
+                lines.append(
+                    f"data_freshness_seconds{{{self._format_metric_labels('data_freshness_seconds', sample['labels'])}}} {sample['value']}"
+                )
+        if self._cdc_lag:
+            lines.extend(
+                [
+                    "# HELP cdc_lag_seconds CDC consumer lag",
+                    "# TYPE cdc_lag_seconds gauge",
+                    "# UNIT cdc_lag_seconds seconds",
+                ]
+            )
+            for sample in self._cdc_lag:
+                lines.append(
+                    f"cdc_lag_seconds{{{self._format_metric_labels('cdc_lag_seconds', sample['labels'])}}} {sample['value']}"
+                )
+        if self._drift_scores:
+            lines.extend(
+                [
+                    "# HELP drift_score Feature drift score (PSI/KL)",
+                    "# TYPE drift_score gauge",
+                ]
+            )
+            for sample in self._drift_scores:
+                lines.append(
+                    f"drift_score{{{self._format_metric_labels('drift_score', sample['labels'])}}} {sample['value']}"
+                )
+        if self._hook_executions:
+            lines.extend(
+                [
+                    "# HELP hook_executions_total Hook executions grouped by outcome",
+                    "# TYPE hook_executions_total counter",
+                ]
+            )
+            for labels, value in sorted(self._hook_executions.items()):
+                sample = {
+                    "labels": self._compose_labels(
+                        "hook_executions_total",
+                        {"hook_id": labels[0], "status": labels[1]},
+                    ),
+                    "value": value,
+                }
+                lines.append(
+                    f"hook_executions_total{{{self._format_metric_labels('hook_executions_total', sample['labels'])}}} {sample['value']}"
+                )
+        if self._hook_coverage is not None:
+            lines.extend(
+                [
+                    "# HELP hook_coverage_ratio Hook coverage ratio",
+                    "# TYPE hook_coverage_ratio gauge",
+                ]
+            )
+            lines.append(
+                f"hook_coverage_ratio{{{self._format_metric_labels('hook_coverage_ratio', self._hook_coverage['labels'])}}} {self._hook_coverage['value']}"
             )
         return "\n".join(lines) + "\n"
 
@@ -273,6 +415,14 @@ class AMMObservability:
                 }
                 for e in self._events
             ],
+            "metrics": {
+                "amm_op_latency_seconds": self.metrics_snapshot(),
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
+                "drift_score": self._samples_to_dict(self._drift_scores),
+                "hook_executions_total": self._counter_samples(),
+                "hook_coverage_ratio": self._hook_coverage_snapshot(),
+            },
         }
 
     def write_prometheus_file(self, path: Path) -> None:
@@ -341,6 +491,89 @@ class AMMObservability:
             for key, value in extra.items():
                 labels.append((key, value))
         return ",".join(f'{key}="{value}"' for key, value in labels)
+
+    def _build_gauge_samples(
+        self, metric: str, values: Iterable[Dict[str, object]], value_key: str
+    ) -> List[Dict[str, object]]:
+        samples: List[Dict[str, object]] = []
+        for entry in values:
+            labels = {
+                key: str(entry[key])
+                for key in _LABEL_ORDER[metric]
+                if key in entry
+            }
+            if "service" in _LABEL_ORDER[metric]:
+                labels.setdefault("service", self.service)
+            if "env" in _LABEL_ORDER[metric]:
+                labels.setdefault("env", self.env)
+            samples.append({"labels": labels, "value": _round(float(entry[value_key]))})
+        return samples
+
+    def _compose_labels(self, metric: str, base: Dict[str, str]) -> Dict[str, str]:
+        labels: Dict[str, str] = {}
+        order = _LABEL_ORDER.get(metric, tuple())
+        for key in order:
+            if key == "service":
+                labels[key] = self.service
+            elif key == "env":
+                labels[key] = self.env
+            else:
+                if key not in base:
+                    raise KeyError(f"missing label '{key}' for metric {metric}")
+                labels[key] = base[key]
+        return labels
+
+    def _format_metric_labels(self, metric: str, labels: Dict[str, str]) -> str:
+        order = _LABEL_ORDER.get(metric, tuple())
+        if not order:
+            return ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
+        return ",".join(f'{key}="{labels[key]}"' for key in order if key in labels)
+
+    def _record_hook_activity(self, op: str) -> None:
+        hooks = HOOK_EXECUTIONS_BY_OPERATION.get(op)
+        if not hooks:
+            return
+        for hook_id, status in hooks:
+            key = (hook_id, status)
+            self._hook_executions[key] = self._hook_executions.get(key, 0) + 1
+            self._executed_hooks.add(hook_id)
+        self._refresh_hook_coverage()
+
+    def _refresh_hook_coverage(self) -> None:
+        if not self._hook_catalog:
+            self._hook_coverage["value"] = 0.0
+            return
+        ratio = len(self._executed_hooks) / float(len(self._hook_catalog))
+        self._hook_coverage["value"] = _round(ratio)
+
+    @staticmethod
+    def _samples_to_dict(samples: List[Dict[str, object]]) -> List[Dict[str, object]]:
+        return [
+            {"labels": dict(sample["labels"]), "value": sample["value"]}
+            for sample in samples
+        ]
+
+    def _counter_samples(self) -> List[Dict[str, object]]:
+        payload: List[Dict[str, object]] = []
+        for (hook_id, status), value in sorted(self._hook_executions.items()):
+            payload.append(
+                {
+                    "labels": self._compose_labels(
+                        "hook_executions_total",
+                        {"hook_id": hook_id, "status": status},
+                    ),
+                    "value": value,
+                }
+            )
+        return payload
+
+    def _hook_coverage_snapshot(self) -> Dict[str, object]:
+        return {
+            "labels": dict(self._hook_coverage["labels"]),
+            "value": self._hook_coverage["value"],
+            "catalog": list(self._hook_catalog),
+            "executed": sorted(self._executed_hooks),
+        }
 
 
 # --- Lightweight dev server --------------------------------------------------

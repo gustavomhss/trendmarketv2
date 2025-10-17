@@ -29,10 +29,27 @@ obs.write_state(EVIDENCE / "amm_obs_state.json")
 summary_path = EVIDENCE / "metrics_summary.json"
 snapshot = obs.metrics_snapshot()
 sample_swap = snapshot["operations"].get("swap", {})
+supporting = snapshot.get("supporting", {})
+
+
+def _find_value(points, **expected_labels):
+    for point in points:
+        labels = point.get("labels", {})
+        if all(labels.get(key) == value for key, value in expected_labels.items()):
+            return point.get("value")
+    return None
+
 summary = {
     "p95_swap_seconds": sample_swap.get("p95"),
     "count_swap": sample_swap.get("count"),
     "exemplar_trace_id": snapshot["exemplars"].get("swap", {}).get("trace_id"),
+    "freshness_oracle_seconds": _find_value(
+        supporting.get("data_freshness_seconds", []), source="oracle"
+    ),
+    "cdc_orders_partition0_seconds": _find_value(
+        supporting.get("cdc_lag_seconds", []), stream="orders", partition="0"
+    ),
+    "hook_coverage_ratio": supporting.get("hook_coverage_ratio", {}).get("value"),
 }
 summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
