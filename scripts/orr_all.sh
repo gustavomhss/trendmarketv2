@@ -1,9 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
-OUT="out/obs_gatecheck"; EVI="$OUT/evidence"; LOG="$OUT/logs"; mkdir -p "$EVI" "$LOG"
-log(){ echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG/orr_all.txt"; }
-run(){ local n="$1"; shift; log "→ $n"; bash "$@" 2>&1 | tee -a "$LOG/${n}.txt"; }
 
+OUT="out/obs_gatecheck"
+EVI="$OUT/evidence"
+LOG="$OUT/logs"
+mkdir -p "$EVI" "$LOG"
+
+log() {
+  echo "[$(date -u +%H:%M:%S)] $*" | tee -a "$LOG/orr_all.txt"
+}
+
+run() {
+  local n="$1"
+  shift
+  local script="$1"
+  shift || true
+
+  log "→ $n ($script)"
+  if [[ "$script" == *.py ]]; then
+    python3 "$script" "$@" 2>&1 | tee -a "$LOG/${n}.txt"
+  else
+    bash "$script" "$@" 2>&1 | tee -a "$LOG/${n}.txt"
+  fi
+}
 
 run T0_env scripts/orr_env_probe.sh
 run T1_run scripts/orr_t1_run.sh
@@ -17,6 +36,7 @@ run T7_ci_prep scripts/orr_t7_ci_prep.sh
 run T7_collect scripts/orr_t7_collect_ci.sh
 run T8_bundle scripts/orr_t8_bundle.sh
 
-
-log "ACCEPTANCE_OK"; echo ACCEPTANCE_OK
-log "GATECHECK_OK"; echo GATECHECK_OK
+log "ACCEPTANCE_OK"
+echo ACCEPTANCE_OK
+log "GATECHECK_OK"
+echo GATECHECK_OK
