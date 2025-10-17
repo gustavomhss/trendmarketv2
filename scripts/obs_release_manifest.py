@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+from typing import Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,10 @@ def _load_json(path: Path) -> Dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise SystemExit(f"JSON inválido em {path}: {exc}") from exc
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _bundle_sha() -> Optional[str]:
@@ -98,6 +103,16 @@ def main() -> int:
     manifest = {
         "summary": summary,
         "bundle": _bundle_metadata(),
+    costs = _load_json(EVIDENCE / "costs_cardinality.json") if checks["costs_cardinality"] else {}
+    probe = _load_json(EVIDENCE / "synthetic_probe.json") if checks["synthetic_probe"] else {}
+    metrics_summary = _load_json(EVIDENCE / "metrics_summary.json") if checks["metrics_summary"] else {}
+
+    manifest = {
+        "summary": summary,
+        "bundle": {
+            "path": str(OUT / "bundle.zip"),
+            "sha256": _bundle_sha(),
+        },
         "evidence_checks": checks,
         "costs": {
             "total_estimated_usd_month": costs.get("total_estimated_usd_month"),
@@ -105,6 +120,7 @@ def main() -> int:
             "max_metric": costs.get("max_ratio_metric"),
         }
         if costs is not None
+        if costs
         else None,
         "synthetic_probe": {
             "ok": probe.get("ok"),
@@ -112,6 +128,7 @@ def main() -> int:
             "ok_ratio": probe.get("ok_ratio"),
         }
         if probe is not None
+        if probe
         else None,
         "metrics": {
             "p95_swap_seconds": metrics_summary.get("p95_swap_seconds"),
@@ -164,6 +181,7 @@ def main() -> int:
             "sha256": _sbom_sha(),
         }
         if checks["sbom"]
+        if metrics_summary
         else None,
     }
 
