@@ -48,6 +48,16 @@ HISTOGRAM_BUCKETS: List[float] = [
     5.0,
 ]
 
+# Synthetic probes run with tighter expectations (fast HTTP health/swap).
+SYNTHETIC_BUCKETS: List[float] = [
+    0.001,
+    0.002,
+    0.003,
+    0.005,
+    0.01,
+    0.02,
+]
+
 # Curated latency profiles for each core AMM operation.  The numbers were
 # chosen to keep p95(swap) < 60ms (SLO) while still exercising histogram
 # buckets across a broad range.
@@ -111,6 +121,9 @@ _LABEL_ORDER: Dict[str, Tuple[str, ...]] = {
     "drift_score": ("feature", "service", "env"),
     "hook_executions_total": ("hook_id", "status", "env"),
     "hook_coverage_ratio": ("env",),
+    "synthetic_requests_total": ("route", "service", "env"),
+    "synthetic_latency_seconds": ("route", "service", "env"),
+    "synthetic_ok_ratio": ("route", "service", "env"),
 }
 
 CARDINALITY_BUDGET: Dict[str, Dict[str, float]] = {
@@ -120,6 +133,9 @@ CARDINALITY_BUDGET: Dict[str, Dict[str, float]] = {
     "drift_score": {"budget": 80.0},
     "hook_coverage_ratio": {"budget": 10.0},
     "hook_executions_total": {"budget": 200.0},
+    "synthetic_latency_seconds_bucket": {"budget": 60.0},
+    "synthetic_requests_total": {"budget": 20.0},
+    "synthetic_ok_ratio": {"budget": 20.0},
 }
 
 SCRAPE_INTERVAL_SECONDS = 15
@@ -260,6 +276,9 @@ class AMMObservability:
             "labels": self._compose_labels("hook_coverage_ratio", {}),
             "value": 0.0,
         }
+        self._synthetic_counts: Dict[str, int] = {}
+        self._synthetic_success: Dict[str, int] = {}
+        self._synthetic_latencies: Dict[str, List[float]] = {}
 
     # ------------------------------------------------------------------ events
     def record_operation(
@@ -269,6 +288,7 @@ class AMMObservability:
         *,
         status: str = "OK",
         route: Optional[str] = None,
+        synthetic: bool = False,
         extra_attributes: Optional[Dict[str, str]] = None,
     ) -> _Event:
         if op not in self._profile:
@@ -313,6 +333,16 @@ class AMMObservability:
                         "latency_seconds": latency,
                         "start_time": event.start_time,
                     }
+            if synthetic:
+                route_name = (route or f"/{op}").lstrip("/") or op
+                self._synthetic_counts[route_name] = (
+                    self._synthetic_counts.get(route_name, 0) + 1
+                )
+                if status.upper() == "OK":
+                    self._synthetic_success[route_name] = (
+                        self._synthetic_success.get(route_name, 0) + 1
+                    )
+                self._synthetic_latencies.setdefault(route_name, []).append(latency)
             self._events.append(event)
             self._latency_records.setdefault(op, []).append(latency)
             self._record_hook_activity(op)
@@ -330,12 +360,19 @@ class AMMObservability:
     def simulate_operation(self, op: str) -> _Event:
         """Record one synthetic invocation of ``op`` using the profile."""
         latency = self._next_latency(op)
+        return self.record_operation(op, latency, route=f"/{op}", synthetic=True)
         return self.record_operation(op, latency, route=f"/{op}")
 
     def simulate_unit_load(self) -> None:
         """Populate deterministic evidence for all operations."""
         for op, latencies in self._profile.items():
             for latency in latencies:
+                self.record_operation(
+                    op,
+                    latency,
+                    route=f"/{op}",
+                    synthetic=True,
+                )
                 self.record_operation(op, latency, route=f"/{op}")
         self._refresh_hook_coverage()
 
@@ -365,6 +402,9 @@ class AMMObservability:
                 "hook_executions_total": self._counter_samples(),
                 "hook_coverage_ratio": self._hook_coverage_snapshot(),
             }
+        synthetic = self._synthetic_snapshot()
+        if synthetic:
+            supporting["synthetic"] = synthetic
         return {
             "metric": "amm_op_latency_seconds",
             "unit": "seconds",
@@ -483,6 +523,52 @@ class AMMObservability:
             lines.append(
                 f"hook_coverage_ratio{{{self._format_metric_labels('hook_coverage_ratio', self._hook_coverage['labels'])}}} {self._hook_coverage['value']}"
             )
+        if self._synthetic_counts:
+            lines.extend(
+                [
+                    "# HELP synthetic_requests_total Synthetic prober requests",
+                    "# TYPE synthetic_requests_total counter",
+                ]
+            )
+            for route, total in sorted(self._synthetic_counts.items()):
+                lines.append(
+                    f"synthetic_requests_total{{{self._synthetic_label_pairs(route)}}} {total}"
+                )
+        if self._synthetic_latencies:
+            lines.extend(
+                [
+                    "# HELP synthetic_latency_seconds Synthetic prober latency",
+                    "# TYPE synthetic_latency_seconds histogram",
+                    "# UNIT synthetic_latency_seconds seconds",
+                ]
+            )
+            for route, values in sorted(self._synthetic_latencies.items()):
+                cumulative = self._cumulative_buckets(values, SYNTHETIC_BUCKETS)
+                for bucket, count in cumulative.items():
+                    lines.append(
+                        f"synthetic_latency_seconds_bucket{{{self._synthetic_label_pairs(route, {'le': bucket})}}} {count}"
+                    )
+                total = len(values)
+                total_sum = _round(sum(values))
+                lines.append(
+                    f"synthetic_latency_seconds_sum{{{self._synthetic_label_pairs(route)}}} {total_sum}"
+                )
+                lines.append(
+                    f"synthetic_latency_seconds_count{{{self._synthetic_label_pairs(route)}}} {total}"
+                )
+        if self._synthetic_counts:
+            lines.extend(
+                [
+                    "# HELP synthetic_ok_ratio Synthetic prober success ratio",
+                    "# TYPE synthetic_ok_ratio gauge",
+                ]
+            )
+            for route, total in sorted(self._synthetic_counts.items()):
+                success = self._synthetic_success.get(route, 0)
+                ratio = (success / total) if total else 0.0
+                lines.append(
+                    f"synthetic_ok_ratio{{{self._synthetic_label_pairs(route)}}} {_round(ratio)}"
+                )
         breakdown = self.cardinality_breakdown()
         metrics = breakdown.get("metrics", {})
         if metrics:
@@ -599,6 +685,7 @@ class AMMObservability:
                 "hook_coverage_ratio": self._hook_coverage_snapshot()
                 if self._level in {"min", "full"}
                 else {},
+                "synthetic": self._synthetic_snapshot(),
                 "cardinality": self.cardinality_breakdown(),
             },
         }
@@ -622,6 +709,17 @@ class AMMObservability:
         )
         metrics["hook_executions_total"] = {"series": hook_exec_series}
         metrics["hook_coverage_ratio"] = {"series": 1.0}
+        synthetic_routes = len(self._synthetic_latencies) or len(self._profile)
+        metrics["synthetic_latency_seconds_bucket"] = {
+            "series": float(synthetic_routes * (len(SYNTHETIC_BUCKETS) + 1))
+        }
+        synthetic_series = len(self._synthetic_counts) or synthetic_routes
+        metrics["synthetic_requests_total"] = {
+            "series": float(max(synthetic_routes, synthetic_series))
+        }
+        metrics["synthetic_ok_ratio"] = {
+            "series": float(max(synthetic_routes, synthetic_series))
+        }
 
         total_cost = 0.0
         max_ratio = 0.0
@@ -727,6 +825,15 @@ class AMMObservability:
         return counts
 
     @staticmethod
+    def _cumulative_buckets(
+        values: List[float], buckets: Optional[List[float]] = None
+    ) -> Dict[str, int]:
+        series: Dict[str, int] = {}
+        target_buckets = buckets or HISTOGRAM_BUCKETS
+        for bucket in target_buckets:
+            series[str(bucket)] = sum(1 for v in values if v <= bucket)
+        series["+Inf"] = len(values)
+        return series
     def _cumulative_buckets(values: List[float]) -> Dict[str, int]:
         cumulative: Dict[str, int] = {}
         for bucket in HISTOGRAM_BUCKETS:
@@ -740,6 +847,19 @@ class AMMObservability:
             ("env", self.env),
             ("service", self.service),
             ("version", self.version),
+        ]
+        if extra:
+            for key, value in extra.items():
+                labels.append((key, value))
+        return ",".join(f'{key}="{value}"' for key, value in labels)
+
+    def _synthetic_label_pairs(
+        self, route: str, extra: Optional[Dict[str, object]] = None
+    ) -> str:
+        labels = [
+            ("route", route),
+            ("env", self.env),
+            ("service", self.service),
         ]
         if extra:
             for key, value in extra.items():
@@ -799,6 +919,20 @@ class AMMObservability:
             return
         ratio = len(self._executed_hooks) / float(len(self._hook_catalog))
         self._hook_coverage["value"] = _round(ratio)
+
+    def _synthetic_snapshot(self) -> Dict[str, object]:
+        snapshot: Dict[str, object] = {}
+        for route, total in sorted(self._synthetic_counts.items()):
+            latencies = self._synthetic_latencies.get(route, [])
+            success = self._synthetic_success.get(route, 0)
+            ratio = round(success / total, 4) if total else None
+            snapshot[route] = {
+                "count": total,
+                "success": success,
+                "ok_ratio": ratio,
+                "latencies": [_round(value) for value in latencies],
+            }
+        return snapshot
 
     @staticmethod
     def _samples_to_dict(samples: List[Dict[str, object]]) -> List[Dict[str, object]]:

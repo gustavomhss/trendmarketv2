@@ -31,6 +31,8 @@ summary_path = EVIDENCE / "metrics_summary.json"
 snapshot = obs.metrics_snapshot()
 sample_swap = snapshot["operations"].get("swap", {})
 supporting = snapshot.get("supporting", {})
+synthetic = supporting.get("synthetic", {})
+synthetic_swap = synthetic.get("swap", {})
 
 
 def _find_value(points, **expected_labels):
@@ -51,6 +53,8 @@ summary = {
         supporting.get("cdc_lag_seconds", []), stream="orders", partition="0"
     ),
     "hook_coverage_ratio": supporting.get("hook_coverage_ratio", {}).get("value"),
+    "synthetic_swap_ok_ratio": synthetic_swap.get("ok_ratio"),
+    "synthetic_swap_count": synthetic_swap.get("count"),
 }
 cardinality = snapshot.get("cardinality", {})
 summary.update(

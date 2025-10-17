@@ -7,7 +7,10 @@ allow = {
   'cdc_lag_seconds': set(['stream','partition','service','env']),
   'drift_score': set(['feature','service','env']),
   'hook_coverage_ratio': set(['env']),
-  'hook_executions_total': set(['hook_id','status','env'])
+  'hook_executions_total': set(['hook_id','status','env']),
+  'synthetic_requests_total': set(['route','service','env']),
+  'synthetic_latency_seconds': set(['route','service','env']),
+  'synthetic_ok_ratio': set(['route','service','env'])
 }
 reserved = set(["le", "quantile"])
 violations = []
@@ -20,7 +23,7 @@ for root,_,files in os.walk('.'):
     try:
       txt = open(path,'r',errors='ignore').read()
     except: continue
-    for m in re.finditer(r'(amm_op_latency_seconds|data_freshness_seconds|cdc_lag_seconds|drift_score|hook_coverage_ratio|hook_executions_total).*?\{([^}]*)\}', txt, re.S):
+    for m in re.finditer(r'(amm_op_latency_seconds|data_freshness_seconds|cdc_lag_seconds|drift_score|hook_coverage_ratio|hook_executions_total|synthetic_requests_total|synthetic_latency_seconds|synthetic_ok_ratio).*?\{([^}]*)\}', txt, re.S):
       name = m.group(1)
       labels = m.group(2)
       keys = set([kv.split('=')[0].strip().strip('"') for kv in labels.split(',') if '=' in kv])

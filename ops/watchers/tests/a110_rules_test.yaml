@@ -122,3 +122,15 @@ tests:
     alertname: OBS_Cardinality_Budget_Crit
     exp_alerts:
     - exp_labels: { severity: 'critical', team: 'ce', metric: 'data_freshness_seconds' }
+
+
+- interval: 1m
+  # Synthetic ok ratio abaixo de 99%
+  input_series:
+  - series: 'synthetic_ok_ratio{route="swap",service="trendmarket-amm",env="dev"}'
+    values: '1x5 0.95x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: OBS_Synthetic_OK_Ratio_Low
+    exp_alerts:
+    - exp_labels: { severity: 'warn', team: 'ce', route: 'swap', service: 'trendmarket-amm', env: 'dev' }

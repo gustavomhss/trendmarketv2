@@ -116,3 +116,14 @@ groups:
     annotations:
       summary: "Cardinalidade crítica acima de 90%"
       description: "A métrica {{ $labels.metric }} ultrapassou 90% do budget de séries. Mitigar imediatamente antes do blow-up de custos."
+
+  # W-OBS-007 — Synthetic prober
+  - alert: OBS_Synthetic_OK_Ratio_Low
+    expr: avg_over_time(synthetic_ok_ratio{env=~".+"}[10m]) < 0.99
+    for: 10m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Synthetic prober com sucesso <99%"
+      description: "O ratio de sucesso do prober sintético caiu abaixo de 99% por 10m. Investigar regressões em /health ou rotas críticas."
