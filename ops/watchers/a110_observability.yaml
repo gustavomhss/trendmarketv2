@@ -73,7 +73,7 @@ groups:
           team: ce
         annotations:
           summary: "Drift (PSI/KL) crítico > 0.4"
-          description: "Cobertura abaixo do SLO na janela. Listar hooks 0-run."
+          description: "PSI/KL acima de 0.4 por 15m em feature crítica. Ação imediata."
 
       # W-OBS-005 — cobertura de hooks
       - alert: OBS_Hook_Coverage_Low
