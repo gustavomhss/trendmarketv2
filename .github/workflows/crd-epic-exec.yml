@@ -1,90 +1,56 @@
+
 name: CRD Epic - Exec
 
-
 on:
-workflow_dispatch:
-inputs:
-profile:
-description: Perfil (fast | full)
-type: choice
-default: fast
-options:
-- fast
-- full
-environment:
-description: Ambiente (dev | staging)
-type: choice
-default: dev
-options:
-- dev
-- staging
-epic_path:
-description: Caminho do épico (MD)
-required: true
-default: docs/obs/CRD-8-epic.md
-agents_md:
-description: Caminho do AGENTS.md
-required: true
-default: AGENTS.md
-run_matrix:
-description: Executar matriz?
-required: false
-default: "false" # string para usar com fromJSON
-project_dir:
-description: Subdiretório do projeto
-required: false
-default: .
-scripts_dir:
-description: Pasta de scripts relativa ao project_dir
-required: false
-default: scripts
-
-
-issue_comment:
-types:
-- created
-
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Perfil (fast | full)
+        required: true
+        default: fast
+      environment:
+        description: Ambiente (dev | staging)
+        required: true
+        default: dev
+      epic_path:
+        description: Caminho do épico (MD)
+        required: true
+        default: docs/obs/CRD-8-epic.md
+      agents_md:
+        description: Caminho do AGENTS.md
+        required: true
+        default: AGENTS.md
+      run_matrix:
+        description: Executar matriz? (true/false)
+        required: false
+        default: "false"
+      project_dir:
+        description: Subdiretório do projeto
+        required: false
+        default: .
+      scripts_dir:
+        description: Pasta de scripts relativa ao project_dir
+        required: false
+        default: scripts
 
 permissions:
-contents: read
-actions: write
-checks: write
-
+  contents: read
+  actions: write
+  checks: write
 
 concurrency:
-group: exec-${{ github.ref }}
-cancel-in-progress: true
-
+  group: exec-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-exec_single:
-if: >-
-    ${{ (github.event_name == 'workflow_dispatch' && !fromJSON(inputs.run_matrix || 'false'))
-    || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd exec')) }}
+  exec:
     uses: ./.github/workflows/_crd-orr.yml
     with:
-    profile: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'full') && 'full' || 'fast') || inputs.profile }}
-    environment: ${{ github.event_name == 'issue_comment' && (contains(github.event.comment.body, 'staging') && 'staging' || 'dev') || inputs.environment }}
-    epic_path: ${{ inputs.epic_path }}
-    agents_md: ${{ inputs.agents_md }}
-    project_dir: ${{ inputs.project_dir }}
-    scripts_dir: ${{ inputs.scripts_dir }}
+      profile: ${{ inputs.profile }}
+      environment: ${{ inputs.environment }}
+      epic_path: ${{ inputs.epic_path }}
+      agents_md: ${{ inputs.agents_md }}
+      project_dir: ${{ inputs.project_dir }}
+      scripts_dir: ${{ inputs.scripts_dir }}
 
 
-exec_matrix:
-if: >-
-    ${{ (github.event_name == 'workflow_dispatch' && fromJSON(inputs.run_matrix || 'false'))
-    || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/crd matrix')) }}
-    strategy:
-    fail-fast: false
-    matrix:
-    profile: [fast, full]
-    environment: [dev, staging]
-    uses: ./.github/workflows/_crd-orr.yml
-    with:
-    profile: ${{ matrix.profile }}
-    environment: ${{ matrix.environment }}
-    epic_path: ${{ inputs.epic_path }}
-    agents_md: ${{ inputs.agents_md }}
-    project_dir: ${{ inputs.project_dir }}
-    scripts_dir: ${{ inputs.scripts_dir }}
