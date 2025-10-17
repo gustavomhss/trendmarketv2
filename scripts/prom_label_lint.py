@@ -9,6 +9,7 @@ allow = {
   'hook_coverage_ratio': set(['env']),
   'hook_executions_total': set(['hook_id','status','env'])
 }
+reserved = set(["le", "quantile"])
 violations = []
 # busca simples por métricas no repo (arquivos .rs/.go/.py/.yml/.yaml)
 for root,_,files in os.walk('.'):
@@ -23,6 +24,7 @@ for root,_,files in os.walk('.'):
       name = m.group(1)
       labels = m.group(2)
       keys = set([kv.split('=')[0].strip().strip('"') for kv in labels.split(',') if '=' in kv])
+      keys = set([k for k in keys if k not in reserved])
       extra = keys - allow.get(name,set())
       if extra:
         violations.append({'file':path,'metric':name,'extra_labels':sorted(list(extra))})
