@@ -11,11 +11,8 @@ log() {
 }
 
 run() {
-  local n="$1"
-  shift
-  local script="$1"
-  shift || true
-
+  local n="$1"; shift
+  local script="$1"; shift || true
   log "→ $n ($script)"
   if [[ "$script" == *.py ]]; then
     python3 "$script" "$@" 2>&1 | tee -a "$LOG/${n}.txt"
@@ -36,7 +33,7 @@ run T7_ci_prep scripts/orr_t7_ci_prep.sh
 run T7_collect scripts/orr_t7_collect_ci.sh
 run T8_bundle scripts/orr_t8_bundle.sh
 
-log "ACCEPTANCE_OK"
-echo ACCEPTANCE_OK
-log "GATECHECK_OK"
-echo GATECHECK_OK
+log "ACCEPTANCE_OK"; echo ACCEPTANCE_OK
+log "GATECHECK_OK"; echo GATECHECK_OK
+
+run T9_summary scripts/orr_t9_summary.sh
