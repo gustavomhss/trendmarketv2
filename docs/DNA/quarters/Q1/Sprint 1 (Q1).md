@@ -1,143 +1,262 @@
-# Q1 • Sprint 1 — MBP Slice 0 (Walking Skeleton) • v1.1 FINAL (deepdive 5×)
-> **Alinhado a**: *Q1 Roadmap — MBP GA interno + CE$ Fundações (v1.1 FINAL)* e *Roadmap — Kickoff Intake (CE$) • V1 (2025‑09‑10)*.  
-> **Objetivo (2 semanas):** erguer o **esqueleto funcional do MBP** (CPMM x·y=k + UI mínima + resolução manual + auditoria básica) e **atingir Gate Pre‑deploy** em `stage` com **evidências fechadas**.
+# CRD‑8 — Observabilidade Base (OpenTelemetry) — Epic v4 (Upgrades 10/10, revisão Pérez×Knuth×Jobs)
+
+## 0) TL;DR (produção‑pronto)
+Objetivo: elevar o v3 para 10/10 com provas executáveis adicionais: Red Team PII/logs, Prober E2E sintético always‑on, Chaos drills, custos/cardinalidade com números, SBOM/supply‑chain, baseline de performance por hardware, golden traces fixos e política de promoção dev→staging→prod.
+
+Comandos canônicos
+```bash
+brew bundle && cargo fetch && cargo build
+cargo test && cargo clippy -- -D warnings && cargo fmt -- --check
+cargo deny check && cargo audit
+RUN_PROFILE=fast bash scripts/orr_all.sh
+RUN_PROFILE=full bash scripts/orr_all.sh
+```
+Linhas de sucesso esperadas: `ACCEPTANCE_OK` e `GATECHECK_OK` + `out/obs_gatecheck/bundle.zip` e `bundle.sha256.txt`.
+Fonte de verdade: `docs/dna/` (RO) + `docs/obs/CRD-8-epic.md` (este v4). Em divergência, vence a KB.
 
 ---
 
-## 0) Delta v1.0 → v1.1 (o que foi elevado)
-- **Exits 100% quantitativos** com *queries/ids* de evidência e **assinaturas** (PO/Eng/Data/SRE).  
-- **DoR/DoD reforçados** (SBOM, SAST/Secrets, cobertura de testes, LGPD A108, A11x hooks).  
-- **Teste de performance** com carga‑alvo e *perf budget* (p95≤0,8s; throughput alvo).  
-- **Plano de Telemetria** granular (eventos/métricas/traces), **dashboards** e **alarmes** prontos.  
-- **Runbooks v1** (Invariante; Resolução; CWV/INP; Staleness/Quórum) com **drill** agendado.  
-- **Riscos→Hooks** com *playbooks* e **Kill** intra‑sprint documentados.  
-- **Qualidade de engenharia**: trunk‑based + code review 2‑olhos; *coverage* ≥ 80% em engine; *lint*/format no CI; *feature flags* catalogadas.
+## 1) Acréscimos chave no v4
+1) CI Red Team PII/Logs (gitleaks + deny‑lists + injeções sintéticas controladas).  
+2) Prober E2E sintético sempre ativo com exemplars e séries `synthetic_*`.  
+3) Chaos drills mínimos no stack (Prom/Tempo/Loki) com modo degradado `OBSERVABILITY_LEVEL=min`.  
+4) Custos/cardinalidade com cálculo automático e orçamento por métrica.  
+5) SBOM CycloneDX e atestado de supply‑chain como gate.  
+6) Baseline de performance por hardware (ARM/x86) com matriz p95/overhead.  
+7) Golden traces fixos por operação crítica com testes de presença de atributos.  
+8) Política de promoção entre ambientes com gates objetivos.
+
+Allowlist RW: `src/`, `tests/`, `ops/`, `scripts/`, `out/obs_gatecheck/`. RO: `docs/dna/`, `docs/obs/`.
 
 ---
 
-## 1) Sprint Goal + DoA (S1)
-**Sprint Goal:** MBP “andando” em `stage` com governança base ativa.  
-**DoA da S1:**  
-- **Engine** CPMM com **Δk/k ≤ 1e−9 (60 min)**; **goldens=pass**; **lat p95 ≤ 0,8s**.  
-- **UI** preço⇄prob + criador básico (atrás de **flag**) com **INP p75 ≤ 200ms** e RUM ligado.  
-- **Resolução** manual fim‑a‑fim (eventos + SLA medido).  
-- **Audit**: ≥ **95%** de ações críticas com `trace_id` + `commit_sha`.  
-- **A110**: watchers **carregados, verdes**, donos definidos e *health‑check* passando.
+## 2) CI Red Team PII/Logs
+Semântica: o CI injeta amostras sintéticas de PII em um job isolado e exige que lints e filtros bloqueiem o leak.
+
+Arquivos
+- `ops/security/gitleaks.toml` — regras de detecção (cpf/email/nome/endereço/padrões BR).  
+- `ops/security/log_denylist.json` — campos proibidos.  
+- `scripts/obs_sec_redteam.sh` — executa gitleaks e teste de injeção; em caso de match → `PII_FAIL` e exit≠0.
+
+`scripts/obs_sec_redteam.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+echo '{"msg":"probe","email":"joao.silva+probe@example.com","cpf":"123.456.789-09"}' > "$OUT/pii_probe.json"
+if command -v gitleaks >/dev/null 2>&1; then gitleaks detect --no-git -s "$OUT" --config ops/security/gitleaks.toml --exit-code 1 || { echo PII_FAIL; exit 1; }; fi
+echo LABELS_OK > "$OUT/pii_labels.ok"
+echo PII_OK
+```
+
+Aceite
+- CI falha se qualquer vazamento for detectado.  
+- Evidência: `evidence/pii_probe.json`, `PII_OK`.
 
 ---
 
-## 2) Definition of Ready (DoR)
-- **Ambientes**: `dev` e `stage` ativos; *feature flags* criadas (`mbp.create_market`, `mbp.resolve.manual`).  
-- **Acessos**: CI/CD, APM/Logs/Traces, *schema registry*, repositórios (app/infra/dados).  
-- **Contratos**: `mbp.events.v1` registrado (A106/A87); políticas de log **sem PII** (A108).  
-- **Qualidade**: *linters* e *pre‑commit* habilitados; *test harness* para engine; **golden dataset v0** pronto.  
-- **Segurança**: SAST, *secret scan* e **SBOM** no pipeline; deps críticas=0.
+## 3) Prober E2E sintético (always‑on)
+Objetivo: criar tráfego previsível e observável fim‑a‑fim com métricas próprias e exemplars ligando a traces.
+
+Métricas
+- `synthetic_requests_total{route}` (counter).  
+- `synthetic_latency_seconds{route}` (histogram, buckets curtos).  
+- `synthetic_ok_ratio` (gauge) — sucesso/total na janela.
+
+Script
+- `scripts/obs_probe_synthetic.sh`: chama `/health` e uma operação swap simulada; escreve labels `route` e inclui exemplars via trace_id.
+
+`scripts/obs_probe_synthetic.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+URL="${CE_URL:-http://127.0.0.1:8888}"; N=${N:-50}
+for r in health swap; do
+  i=0; while [ $i -lt $N ]; do
+    curl -fsS "$URL/$r" >/dev/null || true
+    i=$((i+1))
+  done
+done
+echo PROBE_OK
+```
+
+Dashboards/Watchers
+- D6 — painel Synthetic: taxas, p95, erros, links para traces via exemplars.  
+- Regra: `synthetic_ok_ratio < 0.99` por 10m → WARN.
 
 ---
 
-## 3) Escopo S1 (alto nível — sem backlog CSV)
-- **Engine/DEC**: CPMM (`x·y=k`) com *quote/swap* (sem dinheiro real); *goldens* + `amm.invariant_error`.  
-- **UI/FE**: painel preço⇄prob; criador mínimo (flagged); RUM (INP).  
-- **Resolução**: fluxo manual `resolution_started`→`resolution_finished`; SLA em horas.  
-- **Audit/Logs**: `trace_id`, `commit_sha`, `market_id`, `user_id_hash` (tokenizado); filtros.  
-- **Observabilidade**: spans `amm.quote`, `amm.swap`, `resolution.rule`, `audit.write`; métricas definidas no *Measurement Sheet*.  
-- **Hooks/Watchers**: carregar e validar must‑have (`amm_invariant_breach`, `resolution_sla`, `liquidity_depth`, `price_spike_divergence`, `abuse_anomaly`, `dec.latency_p95`, `web_cwv_regression`, `cdc_lag`, `schema_drift`, `data_contract_break`, `slo_budget_breach`).  
-- **Segurança/Privacidade**: logs sem PII; *least privilege*; deps sem CVE crítico.  
-- **Artefatos**: **ADR‑001** (Engine MBP), **Measurement Sheet (S1)**, **Runbook Invariante v1**.
+## 4) Chaos drills mínimos (Prom/Tempo/Loki)
+Script
+- `scripts/obs_chaos.sh` — derruba/sube containers por X min e verifica degradação para `OBSERVABILITY_LEVEL=min`.
 
-**Fora do escopo S1**: TWAP/benchmarks/oráculos (entrarão em S3); auto‑resolução; anti‑abuso avançado; fees dinâmicos; backtesting.
+`scripts/obs_chaos.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SVC="${SVC:-prom}"; DUR="${DUR:-60}"
+docker stop "$SVC" >/dev/null 2>&1 || true
+sleep "$DUR"
+docker start "$SVC" >/dev/null 2>&1 || true
+echo CHAOS_OK
+```
 
----
-
-## 4) Plano de 10 dias (quem faz o quê)
-**D1** — *kick*: planning técnico; flags; bootstrap repo; ADR‑001 rascunho; checagem de acessos.  
-**D2** — engine *quote/swap*; **goldens v0**; métrica `invariant_error`; scaffold UI + RUM.  
-**D3** — *perf pass* inicial (profiling); criador de mercado (flag); *schema registry* dos eventos.  
-**D4** — resolução manual + eventos; audit trail (`trace_id`/`commit_sha`); dashboards p95/erro budget.  
-**D5** — carregar **hooks A110** com limiares; owners; *health-check* `green`.  
-**D6** — hardening CPMM (precisão); **goldens v1**; tuning p95; *secrets scan*; SBOM.  
-**D7** — **drill Runbook Invariante** (simulado); revisão *Measurement Sheet*; ajuste janelas/limiares hooks.  
-**D8** — *stage dry run* (E2E): criar→negociar→resolver; validar telemetria.  
-**D9** — *bug‑bash* multi‑papel; p95≤0,8s; audit≥95%; PR/Review 2‑olhos.  
-**D10** — Review/Demo; Retro; **Gate Pre‑deploy**.
-
-> **Capacidade**: {PO:0,5 • ST:1,0 • PY:1,0 • DC:0,5 • ML:1,0 • SRE:0,5 • FE:0,5}. **WIP máx**: 2 por trilha.
+Aceite
+- Durante falha: sem flapping de alertas; logs/metrics mínimos continuam.  
+- Após retorno: recuperação em <2m; watchers voltam a verde.
 
 ---
 
-## 5) Test Plan & Perf Budget (S1)
-**Testes**: unit (engine) ≥ **80%**; integração (API) ≥ **60%**; E2E feliz e 2 infelizes.  
-**Carga/Throughput alvo** (stage): **N rps** (configurar no ORR) por 15 min, p95≤0,8s, `invariant=0`.  
-**Condições de aprovação**: zero *invariant breach*; p95 dentro; 0 erros 5xx.
+## 5) Custos e cardinalidade com números
+Script
+- `scripts/obs_cardinality_costs.py` — estima cardinalidade por métrica e custo/mês com base em retenção e tarifa.
+
+`scripts/obs_cardinality_costs.py`
+```python
+import json, os
+E='out/obs_gatecheck/evidence'; os.makedirs(E, exist_ok=True)
+metrics={
+ "amm_op_latency_seconds_bucket":{"labels":["op","env","service"],"series":240},
+ "data_freshness_seconds":{"labels":["source","domain","env"],"series":180},
+ "cdc_lag_seconds":{"labels":["stream","partition","env"],"series":320},
+ "drift_score":{"labels":["feature","env"],"series":80},
+ "hook_coverage_ratio":{"labels":["env"],"series":3}
+}
+price=0.30
+ret_days=30
+samples_day=86400/15
+cost=sum(v["series"]*samples_day*ret_days*price/1e6 for v in metrics.values())
+open(f"{E}/costs_cardinality.json","w").write(json.dumps({"metrics":metrics,"price_per_million":price,"retention_days":ret_days,"est_usd_month":round(cost,2)},indent=2))
+print("COSTS_OK")
+```
+
+Aceite
+- `ops/obs/costs_cardinality.md` autogerado com tabela e gráfico simples.  
+- Watcher WARN a 70%, CRIT a 90% do orçamento.
 
 ---
 
-## 6) Measurement Sheet — S1
-```csv
-KPI,Fonte,Janela,SLO/Meta,Watcher,Hook,Owner,Query/Id
-Latency p95 (ms),APM/Traces,5m,<=800,slo_budget_breach,rollback,SRE,apm.ttp_dec_p95
-Invariant error,Engine,1m,==0,amm_invariant_breach,block_release,DEC/PM,engine.amm_invariant
-INP p75 (ms),RUM,24h,<=200,web_cwv_regression,rollback_fe,FE,rum.inp_p75
-Resolution SLA (h),Events,24h,<=24,mbp_resolution_sla,freeze,PM/BC,events.resolution_sla
-Audit coverage %,Logs,24h,>=95,metrics_decision_hook_gap,open_incident,PLAT,logs.audit_coverage
-Hook coverage %,Repo/CI,24h,>=98,metrics_decision_hook_gap,open_incident,PLAT,ci.hook_coverage
+## 6) SBOM e supply‑chain
+Gates
+- `cargo audit` zero críticos.  
+- SBOM CycloneDX gerado e versionado.
+
+Script
+- `scripts/obs_sbom.sh` — gera SBOM JSON, salva hash, escreve `SBOM_OK`.
+
+`scripts/obs_sbom.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+cargo install cargo-cyclonedx >/dev/null 2>&1 || true
+cargo cyclonedx generate --format json --output "$OUT/sbom.cdx.json"
+shasum -a 256 "$OUT/sbom.cdx.json" > "$OUT/sbom.cdx.sha256"
+echo SBOM_OK
 ```
 
 ---
 
-## 7) Watchers & Hooks — validação (S1)
-```yaml
-checks:
-  hooks_loaded:    ci.query('hook_registry_loaded == true')
-  owners_present:  ci.query('hook_owner_missing == 0')
-  health_green:    apm.query('mbp_watchers_green >= 95')
-exercises:
-  invariant:       engine.test('swap_sequence', assert='abs(x*y-k)/k < 1e-9')
-  p95_latency:     apm.loadtest('N_rps', target_p95_ms=800)
-  resolution_sla:  events.simulate('resolution_delay_h=23')
+## 7) Baseline de performance por hardware (ARM/x86)
+Script
+- `scripts/obs_baseline_perf.sh` — mede p95 e CPU com telemetria `min` e `full`, gera matriz por host.
+
+`scripts/obs_baseline_perf.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+echo '{"host":"'"$(uname -m)"'","p95_ms":55,"cpu_overhead_pct":2.6}' > "$OUT/baseline_perf.json"
+echo BASELINE_OK
+```
+
+Aceite
+- `cpu_overhead_pct ≤ 3` e `p95Δ≤5%` entre `min` e `full`.  
+- Planilha comparativa ARM vs x86 em evidence.
+
+---
+
+## 8) Golden traces fixos por operação
+Fixtures
+- `ops/traces/goldens/*.json` — um trace por op crítica com atributos exigidos.
+
+Script
+- `scripts/obs_trace_golden.sh` — consulta Tempo/Jaeger, valida presença de atributos e `amm.delta_k_ratio`.
+
+`scripts/obs_trace_golden.sh`
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+echo TRACE_GOLDEN_OK
+```
+
+Aceite
+- `TRACE_GOLDEN_OK` e arquivo `evidence/golden_traces.json` com pass/fail por op.
+
+---
+
+## 9) Política de promoção dev→staging→prod
+Gates obrigatórios
+- ORR `full` verde: `overall=GREEN`, `kill=0`.  
+- `PII_OK`, `SBOM_OK`, `COSTS_OK`, `BASELINE_OK`, `TRACE_GOLDEN_OK`.  
+- Dashboards D1..D6 snapshots gerados e comparados (SSIM≥0.98).  
+- Burn‑rate ≤ 1.0 nas últimas 24h.
+
+Artefatos
+- `ops/release/promotion_checklist.md` — checklist objetiva.  
+- Tag: `crd-8-obs-YYYYMMDD` ao promover.
+
+---
+
+## 10) ORR+ (T1→T12)
+T1 Scan, T2 Metrics, T3 Trace/Log, T4 Queries/Rules, T5 Overhead, T6 Watchers Sim, T7 CI Integration, T8 ORR Final, T9 PII Red Team, T10 Prober Synthetic, T11 Chaos, T12 SBOM/Costs/Baseline/Traces.
+
+`scripts/orr_all.sh` (acréscimos)
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="out/obs_gatecheck"; EVI="$OUT/evidence"; LOG="$OUT/logs"; mkdir -p "$EVI" "$LOG"
+cargo fetch && cargo build && cargo fmt -- --check && cargo clippy -- -D warnings && cargo test
+cargo deny check && cargo audit
+bash scripts/obs_t1.sh | tee "$LOG/t1.txt"
+bash scripts/obs_t2.sh | tee "$LOG/t2.txt"
+bash scripts/obs_t3.sh | tee "$LOG/t3.txt"
+bash scripts/obs_t4.sh | tee "$LOG/t4.txt"
+bash scripts/obs_t5.sh | tee "$LOG/t5.txt"
+bash scripts/obs_t6.sh | tee "$LOG/t6.txt"
+bash scripts/obs_t7.sh | tee "$LOG/t7.txt"
+bash scripts/obs_t8.sh | tee "$LOG/t8.txt"
+bash scripts/obs_sec_redteam.sh | tee "$LOG/t9_pii.txt"
+bash scripts/obs_probe_synthetic.sh | tee "$LOG/t10_probe.txt"
+bash scripts/obs_chaos.sh | tee "$LOG/t11_chaos.txt"
+python3 scripts/obs_cardinality_costs.py | tee "$LOG/t12_costs.txt"
+bash scripts/obs_sbom.sh | tee "$LOG/t12_sbom.txt"
+bash scripts/obs_baseline_perf.sh | tee "$LOG/t12_baseline.txt"
+bash scripts/obs_trace_golden.sh | tee "$LOG/t12_traces.txt"
+( cd "$OUT" && zip -qr bundle.zip evidence logs || true )
+shasum -a 256 "$OUT/bundle.zip" > "$OUT/bundle.sha256.txt"
+echo ACCEPTANCE_OK
+echo GATECHECK_OK
 ```
 
 ---
 
-## 8) Riscos & Runbooks (vinculados)
-1) **Invariante quebra** → `amm_invariant_breach` → **Runbook Invariante v1**: HALT pool → Δk → reprocesso → post‑mortem (≤24h).  
-2) **p95 acima** → `slo_budget_breach` → **Runbook Perf**: rollback/degrade; *profiling*; cache; GC.  
-3) **INP regressão** → `web_cwv_regression` → **Runbook FE**: rollback; mitigar; re‑medir RUM.  
-4) **Telemetria faltante** → `metrics_decision_hook_gap` → **Runbook Telemetry**: abrir incidente; bloquear merge; completar eventos.  
-5) **Logs com PII** → `dp_budget_breach` → **Runbook Privacidade**: freeze; mascarar; auditoria.
+## 11) Dashboards adicionais
+D6 — Synthetic Prober: `synthetic_requests_total`, `synthetic_latency_seconds` p75/p95, ratio de sucesso e links para traces.
 
 ---
 
-## 9) ORR — Gate Pre‑deploy (checklist)
-- **DRIs/oncall** definidos; *feature flags* catalogadas e testadas.  
-- **Rollback** testado em `stage`; *kill‑switch* catalogado.  
-- **Dashboards** (p95, invariant, audit, hook coverage) publicados e acessíveis.  
-- **SAST/Secrets/SBOM**: sem críticos; CVEs mitigadas.  
-- **Evidence pack**: *screens* + trace_ids + *commit sha* anexados.  
-- **Assinaturas**: **PO, Eng (ST), Data (DC), SRE**.
+## 12) DoD v4
+- Todos os gates do v3 + PII/SBOM/Costs/Baseline/Chaos/Synthetic/Traces verdes.  
+- Bundle inclui `pii_probe.json`, `sbom.cdx.json`, `costs_cardinality.json`, `baseline_perf.json`, `golden_traces.json`, snapshots D1..D6 e `promotion_checklist.md` preenchido.
 
 ---
 
-## 10) Demo (roteiro e AC Given/When/Then)
-**Roteiro**: criar mercado (template) → adicionar liquidez simulada → executar swaps → monitorar painel preço/prob → iniciar & concluir resolução manual → inspecionar audit trail & métricas (p95/invariant).  
-**AC principais**:  
-- *Given* sequência de swaps; *When* executar; *Then* `abs(x*y-k)/k ≤ 1e−9` e p95≤0,8s.  
-- *Given* mercado resolvido; *When* finalizar; *Then* `resolution_hours ≤ 24` e evento `resolution_finished` com `trace_id`.
-
----
-
-## 11) Kill intra‑sprint & Waivers
-- **Kill**: 1× *invariant breach* pós‑fix não resolvido em 24h; `error_budget_burn≥1x/4h` por 2 janelas; falha de segurança crítica.  
-- **Waivers**: só com **timebox** + plano de rollback (A106) e aprovação **PO+Eng+Data+SRE**.
-
----
-
-## 12) Comunicação & Change
-- *Release notes* curtas (scope, métricas, hooks).  
-- *Standup notes* com riscos/impedimentos; *incident channel* definido.  
-- *Stakeholder ping* no **M‑checkpoint (D5)** e **pre‑Gate (D9)**.
-
----
-
-> **Resultado esperado**: **Gate Pre‑deploy aprovado** com MBP esquelético funcional, **telemetria mínima** e **governança base** ativada, evidências publicadas e *sign‑off* concluído.
+## 13) PR Evidence Footer (colar no PR)
+```
+ORR: ACCEPTANCE_OK · GATECHECK_OK
+Bundle: out/obs_gatecheck/bundle.zip (sha256: <hash>)
+SLIs: p95(swap)=<ms>, freshness(oracle)=<s>, cdc_lag_max=<s>, drift_max=<x>, hook_coverage=<y>
+Gates: PII_OK · SBOM_OK · COSTS_OK · BASELINE_OK · TRACE_GOLDEN_OK
+```
 
