@@ -35,6 +35,7 @@ groups:
 
       # W-OBS-003 — CDC lag
       - alert: OBS_CDC_Lag_Warn
+        expr: max by (stream) (cdc_lag_seconds{service="trendmarket-amm"}) > 10
         expr: max by (stream) (cdc_lag_seconds) > 10
         for: 10m
         labels:
@@ -45,6 +46,7 @@ groups:
           description: "Lag de CDC acima de 10s por 10m."
 
       - alert: OBS_CDC_Lag_Crit
+        expr: max by (stream) (cdc_lag_seconds{service="trendmarket-amm"}) > 30
         expr: max by (stream) (cdc_lag_seconds) > 30
         for: 5m
         labels:
@@ -77,6 +79,7 @@ groups:
 
       # W-OBS-005 — cobertura de hooks
       - alert: OBS_Hook_Coverage_Low
+        expr: min by (env) (hook_coverage_ratio{env=~".+"}) < 0.95
         expr: hook_coverage_ratio < 0.95
         for: 30m
         labels:
