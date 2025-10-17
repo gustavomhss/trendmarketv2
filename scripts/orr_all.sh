@@ -46,3 +46,4 @@ log "GATECHECK_OK"; echo GATECHECK_OK
 run T9_summary scripts/orr_t9_summary.sh
 run T13_release scripts/obs_release_manifest.py
 run T14_finalize scripts/obs_release_finalize.py
+run T15_notes scripts/obs_release_notes.py

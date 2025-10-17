@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, Iterable, Optional
 from typing import Any, Dict, Optional
 
 
@@ -327,4 +328,180 @@ __all__ = [
     "write_release_manifest",
     "build_release_metadata",
     "write_release_metadata",
+    "build_release_notes",
+    "write_release_notes",
+]
+
+
+def _status_marker(value: Optional[bool]) -> str:
+    if value is True:
+        return "✅"
+    if value is False:
+        return "❌"
+    return "⚪"
+
+
+def _format_table(rows: Iterable[Iterable[str]]) -> str:
+    lines = ["| Item | Status |", "| --- | --- |"]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+    return "\n".join(lines)
+
+
+def _format_drill_payload(payload: Any) -> str:
+    if payload is None:
+        return "n/a"
+    if isinstance(payload, (str, int, float, bool)):
+        return str(payload)
+    if isinstance(payload, list):
+        if not payload:
+            return "[]"
+        return ", ".join(map(str, payload))
+    if isinstance(payload, dict):
+        if not payload:
+            return "{}"
+        parts = []
+        for key in sorted(payload):
+            parts.append(f"{key}={payload[key]}")
+        return ", ".join(parts)
+    return json.dumps(payload, sort_keys=True)
+
+
+def build_release_notes(out_dir: Path) -> str:
+    metadata_path = out_dir / "release_metadata.json"
+    if not metadata_path.exists():
+        raise FileNotFoundError(
+            "release_metadata.json ausente; execute obs_release_finalize.py"
+        )
+
+    metadata = _load_json(metadata_path)
+    summary = metadata.get("summary")
+    if not isinstance(summary, dict) or not summary:
+        raise ReleaseManifestError("SUMMARY_METADATA_MISSING")
+
+    bundle = metadata.get("bundle") or {}
+    evidence_checks = metadata.get("evidence_checks") or {}
+    costs = metadata.get("costs")
+    synthetic = metadata.get("synthetic_probe")
+    metrics = metadata.get("metrics")
+    watchers = metadata.get("watchers") or {}
+    drills = metadata.get("drills") or {}
+    sbom = metadata.get("sbom") or {}
+
+    lines = [
+        f"# CRD-8 Observability Release — {metadata.get('tag', 'unknown')}",
+        "",
+        "## Resumo",
+    ]
+
+    lines.extend(
+        [
+            f"- Versão: `{metadata.get('version', 'n/a')}`",
+            f"- Perfil ORR: `{summary.get('profile', 'n/a')}`",
+            f"- Ambiente: `{summary.get('environment', 'n/a')}`",
+            f"- Acceptance: `{summary.get('acceptance', 'n/a')}`",
+            f"- Gatecheck: `{summary.get('gatecheck', 'n/a')}`",
+            f"- Timestamp: `{summary.get('ts', 'n/a')}`",
+        ]
+    )
+
+    lines.extend(
+        [
+            "",
+            "## Bundle",
+            f"- Caminho: `{bundle.get('path', 'n/a')}`",
+            f"- Tamanho: {bundle.get('size_bytes', 'n/a')} bytes",
+            f"- SHA256: `{bundle.get('sha256', 'n/a')}`",
+        ]
+    )
+
+    if evidence_checks:
+        rows = (
+            (f"`{name}`", _status_marker(bool(value)))
+            for name, value in sorted(evidence_checks.items())
+        )
+        lines.extend(["", "## Evidências", _format_table(rows)])
+
+    if costs:
+        lines.extend(
+            [
+                "",
+                "## Custos e Cardinalidade",
+                f"- Custo estimado (USD/mês): {costs.get('total_estimated_usd_month', 'n/a')}",
+                f"- Maior razão: {costs.get('max_ratio', 'n/a')}",
+                f"- Métrica crítica: `{costs.get('max_metric', 'n/a')}`",
+            ]
+        )
+
+    if synthetic:
+        lines.extend(
+            [
+                "",
+                "## Prober Sintético",
+                f"- OK: {synthetic.get('ok', 'n/a')} de {synthetic.get('total', 'n/a')}",
+                f"- OK ratio: {synthetic.get('ok_ratio', 'n/a')}",
+            ]
+        )
+
+    if metrics:
+        lines.extend(
+            [
+                "",
+                "## Métricas",
+                f"- p95 swap (s): {metrics.get('p95_swap_seconds', 'n/a')}",
+                f"- synthetic swap ok ratio: {metrics.get('synthetic_swap_ok_ratio', 'n/a')}",
+            ]
+        )
+
+    if watchers:
+        lines.extend(
+            [
+                "",
+                "## Watchers",
+                f"- Simulação executada: {_status_marker(watchers.get('simulated'))}",
+                f"- Alertas esperados: {watchers.get('alerts_count', 0)}",
+            ]
+        )
+        alerts = watchers.get("alerts_expected") or []
+        if alerts:
+            lines.append("")
+            lines.append("### Alertas esperados")
+            for alert in alerts:
+                name = alert.get("alert", "desconhecido")
+                reason = alert.get("reason") or "sem motivo registrado"
+                lines.append(f"- `{name}` — {reason}")
+
+    if drills:
+        lines.extend(["", "## Drills"])
+        for name in sorted(drills):
+            payload = drills[name]
+            lines.append(f"- **{name}**: {_format_drill_payload(payload)}")
+
+    if sbom:
+        lines.extend(
+            [
+                "",
+                "## SBOM",
+                f"- Caminho: `{sbom.get('path', 'n/a')}`",
+                f"- SHA256: `{sbom.get('sha256', 'n/a')}`",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Artefatos",
+            f"- Manifesto: `{metadata.get('manifest_path', 'n/a')}`",
+            f"- Metadata: `{metadata_path}`",
+        ]
+    )
+
+    return "\n".join(lines) + "\n"
+
+
+def write_release_notes(out_dir: Path) -> Path:
+    notes = build_release_notes(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    notes_path = out_dir / "release_notes.md"
+    notes_path.write_text(notes, encoding="utf-8")
+    return notes_path
 ]

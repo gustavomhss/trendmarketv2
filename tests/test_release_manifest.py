@@ -6,6 +6,11 @@ from pathlib import Path
 from amm_obs.release import (
     ReleaseManifestError,
     build_release_metadata,
+    build_release_notes,
+    generate_release_manifest,
+    write_release_manifest,
+    write_release_metadata,
+    write_release_notes,
     generate_release_manifest,
     write_release_manifest,
     write_release_metadata,
@@ -216,6 +221,55 @@ class ReleaseManifestTests(unittest.TestCase):
             metadata = build_release_metadata(out_dir, version="20251231")
             self.assertEqual(metadata["version"], "20251231")
             self.assertEqual(metadata["tag"], "crd-8-obs-20251231")
+
+    def test_write_release_notes_generates_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            _create_base_layout(out_dir)
+
+            _write_json(
+                out_dir / "summary.json",
+                {
+                    "acceptance": "OK",
+                    "gatecheck": "OK",
+                    "profile": "full",
+                    "environment": "staging",
+                    "ts": "2025-10-10T00:00:00Z",
+                },
+            )
+
+            bundle = out_dir / "bundle.zip"
+            bundle.write_bytes(b"bundle")
+            (out_dir / "bundle.sha256.txt").write_text(
+                "deadbeef bundle.zip\n", encoding="utf-8"
+            )
+
+            evidence = out_dir / "evidence"
+            _write_json(
+                evidence / "metrics_summary.json",
+                {"p95_swap_seconds": 0.041, "synthetic_swap_ok_ratio": 1.0},
+            )
+            _write_json(
+                evidence / "watchers_simulation.json",
+                {
+                    "simulated": True,
+                    "alerts_expected": [
+                        {"alert": "OBS_P95_Swap_TooHigh", "reason": "SLO"}
+                    ],
+                },
+            )
+
+            write_release_metadata(out_dir)
+            notes_path = write_release_notes(out_dir)
+            self.assertTrue(notes_path.exists())
+
+            content = notes_path.read_text(encoding="utf-8")
+            self.assertIn("CRD-8 Observability Release", content)
+            self.assertIn("deadbeef", content)
+            self.assertIn("OBS_P95_Swap_TooHigh", content)
+
+            rendered = build_release_notes(out_dir)
+            self.assertEqual(content, rendered)
 
 
 if __name__ == "__main__":
