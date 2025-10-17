@@ -13,6 +13,7 @@ cat > "$EVI/watchers_simulation.json" <<'JSON'
     {"alert": "OBS_Hook_Execution_Stalled", "reason": "hook_pre_trade sem execuções em 1h"},
     {"alert": "OBS_Cardinality_Budget_Warn", "reason": "observability_series_budget_ratio > 0.7"},
     {"alert": "OBS_Cardinality_Budget_Crit", "reason": "observability_series_budget_ratio > 0.9"}
+    {"alert": "OBS_Hook_Execution_Stalled", "reason": "hook_pre_trade sem execuções em 1h"}
   ]
 }
 JSON

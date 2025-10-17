@@ -313,6 +313,18 @@ class AMMObservability:
                         "latency_seconds": latency,
                         "start_time": event.start_time,
                     }
+            self._events.append(event)
+            self._latency_records.setdefault(op, []).append(latency)
+            self._record_hook_activity(op)
+            # Capture the first observation per operation as exemplar to link
+            # metrics with traces/logs deterministically.
+            if op not in self._exemplars:
+                self._exemplars[op] = {
+                    "trace_id": trace_id,
+                    "span_id": span_id,
+                    "latency_seconds": latency,
+                    "start_time": event.start_time,
+                }
             return event
 
     def simulate_operation(self, op: str) -> _Event:
@@ -372,6 +384,16 @@ class AMMObservability:
         if self._level == "off":
             return "# Observability disabled (level=off)\n"
 
+            "supporting": {
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
+                "drift_score": self._samples_to_dict(self._drift_scores),
+                "hook_executions_total": self._counter_samples(),
+                "hook_coverage_ratio": self._hook_coverage_snapshot(),
+            },
+        }
+
+    def export_prometheus(self) -> str:
         lines = [
             "# HELP amm_op_latency_seconds AMM operation latency",
             "# TYPE amm_op_latency_seconds histogram",
@@ -394,6 +416,7 @@ class AMMObservability:
                 f"amm_op_latency_seconds_count{{{self._label_pairs(op)}}} {total}"
             )
         if self._level in {"min", "full"} and self._data_freshness:
+        if self._data_freshness:
             lines.extend(
                 [
                     "# HELP data_freshness_seconds Data freshness lag",
@@ -406,6 +429,7 @@ class AMMObservability:
                     f"data_freshness_seconds{{{self._format_metric_labels('data_freshness_seconds', sample['labels'])}}} {sample['value']}"
                 )
         if self._level in {"min", "full"} and self._cdc_lag:
+        if self._cdc_lag:
             lines.extend(
                 [
                     "# HELP cdc_lag_seconds CDC consumer lag",
@@ -418,6 +442,7 @@ class AMMObservability:
                     f"cdc_lag_seconds{{{self._format_metric_labels('cdc_lag_seconds', sample['labels'])}}} {sample['value']}"
                 )
         if self._level in {"min", "full"} and self._drift_scores:
+        if self._drift_scores:
             lines.extend(
                 [
                     "# HELP drift_score Feature drift score (PSI/KL)",
@@ -429,6 +454,7 @@ class AMMObservability:
                     f"drift_score{{{self._format_metric_labels('drift_score', sample['labels'])}}} {sample['value']}"
                 )
         if self._level in {"min", "full"} and self._hook_executions:
+        if self._hook_executions:
             lines.extend(
                 [
                     "# HELP hook_executions_total Hook executions grouped by outcome",
@@ -447,6 +473,7 @@ class AMMObservability:
                     f"hook_executions_total{{{self._format_metric_labels('hook_executions_total', sample['labels'])}}} {sample['value']}"
                 )
         if self._level in {"min", "full"} and self._hook_coverage is not None:
+        if self._hook_coverage is not None:
             lines.extend(
                 [
                     "# HELP hook_coverage_ratio Hook coverage ratio",
@@ -502,6 +529,17 @@ class AMMObservability:
         spans: List[Dict[str, object]] = []
         if self._level != "off":
             spans = [
+        return "\n".join(lines) + "\n"
+
+    def serialize(self) -> Dict[str, object]:
+        return {
+            "meta": {
+                "env": self.env,
+                "service": self.service,
+                "version": self.version,
+                "generated_at": _format_ts(_utc_now()),
+            },
+            "spans": [
                 {
                     "trace_id": e.trace_id,
                     "span_id": e.span_id,
@@ -613,6 +651,32 @@ class AMMObservability:
             "total_estimated_usd_month": round(total_cost, 2),
             "max_ratio": max_ratio,
             "max_ratio_metric": worst_metric,
+        }
+
+            ],
+            "logs": [
+                {
+                    "trace_id": e.trace_id,
+                    "span_id": e.span_id,
+                    "timestamp": e.start_time,
+                    "level": "INFO" if e.status == "OK" else "ERROR",
+                    "message": f"{e.op} completed",
+                    "fields": {
+                        "op": e.op,
+                        "latency_seconds": e.latency_seconds,
+                        "status": e.status,
+                    },
+                }
+                for e in self._events
+            ],
+            "metrics": {
+                "amm_op_latency_seconds": self.metrics_snapshot(),
+                "data_freshness_seconds": self._samples_to_dict(self._data_freshness),
+                "cdc_lag_seconds": self._samples_to_dict(self._cdc_lag),
+                "drift_score": self._samples_to_dict(self._drift_scores),
+                "hook_executions_total": self._counter_samples(),
+                "hook_coverage_ratio": self._hook_coverage_snapshot(),
+            },
         }
 
     def write_prometheus_file(self, path: Path) -> None:
