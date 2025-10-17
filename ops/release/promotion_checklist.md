@@ -4,6 +4,7 @@
 - [ ] `scripts/orr_all.sh` (profile=full) executado com `ACCEPTANCE_OK` e `GATECHECK_OK`.
 - [ ] `out/obs_gatecheck/summary.json` revisado (`acceptance=OK`, `gatecheck=OK`).
 - [ ] Manifesto `out/obs_gatecheck/release_manifest.json` atualizado (hash do bundle + métricas).
+- [ ] Revisar seções `watchers` e `drills` do manifesto (alertas esperados, spans correlacionados, chaos/PII).
 - [ ] Watchers A110 verdes nas últimas 24h (p95 swap, freshness, CDC, drift, hooks, cardinalidade, synthetic).
 - [ ] Dashboards D1..D6 capturados e anexados ao bundle.
 - [ ] Sem alertas de PII (`PII_OK`) e SBOM assinada (`sbom.cdx.sha256`).

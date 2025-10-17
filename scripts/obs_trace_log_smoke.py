@@ -53,6 +53,8 @@ payload = {
     "total_spans": len(spans),
     "correlated_entries": correlated,
     "correlated_ratio": 1.0,
+    "observability_level": "full",
+    "skipped": False,
     "sample": correlated[0],
 }
 OUTPUT_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
