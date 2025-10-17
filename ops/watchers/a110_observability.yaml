@@ -129,3 +129,131 @@ groups:
         annotations:
           summary: "Synthetic OK ratio abaixo de 99%"
           description: "Prober sintético reportou sucesso <99% na janela."
+- name: a110_observability
+  rules:
+  # W‑OBS‑001 — p95(swap)
+  - alert: OBS_P95_Swap_TooHigh
+    expr: histogram_quantile(0.95, sum by (le) (rate(amm_op_latency_seconds_bucket{op="swap"}[5m]))) > 0.06
+    for: 10m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "p95(swap) acima do SLO (60ms)"
+      description: "p95 da operação swap excedeu 60ms por 10m. Verificar regressões, GC e cardinalidade."
+
+  - alert: OBS_P95_Swap_TooHigh_Crit
+    expr: histogram_quantile(0.95, sum by (le) (rate(amm_op_latency_seconds_bucket{op="swap"}[5m]))) > 0.06
+    for: 30m
+    labels:
+      severity: critical
+      team: ce
+    annotations:
+      summary: "p95(swap) crítico acima de 60ms"
+      description: "Persistência >30m. Ação imediata necessária."
+
+  # W‑OBS‑002 — staleness (oracle)
+  - alert: OBS_Oracle_Stale
+    expr: max by (source) (data_freshness_seconds{source="oracle"}) > 5
+    for: 5m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Freshness oracle > 5s"
+      description: "Dados de oracle acima do alvo de 5s na janela."
+
+  # W‑OBS‑003 — CDC lag
+  - alert: OBS_CDC_Lag_Warn
+    expr: max by (stream) (cdc_lag_seconds{env=~".+"}) > 10
+    for: 10m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "CDC lag > 10s (WARN)"
+      description: "Lag de CDC acima de 10s por 10m."
+
+  - alert: OBS_CDC_Lag_Crit
+    expr: max by (stream) (cdc_lag_seconds{env=~".+"}) > 30
+    for: 5m
+    labels:
+      severity: critical
+      team: ce
+    annotations:
+      summary: "CDC lag > 30s (CRIT)"
+      description: "Lag de CDC crítico por 5m."
+
+  # W‑OBS‑004 — drift (features críticas)
+  - alert: OBS_Drift_Critical_Feature_Warn
+    expr: max by (feature) (drift_score{feature=~".*(price|volume|spread).*"}) > 0.2
+    for: 30m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Drift (PSI/KL) > 0.2 em feature crítica"
+      description: "PSI/KL acima de 0.2 por 30m. Verificar regime e baseline."
+
+  - alert: OBS_Drift_Critical_Feature_Crit
+    expr: max by (feature) (drift_score{feature=~".*(price|volume|spread).*"}) > 0.4
+    for: 15m
+    labels:
+      severity: critical
+      team: ce
+    annotations:
+      summary: "Drift (PSI/KL) crítico > 0.4"
+      description: "PSI/KL acima de 0.4 por 15m em feature crítica. Acionar análise de distribuição."
+
+  # W‑OBS‑005 — hook coverage e execuções
+  - alert: OBS_Hook_Coverage_Low
+    expr: min by (env) (hook_coverage_ratio{env=~".+"}) < 0.95
+    for: 30m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Cobertura de hooks <95%"
+      description: "Cobertura de hooks caiu abaixo de 95% na janela de 30m. Checar hooks sem execução e falhas recentes."
+
+  - alert: OBS_Hook_Execution_Stalled
+    expr: sum by (hook_id) (increase(hook_executions_total{status="success"}[1h])) == 0
+    for: 1h
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Hook sem execuções em 1h"
+      description: "O hook {{ $labels.hook_id }} não executou na última hora. Validar cobertura A110 e jobs dependentes."
+
+  # W-OBS-006 — Cardinalidade e custos
+  - alert: OBS_Cardinality_Budget_Warn
+    expr: max by (metric) (observability_series_budget_ratio{metric=~".+"}) > 0.7
+    for: 15m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Cardinalidade acima de 70% do orçamento"
+      description: "A métrica {{ $labels.metric }} consumiu {{ humanizePercentage $value }} do budget de séries. Reduzir labels ou revisar agregações."
+
+  - alert: OBS_Cardinality_Budget_Crit
+    expr: max by (metric) (observability_series_budget_ratio{metric=~".+"}) > 0.9
+    for: 10m
+    labels:
+      severity: critical
+      team: ce
+    annotations:
+      summary: "Cardinalidade crítica acima de 90%"
+      description: "A métrica {{ $labels.metric }} ultrapassou 90% do budget de séries. Mitigar imediatamente antes do blow-up de custos."
+
+  # W-OBS-007 — Synthetic prober
+  - alert: OBS_Synthetic_OK_Ratio_Low
+    expr: avg_over_time(synthetic_ok_ratio{env=~".+"}[10m]) < 0.99
+    for: 10m
+    labels:
+      severity: warn
+      team: ce
+    annotations:
+      summary: "Synthetic prober com sucesso <99%"
+      description: "O ratio de sucesso do prober sintético caiu abaixo de 99% por 10m. Investigar regressões em /health ou rotas críticas."
