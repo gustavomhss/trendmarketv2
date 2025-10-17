@@ -1,18 +1,10 @@
 name: CRD Epic — Plan
 
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
-      - 'docs/obs/**'
-      - '.github/workflows/crd-epic-plan.yml'
-  workflow_dispatch:
-    inputs:
-      epic_path:
-        description: 'Caminho do épico (MD)'
-        required: true
-        default: docs/obs/CRD-8-epic.md
-
-on:
+      - 'triggers/run-plan.txt'
   workflow_dispatch:
     inputs:
       epic_path:
