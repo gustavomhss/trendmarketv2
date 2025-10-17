@@ -1,8 +1,10 @@
+"""Utilities for generating the CRD-8 release manifest and metadata."""
 """Utilities for generating the CRD-8 release manifest."""
 
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -257,8 +259,72 @@ def write_release_manifest(out_dir: Path) -> Path:
     return manifest_path
 
 
+def _parse_summary_ts(summary: Dict[str, Any]) -> datetime:
+    ts = summary.get("ts")
+    if not ts:
+        raise ReleaseManifestError("SUMMARY_TS_MISSING")
+    try:
+        if ts.endswith("Z"):
+            ts = ts[:-1] + "+00:00"
+        return datetime.fromisoformat(ts)
+    except ValueError as exc:
+        raise ReleaseManifestError(f"SUMMARY_TS_INVALID: {ts}") from exc
+
+
+def _derive_release_version(summary: Dict[str, Any], override: Optional[str]) -> str:
+    if override:
+        return override
+    return _parse_summary_ts(summary).astimezone(timezone.utc).strftime("%Y%m%d")
+
+
+def build_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> Dict[str, Any]:
+    """Return a consolidated metadata payload derived from the manifest."""
+
+    manifest_path = write_release_manifest(out_dir)
+    manifest = _load_json(manifest_path)
+    summary = manifest.get("summary", {})
+
+    release_version = _derive_release_version(summary, version)
+    tag = f"crd-8-obs-{release_version}"
+
+    metadata: Dict[str, Any] = {
+        "tag": tag,
+        "version": release_version,
+        "manifest_path": str(manifest_path),
+        "summary": {
+            "ts": summary.get("ts"),
+            "profile": summary.get("profile"),
+            "environment": summary.get("environment"),
+            "acceptance": summary.get("acceptance"),
+            "gatecheck": summary.get("gatecheck"),
+        },
+        "bundle": manifest.get("bundle"),
+        "evidence_checks": manifest.get("evidence_checks"),
+        "costs": manifest.get("costs"),
+        "synthetic_probe": manifest.get("synthetic_probe"),
+        "metrics": manifest.get("metrics"),
+        "watchers": manifest.get("watchers"),
+        "drills": manifest.get("drills"),
+        "sbom": manifest.get("sbom"),
+    }
+
+    return metadata
+
+
+def write_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> Path:
+    """Persist the release metadata file and return its path."""
+
+    metadata = build_release_metadata(out_dir, version=version)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    metadata_path = out_dir / "release_metadata.json"
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    return metadata_path
+
+
 __all__ = [
     "ReleaseManifestError",
     "generate_release_manifest",
     "write_release_manifest",
+    "build_release_metadata",
+    "write_release_metadata",
 ]

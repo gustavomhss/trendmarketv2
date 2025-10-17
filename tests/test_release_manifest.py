@@ -5,6 +5,10 @@ from pathlib import Path
 
 from amm_obs.release import (
     ReleaseManifestError,
+    build_release_metadata,
+    generate_release_manifest,
+    write_release_manifest,
+    write_release_metadata,
     generate_release_manifest,
     write_release_manifest,
 )
@@ -30,6 +34,12 @@ class ReleaseManifestTests(unittest.TestCase):
 
             _write_json(
                 out_dir / "summary.json",
+                {
+                    "acceptance": "OK",
+                    "gatecheck": "OK",
+                    "profile": "full",
+                    "ts": "2025-10-10T00:00:00Z",
+                },
                 {"acceptance": "OK", "gatecheck": "OK", "profile": "full"},
             )
 
@@ -115,6 +125,8 @@ class ReleaseManifestTests(unittest.TestCase):
             out_dir = Path(tmp)
             _create_base_layout(out_dir)
             _write_json(
+                out_dir / "summary.json",
+                {"acceptance": "FAIL", "gatecheck": "OK", "ts": "2025-10-10T00:00:00Z"},
                 out_dir / "summary.json", {"acceptance": "FAIL", "gatecheck": "OK"}
             )
 
@@ -127,6 +139,12 @@ class ReleaseManifestTests(unittest.TestCase):
             out_dir = Path(tmp)
             _create_base_layout(out_dir)
             _write_json(
+                out_dir / "summary.json",
+                {
+                    "acceptance": "OK",
+                    "gatecheck": "OK",
+                    "ts": "2025-10-10T00:00:00Z",
+                },
                 out_dir / "summary.json", {"acceptance": "OK", "gatecheck": "OK"}
             )
             evidence = out_dir / "evidence"
@@ -136,6 +154,68 @@ class ReleaseManifestTests(unittest.TestCase):
             with self.assertRaises(ReleaseManifestError) as ctx:
                 generate_release_manifest(out_dir)
             self.assertIn("JSON inválido", str(ctx.exception))
+
+    def test_build_release_metadata_derives_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            _create_base_layout(out_dir)
+
+            _write_json(
+                out_dir / "summary.json",
+                {
+                    "acceptance": "OK",
+                    "gatecheck": "OK",
+                    "profile": "full",
+                    "environment": "staging",
+                    "ts": "2025-10-11T12:34:56Z",
+                },
+            )
+
+            bundle = out_dir / "bundle.zip"
+            bundle.write_bytes(b"bundle")
+            (out_dir / "bundle.sha256.txt").write_text(
+                "cafebabe bundle.zip\n", encoding="utf-8"
+            )
+
+            evidence = out_dir / "evidence"
+            _write_json(evidence / "metrics_summary.json", {})
+
+            metadata = build_release_metadata(out_dir)
+            self.assertEqual(metadata["version"], "20251011")
+            self.assertEqual(metadata["tag"], "crd-8-obs-20251011")
+            self.assertEqual(metadata["summary"]["environment"], "staging")
+
+            path = write_release_metadata(out_dir)
+            self.assertTrue(path.exists())
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(loaded["tag"], "crd-8-obs-20251011")
+
+    def test_build_release_metadata_respects_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            _create_base_layout(out_dir)
+
+            _write_json(
+                out_dir / "summary.json",
+                {
+                    "acceptance": "OK",
+                    "gatecheck": "OK",
+                    "ts": "2025-10-11T12:34:56Z",
+                },
+            )
+
+            bundle = out_dir / "bundle.zip"
+            bundle.write_bytes(b"bundle")
+            (out_dir / "bundle.sha256.txt").write_text(
+                "cafebabe bundle.zip\n", encoding="utf-8"
+            )
+
+            evidence = out_dir / "evidence"
+            _write_json(evidence / "metrics_summary.json", {})
+
+            metadata = build_release_metadata(out_dir, version="20251231")
+            self.assertEqual(metadata["version"], "20251231")
+            self.assertEqual(metadata["tag"], "crd-8-obs-20251231")
 
 
 if __name__ == "__main__":
