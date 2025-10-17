@@ -30,4 +30,18 @@
 - **Labels:** `env`
 - **Semântica:** executados_únicos/definidos na janela (ex.: 1h)
 
+## synthetic_requests_total (counter)
+- **Labels:** `route`, `service`, `env`
+- **Semântica:** total de execuções do prober sintético por rota.
+
+## synthetic_latency_seconds (histogram)
+- **Unidade:** _seconds_
+- **Labels:** `route`, `service`, `env`
+- **Semântica:** latência observada pelo prober sintético por rota.
+- **Buckets (iniciais):** 0.001,0.002,0.003,0.005,0.01,0.02
+
+## synthetic_ok_ratio (gauge)
+- **Labels:** `route`, `service`, `env`
+- **Semântica:** proporção de respostas bem-sucedidas do prober na janela.
+
 > O linter `scripts/prom_label_lint.py` deve retornar **LABELS_OK**; do contrário, falhar PR.
