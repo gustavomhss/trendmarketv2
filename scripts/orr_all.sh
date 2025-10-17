@@ -31,9 +31,17 @@ run T5_collect scripts/orr_t5_collect_criterion.py
 run T6_metrics scripts/orr_t6_metrics_run.sh
 run T7_ci_prep scripts/orr_t7_ci_prep.sh
 run T7_collect scripts/orr_t7_collect_ci.sh
+run T9_pii scripts/obs_sec_redteam.sh
+run T10_probe scripts/obs_probe_synthetic.sh
+run T11_chaos scripts/obs_chaos.sh
+run T12_costs scripts/obs_cardinality_costs.py
+run T12_sbom scripts/obs_sbom.sh
+run T12_baseline scripts/obs_baseline_perf.sh
+run T12_traces scripts/obs_trace_golden.sh
 run T8_bundle scripts/orr_t8_bundle.sh
 
 log "ACCEPTANCE_OK"; echo ACCEPTANCE_OK
 log "GATECHECK_OK"; echo GATECHECK_OK
 
 run T9_summary scripts/orr_t9_summary.sh
+run T13_release scripts/obs_release_manifest.py
