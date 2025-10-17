@@ -1,4 +1,4 @@
-# CRD‑8 — Observabilidade Base (OpenTelemetry) — Epic v4 (Upgrades 10/10, revisão Pérez×Knuth×Jobs)
+# CRD‑8 — Observabilidade Base (OpenTelemetry) — Epic v4 (Upgrades 10/10, revisão Pérez×Knuth×Jobs).
 
 ## 0) TL;DR (produção‑pronto)
 
