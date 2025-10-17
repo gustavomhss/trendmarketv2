@@ -1,4 +1,5 @@
 """Utilities for generating the CRD-8 release manifest and metadata."""
+"""Utilities for generating the CRD-8 release manifest."""
 
 from __future__ import annotations
 
