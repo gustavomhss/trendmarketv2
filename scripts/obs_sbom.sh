@@ -34,6 +34,10 @@ generate_with_cargo() {
 
 generate_fallback() {
   local tmp="${SBOM_JSON}.tmp"
+  local py_file
+  py_file="$(mktemp)"
+
+  cat >"$py_file" <<'PY'
   REPO_ROOT="$ROOT" SBOM_OUTPUT="$tmp" python3 <<'PY'
 import hashlib
 import json
@@ -132,6 +136,9 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 PY
+
+  REPO_ROOT="$ROOT" SBOM_OUTPUT="$tmp" python3 "$py_file"
+  rm -f "$py_file"
   mv "$tmp" "$SBOM_JSON"
 }
 
@@ -145,6 +152,10 @@ write_sha256() {
     return
   fi
 
+  local py_file
+  py_file="$(mktemp)"
+
+  cat >"$py_file" <<'PY'
   SBOM_INPUT="$SBOM_JSON" SHA_OUTPUT="$SBOM_SHA" python3 <<'PY'
 import hashlib
 import os
@@ -174,6 +185,9 @@ sha_path = Path(sys.argv[2]).resolve()
 digest = hashlib.sha256(sbom_path.read_bytes()).hexdigest()
 sha_path.write_text(f"{digest}  {sbom_path.name}\n", encoding="utf-8")
 PY
+
+  SBOM_INPUT="$SBOM_JSON" SHA_OUTPUT="$SBOM_SHA" python3 "$py_file"
+  rm -f "$py_file"
 }
 
 main() {
