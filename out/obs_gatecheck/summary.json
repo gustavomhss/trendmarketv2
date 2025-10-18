@@ -1,0 +1,10 @@
+{ "ts": "2025-10-18T04:09:17Z",
+  "profile": "unknown",
+  "environment": "unknown",
+  "epic_path": "docs/obs/CRD-8-epic.md",
+  "acceptance": "OK",
+  "gatecheck": "OK",
+  "evidence_files": 21,
+  "cardinality_cost_est_usd": 7.74,
+  "cardinality_max_ratio": 0.5833,
+  "cardinality_max_metric": "synthetic_latency_seconds_bucket" }
