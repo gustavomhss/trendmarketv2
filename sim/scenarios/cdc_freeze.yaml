@@ -1,0 +1,4 @@
+name: cdc_freeze
+pause_seconds: 600
+alert_channel: DEC/PM
+rollback_after: true

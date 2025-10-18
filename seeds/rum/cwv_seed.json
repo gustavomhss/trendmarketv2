@@ -1,0 +1,26 @@
+{
+  "routes": [
+    {
+      "route": "/",
+      "metric": "INP_p75_ms",
+      "baseline": 180,
+      "current": 188,
+      "delta_pct": 4.4,
+      "p_value": 0.09,
+      "ci95_low": -5.0,
+      "ci95_high": 12.0
+    },
+    {
+      "route": "/market/:id",
+      "metric": "INP_p75_ms",
+      "baseline": 200,
+      "current": 207,
+      "delta_pct": 3.5,
+      "p_value": 0.07,
+      "ci95_low": -4.2,
+      "ci95_high": 11.3
+    }
+  ],
+  "meets_ci_rule": true,
+  "seed": "rum-fast-2403"
+}

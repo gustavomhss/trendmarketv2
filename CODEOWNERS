@@ -1,0 +1,14 @@
+# CODEOWNERS — alinhado à tabela A110 de owners por hook/watcher
+scripts/hooks/hook_invariant_breach.sh @trendmarket-dec-sre
+scripts/hooks/hook_latency_budget.sh @trendmarket-dec-sre
+scripts/hooks/hook_resolution_sla.sh @trendmarket-pm
+scripts/hooks/hook_cdc_lag.sh @trendmarket-data
+scripts/hooks/hook_schema_drift.sh @trendmarket-integrations
+scripts/hooks/hook_api_contract_break.sh @trendmarket-integrations
+scripts/hooks/hook_web_cwv_regression.sh @trendmarket-frontend
+scripts/analysis/* @trendmarket-observability
+scripts/policy_engine.sh @trendmarket-pm @trendmarket-dec-sre
+scripts/spec_check.sh @trendmarket-observability
+scripts/provenance/* @trendmarket-security
+scripts/orr_all.sh @trendmarket-observability
+.github/workflows/_mbp-s2-orr.yml @trendmarket-observability @trendmarket-security
