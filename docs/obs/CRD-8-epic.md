@@ -175,7 +175,7 @@ Script
 set -euo pipefail
 OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
 cargo install cargo-cyclonedx >/dev/null 2>&1 || true
-cargo cyclonedx generate --format json --output "$OUT/sbom.cdx.json"
+cargo cyclonedx --format json --output "$OUT/sbom.cdx.json"
 shasum -a 256 "$OUT/sbom.cdx.json" > "$OUT/sbom.cdx.sha256"
 echo SBOM_OK
 ```
