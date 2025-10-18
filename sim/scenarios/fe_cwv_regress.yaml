@@ -1,0 +1,4 @@
+name: fe_cwv_regress
+inp_delta_ms: 80
+window: 24h
+rum_seed: rum-fast-2403

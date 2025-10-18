@@ -1,0 +1,19 @@
+hooks:
+  critical:
+    - api_contract_break
+    - schema_registry_drift
+    - dp_budget_breach
+  must_have:
+    - amm_invariant_breach
+    - mbp_resolution_sla
+    - mbp_liquidity_depth
+    - mbp_price_spike_divergence
+    - cdc_lag
+    - slo_budget_breach
+abort:
+  - when: "err5xx_rate >= 0.001 for 5m"
+    action: rollback
+  - when: "invariant > 0"
+    action: block_release
+  - when: "rum_inp_p75_ms_delta > 10pct for 24h"
+    action: rollback_fe
