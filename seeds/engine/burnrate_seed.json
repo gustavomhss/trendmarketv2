@@ -1,0 +1,8 @@
+{
+  "timestamp": "2024-03-02T12:00:00Z",
+  "window": "4h",
+  "burn_rate": 0.42,
+  "ci95_low": 0.35,
+  "ci95_high": 0.48,
+  "budget_threshold": 1.0
+}
