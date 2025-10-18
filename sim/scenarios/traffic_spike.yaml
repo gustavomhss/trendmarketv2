@@ -1,0 +1,7 @@
+name: traffic_spike
+rps_multiplier: 1.5
+duration: 15m
+load_shape:
+  warmup: 2m
+  plateau: 10m
+  cooldown: 3m

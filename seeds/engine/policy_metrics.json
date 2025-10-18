@@ -1,0 +1,12 @@
+{
+  "lat_p95_ms": 742,
+  "err5xx_rate": 0.0007,
+  "burn4h": 0.42,
+  "invariant": 0,
+  "inp_p75_ms": 188,
+  "obs_uptime": 99.94,
+  "histogram_schema_version": "v3",
+  "bundle_target": "out/orr_gatecheck/evidence/bundle.sha256.txt",
+  "resilience_index_fast": 91,
+  "resilience_index_nightly": 93
+}

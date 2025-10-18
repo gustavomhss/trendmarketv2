@@ -1,0 +1,13 @@
+version: 1
+slo:
+  availability:
+    window: 28d
+    target: 99.5
+  latency_p95_ms:
+    window: 5m
+    target: 800
+abort_rules:
+  - when: "burn_rate_per_4h >= 1.0"
+    action: rollback
+  - when: "latency_p95_ms > 800 for 10m"
+    action: freeze

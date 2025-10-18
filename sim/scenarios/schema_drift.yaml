@@ -1,0 +1,5 @@
+name: schema_drift
+incompatible: true
+schema_version_from: v45
+schema_version_to: v46
+requires_manual_approval: true

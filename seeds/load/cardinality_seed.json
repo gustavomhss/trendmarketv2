@@ -1,0 +1,12 @@
+{
+  "series_active": {
+    "DEC": 1840,
+    "MBP": 2310,
+    "FE": 1625,
+    "DATA": 1450,
+    "INT": 810,
+    "SEC": 540
+  },
+  "budget_global": 12000,
+  "sampled_at": "2024-03-02T12:00:00Z"
+}
