@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-EVI="out/obs_gatecheck/evidence"; mkdir -p "$EVI"
-URL="${CE_URL:-http://127.0.0.1:8888}"; N=${N:-10}
-OK=0; TOTAL=0
+
+EVI="out/obs_gatecheck/evidence"
+mkdir -p "$EVI"
+
+URL="${CE_URL:-http://127.0.0.1:8888}"
+N=${N:-10}
+
+OK=0
+TOTAL=0
 
 STARTED_SERVER=0
 SERVER_PID=""
@@ -45,6 +51,7 @@ PY
     sleep 0.2
   done
 fi
+
 probe() {
   local r="$1"
   if curl -fsS "$URL/$r" >/dev/null 2>&1; then
@@ -52,6 +59,7 @@ probe() {
   fi
   TOTAL=$((TOTAL+1))
 }
+
 for r in health swap; do
   i=0
   while [ $i -lt $N ]; do
@@ -63,8 +71,10 @@ done
 OUTPUT="$EVI/synthetic_probe.json"
 export URL OUTPUT OK TOTAL
 
-python3 - <<PY
-import json, os
+python3 - <<'PY'
+import json
+import os
+
 path = os.environ["OUTPUT"]
 ok = int(os.environ.get("OK", "0"))
 total = int(os.environ.get("TOTAL", "0"))
@@ -79,4 +89,5 @@ with open(path, "w", encoding="utf-8") as fh:
     json.dump(payload, fh, indent=2)
     fh.write("\n")
 PY
+
 echo PROBE_OK

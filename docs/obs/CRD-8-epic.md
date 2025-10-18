@@ -173,10 +173,90 @@ Script
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
-cargo install cargo-cyclonedx >/dev/null 2>&1 || true
-cargo cyclonedx generate --format json --output "$OUT/sbom.cdx.json"
-shasum -a 256 "$OUT/sbom.cdx.json" > "$OUT/sbom.cdx.sha256"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+OUT="$ROOT/out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+
+if [[ -f "$ROOT/Cargo.toml" ]] && command -v cargo >/dev/null 2>&1; then
+  command -v cargo-cyclonedx >/dev/null 2>&1 || cargo install cargo-cyclonedx >/dev/null 2>&1 || true
+  cargo cyclonedx --format json >"$OUT/sbom.cdx.json"
+else
+  python3 - "$ROOT" "$OUT/sbom.cdx.json" <<'PY'
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+repo_root = Path(sys.argv[1]).resolve()
+sbom_path = Path(sys.argv[2]).resolve()
+sbom_path.parent.mkdir(parents=True, exist_ok=True)
+
+try:
+    revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo_root, stderr=subprocess.DEVNULL
+    ).decode().strip()
+except Exception:
+    revision = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+components = []
+for folder in ("src", "scripts", "ops", "docs/obs"):
+    base = repo_root / folder
+    if not base.exists():
+        continue
+    for path in sorted(base.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(repo_root).as_posix()
+        if "/." in f"/{rel}":
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        components.append(
+            {
+                "bom-ref": f"file:{rel}",
+                "type": "file",
+                "name": rel,
+                "hashes": [{"alg": "SHA-256", "content": digest}],
+            }
+        )
+
+sbom = {
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.4",
+    "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+    "version": 1,
+    "metadata": {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "component": {"type": "application", "name": repo_root.name, "version": revision},
+    },
+    "components": components,
+}
+
+sbom_path.write_text(json.dumps(sbom, indent=2), encoding="utf-8")
+PY
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+elif command -v shasum >/dev/null 2>&1; then
+  shasum -a 256 "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+else
+  python3 - "$OUT/sbom.cdx.json" "$OUT/sbom.cdx.sha256" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+sbom_path = Path(sys.argv[1]).resolve()
+sha_path = Path(sys.argv[2]).resolve()
+sha_path.write_text(
+    f"{hashlib.sha256(sbom_path.read_bytes()).hexdigest()}  {sbom_path.name}\n",
+    encoding="utf-8",
+)
+PY
+fi
+
 echo SBOM_OK
 ```
 
