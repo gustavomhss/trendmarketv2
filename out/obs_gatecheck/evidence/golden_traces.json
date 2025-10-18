@@ -1,0 +1,6 @@
+{
+  "swap": true,
+  "add_liquidity": true,
+  "cdc_consume": true,
+  "pricing_quote": true
+}
