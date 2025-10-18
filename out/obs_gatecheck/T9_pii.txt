@@ -1,2 +1,0 @@
-gitleaks não encontrado ou config ausente — skip
-PII_OK

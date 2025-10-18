@@ -1,1 +1,0 @@
-RELEASE_MANIFEST_OK /home/runner/work/trendmarketv2/trendmarketv2/out/obs_gatecheck/release_manifest.json
