@@ -2,32 +2,39 @@
 set -euo pipefail
 IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EVID="${EVID:-$ROOT/out/orr_gatecheck/evidence}"
-mkdir -p "$EVID" "$EVID/dashboards" "$EVID/analysis" "$EVID/rum" "$EVID/obs_self" "$EVID/burnrate" "$EVID/hooks"
-export EVID
+# ── Paths base ───────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"                  # repo root
+DEFAULT_EVID="$ROOT/out/orr_gatecheck/evidence"       # canônico dentro do repo
 
-MODE_PUBLISH="${PUBLISH_MODE:-dry-run}"
-echo "📁 Using EVID: $EVID"
-echo "🚦 Publish mode: $MODE_PUBLISH"
+# Evidence precedence: Ambiente (EVID) → CLI (--out/--evidence) → Default
+EVID="${EVID:-$DEFAULT_EVID}"
 
+# Seeds (default)
 SEED_DIR="$ROOT/seeds"
+
+# Hooks: modo padrão "fast" (sintético, sem side-effects)
 HOOK_MODE="fast"
 
+# Publicação: default "dry-run" (pode ser sobrescrito por env PUBLISH_MODE=real)
+MODE_PUBLISH="${PUBLISH_MODE:-dry-run}"
+
+# ── Args ────────────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --seed-dir)
-      SEED_DIR="$(cd "$2" && pwd)"
-      shift 2
+      shift
+      SEED_DIR="$(cd "${1:-$SEED_DIR}" && pwd)"
+      shift || true
       ;;
-    --out)
-      EVID="$(cd "$2" && pwd)"
-      export EVID
-      mkdir -p "$EVID" "$EVID/dashboards" "$EVID/analysis" "$EVID/rum" "$EVID/obs_self" "$EVID/burnrate" "$EVID/hooks"
-      shift 2
+    --out|--evidence)
+      shift
+      EVID="$(cd "${1:-$EVID}" && pwd)"
+      shift || true
       ;;
     --real)
       HOOK_MODE="real"
+      MODE_PUBLISH="real"
       shift
       ;;
     *)
@@ -36,9 +43,21 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+export EVID
 
+# ── Dirs de evidence ────────────────────────────────────────────────────────────
+mkdir -p "$EVID" \
+         "$EVID/dashboards" "$EVID/analysis" "$EVID/rum" \
+         "$EVID/obs_self" "$EVID/burnrate" "$EVID/hooks"
+
+echo "📁 Using EVID: $EVID"
+echo "🚦 Publish mode: $MODE_PUBLISH"
+
+# ── Etapa 1/8: análises ─────────────────────────────────────────────────────────
 printf '[orr_all] etapa 1/8 — análises\n'
 bash "$ROOT/scripts/analysis/run_all.sh" --out "$EVID" --seed-dir "$SEED_DIR"
+
+# Poster (best-effort)
 if command -v convert >/dev/null 2>&1; then
   convert -size 1754x1240 xc:white -gravity center -pointsize 36 -fill black \
     -annotate 0 "MBP Sprint 2 — Evidence Poster" "$EVID/dashboards/poster_a4.png"
@@ -46,6 +65,7 @@ else
   echo "Poster indisponível (convert ausente)" > "$EVID/dashboards/poster_a4.txt"
 fi
 
+# ── Etapa 2/8: hooks A110 (fast/real) ──────────────────────────────────────────
 printf '[orr_all] etapa 2/8 — hooks sintéticos (%s)\n' "$HOOK_MODE"
 HOOKS=(
   hook_invariant_breach
@@ -66,6 +86,7 @@ for hook in "${HOOKS[@]}"; do
   fi
 done
 
+# ── Etapa 3/8: policy engine + env dump ────────────────────────────────────────
 printf '[orr_all] etapa 3/8 — policy engine\n'
 bash "$ROOT/scripts/policy_engine.sh" --emit-policy-hash --out "$EVID" --seed-file "$SEED_DIR/engine/policy_metrics.json"
 python - "$SEED_DIR/engine/policy_metrics.json" "$EVID/env_dump.txt" <<'PY'
@@ -78,16 +99,19 @@ with open(sys.argv[2], 'w', encoding='utf-8') as fp:
     fp.write(f"ResilienceIndexNightly: {metrics['resilience_index_nightly']}\n")
 PY
 
+# ── Etapa 4/8: simulações determinísticas ──────────────────────────────────────
 printf '[orr_all] etapa 4/8 — simulações determinísticas\n'
 bash "$ROOT/scripts/sim_run.sh" --mode fast
 bash "$ROOT/scripts/sim_run.sh" --mode nightly
 bash "$ROOT/scripts/chaos_weekly.sh" --evidence "$EVID"
 
+# ── Etapa 5/8: bundle SHA do repo ──────────────────────────────────────────────
 printf '[orr_all] etapa 5/8 — geração do bundle SHA\n'
 BUNDLE_FILE="$EVID/bundle.sha256.txt"
 BUNDLE_SHA=$(git -C "$ROOT" ls-files -z | xargs -0 sha256sum | LC_ALL=C sort -k2 | sha256sum | awk '{print $1}')
 printf '%s\n' "$BUNDLE_SHA" > "$BUNDLE_FILE"
 
+# ── Etapa 6/8: governança (assinaturas + provenance) ───────────────────────────
 printf '[orr_all] etapa 6/8 — governança (assinaturas + provenance)\n'
 bash "$ROOT/scripts/provenance/verify_signatures.sh" --evidence "$EVID"
 PUBLISH_ARGS=(--evidence "$EVID")
@@ -98,12 +122,15 @@ else
 fi
 bash "$ROOT/scripts/provenance/publish_root.sh" "${PUBLISH_ARGS[@]}"
 
+# ── Etapa 7/8: spec check ──────────────────────────────────────────────────────
 printf '[orr_all] etapa 7/8 — spec check\n'
 bash "$ROOT/scripts/spec_check.sh" --out "$EVID"
 
+# ── Etapa 8/8: manifesto de hashes ─────────────────────────────────────────────
 printf '[orr_all] etapa 8/8 — manifesto de hashes\n'
 bash "$ROOT/scripts/analysis/hash_manifest.sh" --evidence "$EVID"
 
+# ── Sumário de arquivos chave ──────────────────────────────────────────────────
 printf '\n[orr_all] Sumário de evidências relevantes:\n'
 for path in \
   "$EVID/spec_check.txt" \
@@ -120,7 +147,7 @@ done
 printf 'ACCEPTANCE_OK\n'
 printf 'GATECHECK_OK\n'
 
-# --- Self-check (GO/NO-GO) ---
+# ── Self-check (GO/NO-GO) ──────────────────────────────────────────────────────
 missing=()
 [[ -s "$EVID/policy_hash.txt" ]] || missing+=(policy_hash.txt)
 [[ -s "$EVID/spec_check.txt" ]] || missing+=(spec_check.txt)
