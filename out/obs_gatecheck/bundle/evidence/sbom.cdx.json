@@ -1,0 +1,585 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3da6dd25-6701-40d5-9a73-52ad8eb575dd",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-10-18T04:09:17.407453Z",
+    "tools": [
+      {
+        "vendor": "trendmarketv2",
+        "name": "obs_sbom.sh fallback",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "bom-ref": "app:trendmarketv2",
+      "type": "application",
+      "name": "trendmarketv2",
+      "version": "d04a0a3df9a8987218eb282fb5fef5b581dee217"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "file:src/amm_obs/__init__.py",
+      "type": "file",
+      "name": "src/amm_obs/__init__.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3d5c801abe87f2465bf18dd22e34b1000468061f8efd5dabf58fbd6b9324919c"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:src/amm_obs/__pycache__/__init__.cpython-312.pyc",
+      "type": "file",
+      "name": "src/amm_obs/__pycache__/__init__.cpython-312.pyc",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0bed66342912ab2c239f6ab1e8f864ce1492b1f3970edcfd50779d9e21401099"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:src/amm_obs/__pycache__/telemetry.cpython-312.pyc",
+      "type": "file",
+      "name": "src/amm_obs/__pycache__/telemetry.cpython-312.pyc",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "881b830d1f8d2ff555057d8c16e55a7375540f59610921de1cbcf1e44f0649db"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:src/amm_obs/release.py",
+      "type": "file",
+      "name": "src/amm_obs/release.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b7dc0ad667952f6d349572d160a09b2208ceff602fecac1a383c041b4d481372"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:src/amm_obs/telemetry.py",
+      "type": "file",
+      "name": "src/amm_obs/telemetry.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7f52a55c1e0081fc0cb3f74f91202a50959b61c44c3d698f1fd57833df3e7731"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/ci_repo_guard.sh",
+      "type": "file",
+      "name": "scripts/ci_repo_guard.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "668601b132cd75bafa866ab45289a2cf66a6f537e627c7d6e0890477965f1f13"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/grafana_snapshot.sh",
+      "type": "file",
+      "name": "scripts/grafana_snapshot.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "47273b1216983984becdb88f30dd2e15dc6b94a4b05cccc71a8e13fbeb21f49a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_baseline_perf.sh",
+      "type": "file",
+      "name": "scripts/obs_baseline_perf.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1972317a1f279ee419c31a8397da99aecb4184de163efe22f61e8bd9315a22ca"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_bundle_report.py",
+      "type": "file",
+      "name": "scripts/obs_bundle_report.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7ff4587c78869eb2474c80bbe1e00ff134e5c4dcf9de6aef574c4f197cbaa8e7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_cardinality_costs.py",
+      "type": "file",
+      "name": "scripts/obs_cardinality_costs.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6606e26bcd335af652d5eb8da51d6ab56da085ae0b86479ed4b9fff342bddba3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_chaos.sh",
+      "type": "file",
+      "name": "scripts/obs_chaos.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0aa74491659f007dce3dfcf6d27b738ce98953410809a857375a7ecc0e0a1e89"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_plan.sh",
+      "type": "file",
+      "name": "scripts/obs_plan.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "85872c7d4d72d73e9338d4d8714a1e16ae2facecff4dbe11e3126b58895f4cdb"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_probe_synthetic.sh",
+      "type": "file",
+      "name": "scripts/obs_probe_synthetic.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b157fa51de00c0919eb4794fd0030f0cf117b8246a44423779b9c6716ee82c9d"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_release_finalize.py",
+      "type": "file",
+      "name": "scripts/obs_release_finalize.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f807de334222a4afb60739acf68f913e2bb2163e26015948ef83dfa0553e2c24"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_release_manifest.py",
+      "type": "file",
+      "name": "scripts/obs_release_manifest.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3780a76ba6e54ca4a6d751f663e2dae2c402f1134f3ea652422c086f8e8b8bc5"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_release_notes.py",
+      "type": "file",
+      "name": "scripts/obs_release_notes.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "16797562ee5d5f1af30b28915238700182f77dc49615c09dbe3587aceb97d329"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_sbom.sh",
+      "type": "file",
+      "name": "scripts/obs_sbom.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "1ca654f3811e557210c051417c484c87a703ca56792038b66c25e6aa4857b626"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_sec_redteam.sh",
+      "type": "file",
+      "name": "scripts/obs_sec_redteam.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b8ed959afa9552382fa0d9054914f0568be8618faa1182af783b8b75f26866a7"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_trace_golden.sh",
+      "type": "file",
+      "name": "scripts/obs_trace_golden.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f9d36273a0e2ad186f196ede5b57b0cfb1ce93ccda064c6aff855ca71c7ed62f"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/obs_trace_log_smoke.py",
+      "type": "file",
+      "name": "scripts/obs_trace_log_smoke.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9bf0dd6b3f6fafa61a378199cf4b9a7296f05d18ae44dbd4fb74d6874be1142a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_all.sh",
+      "type": "file",
+      "name": "scripts/orr_all.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c157ea3599fbadb1ff6b1fb7549941f72d4b5ae23fd48d88d3d6140c9aff9f91"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_env_probe.sh",
+      "type": "file",
+      "name": "scripts/orr_env_probe.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4c038ecdee0e24e24475f7181cabf05852018020018a3f7e026477f43e652921"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t1_run.sh",
+      "type": "file",
+      "name": "scripts/orr_t1_run.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "fb6d211838b37f5df81c3b6919e145553670c291d6ac876f66932e9c3a67e572"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t2_parse_unit.py",
+      "type": "file",
+      "name": "scripts/orr_t2_parse_unit.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a39822cc66e31c5da2fd357423036261ecc42a69c50af1d2cb4726a66229a127"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t3_props_run.sh",
+      "type": "file",
+      "name": "scripts/orr_t3_props_run.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7fc076f0e329ae432d67c61b6cad1bc4b2ed16520215ba1334cd4d64b39ecab0"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t4_goldens_run.sh",
+      "type": "file",
+      "name": "scripts/orr_t4_goldens_run.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "c56f5991477abfe82d90c0ffb9bf65b6b6819379d5894c3c797c129e41e5be6b"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t5_bench_run.sh",
+      "type": "file",
+      "name": "scripts/orr_t5_bench_run.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bc4cef36345ecfe8f3e15a4553087b6846eae43fd544ea0db9af895bd30e8803"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t5_collect_criterion.py",
+      "type": "file",
+      "name": "scripts/orr_t5_collect_criterion.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d2f080dd42200bff3ec31ffbd4d95cfac248b64d303297fb4c5eb028fac39219"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t6_metrics_run.sh",
+      "type": "file",
+      "name": "scripts/orr_t6_metrics_run.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bab33c58cf014aa22664c91f632d0643c582c171be2211f51d2373f104d21f4b"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t7_ci_prep.sh",
+      "type": "file",
+      "name": "scripts/orr_t7_ci_prep.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "50ced509a7f301c4f8d20989130a8b046e626cf24be4872fa1c6cd53a7220060"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t7_collect_ci.sh",
+      "type": "file",
+      "name": "scripts/orr_t7_collect_ci.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "0c9fd19b783db7c4966754eea9faa31f648a215a6f30194b25b322590f8c6dbb"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t8_bundle.sh",
+      "type": "file",
+      "name": "scripts/orr_t8_bundle.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ee3a63e361c249631bc89eae9c66f86cd4921911d4fe58d4c55cde31fe8fbffa"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/orr_t9_summary.sh",
+      "type": "file",
+      "name": "scripts/orr_t9_summary.sh",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "43ab5277e12e87ded8b89bed89d30d2269ba5419607d192b24ddaaa2528f8a47"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:scripts/prom_label_lint.py",
+      "type": "file",
+      "name": "scripts/prom_label_lint.py",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "58552509f571b31ee417581ea6dec0330f40e94b11bdb21982dcf7d141f3de0f"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D1-Latencia.json",
+      "type": "file",
+      "name": "ops/grafana/D1-Latencia.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3b3a13c855fb429912793e0be69224a200b5235b735c25d21705052667cfea8d"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D2-Staleness-CDC.json",
+      "type": "file",
+      "name": "ops/grafana/D2-Staleness-CDC.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "50d55d0968fa29a95ed709fc2db1468485c1f71683c4db6a8d82fa072ec6f7cd"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D3-Drift.json",
+      "type": "file",
+      "name": "ops/grafana/D3-Drift.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "360d88c2070a2321a4b73604bd75dbfe1b3757ffbe0672197da895e85502544e"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D4-HookCoverage.json",
+      "type": "file",
+      "name": "ops/grafana/D4-HookCoverage.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "2b4241ba819dafa764af772b275f5c4f5a6004235e47b205d08fa80529baaed4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D5-SLO-Burn.json",
+      "type": "file",
+      "name": "ops/grafana/D5-SLO-Burn.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a1711e999ee68a3e760815eb850b919a6a5350e7758499ebe8fa64512e1ececd"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/grafana/D6-Synthetic.json",
+      "type": "file",
+      "name": "ops/grafana/D6-Synthetic.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a27a620aa9a2fd0b72f8077383ff00b3af17785054c5ea432eaf61be5a1f1f26"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/obs/costs_cardinality.md",
+      "type": "file",
+      "name": "ops/obs/costs_cardinality.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7742ed6da0f0eecf053d8e988913b4a291fde93a51a4c5872ce1dbf92f965dbf"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/otel/collector-dev.yaml",
+      "type": "file",
+      "name": "ops/otel/collector-dev.yaml",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "565632865d76e39637291389af3bf9d86fc4b857c36344e1ccf06df4cfce994d"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/release/promotion_checklist.md",
+      "type": "file",
+      "name": "ops/release/promotion_checklist.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4719d044231a026221e702ec1124d1eec230756f767fc3f257572bf9e412418a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/sanity/denylist_patterns.txt",
+      "type": "file",
+      "name": "ops/sanity/denylist_patterns.txt",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6c3bd63a196fd7536715f30c39ab822bf86bad9eb84615b2c1cad3c925eb08b8"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/security/gitleaks.toml",
+      "type": "file",
+      "name": "ops/security/gitleaks.toml",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5ebee96eda028f099ab1cebac997f695d5e3e6a8473c9c732f0653085670358b"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/security/log_denylist.json",
+      "type": "file",
+      "name": "ops/security/log_denylist.json",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "577680a9e13dd8307557ddfecde59a5a9d49cdf60b51fca4e81d18161499c787"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/watchers/a110_observability.yaml",
+      "type": "file",
+      "name": "ops/watchers/a110_observability.yaml",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "ee26a70f18bbb1a520a1fb725a07424d3fabf7357b0e7928580d1358a0fee531"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:ops/watchers/tests/a110_rules_test.yaml",
+      "type": "file",
+      "name": "ops/watchers/tests/a110_rules_test.yaml",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "63331f495ca4b75bb65571e4728be8a66f921fbde6df699b30a44e54875824c3"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:docs/obs/CRD-8-epic.md",
+      "type": "file",
+      "name": "docs/obs/CRD-8-epic.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cc773b766087d5f52a0138502a9c673d9a244ee89a05bc1a62a039023b7ad62c"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:docs/obs/metrics_contract.md",
+      "type": "file",
+      "name": "docs/obs/metrics_contract.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "7b57d7b8b8c2e850c58952ab85920fcef1a9568d851f50ac504065714b9f7ed4"
+        }
+      ]
+    },
+    {
+      "bom-ref": "file:docs/obs/wave3_post_exec_guide.md",
+      "type": "file",
+      "name": "docs/obs/wave3_post_exec_guide.md",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b752634cdb6fab41327845b9f5cb69ea9b17045b78806f8e7d27eec739778f46"
+        }
+      ]
+    }
+  ]
+}
