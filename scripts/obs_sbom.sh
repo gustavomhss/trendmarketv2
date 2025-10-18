@@ -33,6 +33,18 @@ generate_with_cargo() {
 }
 
 generate_fallback() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "SBOM fallback requires python3" >&2
+    return 1
+  fi
+
+  local tmp="${SBOM_JSON}.tmp"
+  local py_file
+  py_file="$(mktemp "${TMPDIR:-/tmp}/obs-sbom-XXXXXX.py")"
+
+  trap 'rm -f "$py_file"' RETURN
+
+  cat <<'PY' >"$py_file"
   local tmp="${SBOM_JSON}.tmp"
   local py_file
   py_file="$(mktemp)"
@@ -138,6 +150,9 @@ if __name__ == "__main__":
 PY
 
   REPO_ROOT="$ROOT" SBOM_OUTPUT="$tmp" python3 "$py_file"
+  mv "$tmp" "$SBOM_JSON"
+  trap - RETURN
+  rm -f "$py_file"
   rm -f "$py_file"
   mv "$tmp" "$SBOM_JSON"
 }
