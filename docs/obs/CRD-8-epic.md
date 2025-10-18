@@ -258,6 +258,15 @@ PY
 fi
 
 echo SBOM_OK
+sbom_path.parent.mkdir(parents=True, exist_ok=True)
+sbom_path.write_text(json.dumps(bom, indent=2))
+PY
+    hash_file
+    echo SBOM_OK
+  fi
+else
+  echo "python3 indisponível — SBOM skip"
+fi
 ```
 
 ---
