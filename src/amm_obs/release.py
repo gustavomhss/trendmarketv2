@@ -1,14 +1,12 @@
 """Utilities for generating the CRD-8 release manifest and metadata."""
-"""Utilities for generating the CRD-8 release manifest."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
-from typing import Any, Dict, Optional
 
 
 class ReleaseManifestError(RuntimeError):
@@ -50,10 +48,9 @@ def _load_optional_json(path: Path) -> Optional[Dict[str, Any]]:
 
 
 def _bundle_sha(context: _Context) -> Optional[str]:
-    sha_path = context.bundle_sha_path
-    if not sha_path.exists():
+    if not context.bundle_sha_path.exists():
         return None
-    content = sha_path.read_text(encoding="utf-8").strip()
+    content = context.bundle_sha_path.read_text(encoding="utf-8").strip()
     if not content:
         return None
     return content.split()[0]
@@ -156,6 +153,31 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
         else None
     )
 
+    drills: Dict[str, Any] = {}
+    if trace_smoke is not None:
+        drills["trace_log_smoke"] = {
+            "total_spans": trace_smoke.get("total_spans"),
+            "correlated_ratio": trace_smoke.get("correlated_ratio"),
+            "observability_level": trace_smoke.get("observability_level"),
+            "skipped": trace_smoke.get("skipped", False),
+        }
+    if pii_probe is not None:
+        drills["pii_probe"] = {
+            "fields": sorted(pii_probe.keys()),
+            "pii_fields": [
+                field
+                for field in pii_probe.keys()
+                if isinstance(field, str)
+                and field.lower() in {"cpf", "email", "name", "phone", "document"}
+            ],
+        }
+    if chaos_summary is not None:
+        drills["chaos"] = chaos_summary
+    if baseline is not None:
+        drills["baseline_perf"] = baseline
+    if golden_traces is not None:
+        drills["golden_traces"] = golden_traces
+
     manifest = {
         "summary": summary,
         "bundle": _bundle_metadata(context),
@@ -181,9 +203,7 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
         "metrics": (
             {
                 "p95_swap_seconds": metrics_summary.get("p95_swap_seconds"),
-                "synthetic_swap_ok_ratio": metrics_summary.get(
-                    "synthetic_swap_ok_ratio"
-                ),
+                "synthetic_swap_ok_ratio": metrics_summary.get("synthetic_swap_ok_ratio"),
             }
             if metrics_summary is not None
             else None
@@ -192,10 +212,7 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
             {
                 "simulated": bool(watchers.get("simulated")),
                 "alerts_expected": [
-                    {
-                        "alert": item.get("alert"),
-                        "reason": item.get("reason"),
-                    }
+                    {"alert": item.get("alert"), "reason": item.get("reason")}
                     for item in watchers.get("alerts_expected", [])
                 ],
                 "alerts_count": len(watchers.get("alerts_expected", [])),
@@ -203,40 +220,7 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
             if watchers is not None
             else None
         ),
-        "drills": {
-            key: value
-            for key, value in {
-                "trace_log_smoke": (
-                    {
-                        "total_spans": trace_smoke.get("total_spans"),
-                        "correlated_ratio": trace_smoke.get("correlated_ratio"),
-                        "observability_level": trace_smoke.get(
-                            "observability_level"
-                        ),
-                        "skipped": trace_smoke.get("skipped", False),
-                    }
-                    if trace_smoke is not None
-                    else None
-                ),
-                "pii_probe": (
-                    {
-                        "fields": sorted(pii_probe.keys()),
-                        "pii_fields": [
-                            field
-                            for field in pii_probe.keys()
-                            if field.lower()
-                            in {"cpf", "email", "name", "phone", "document"}
-                        ],
-                    }
-                    if pii_probe is not None
-                    else None
-                ),
-                "chaos": chaos_summary if chaos_summary is not None else None,
-                "baseline_perf": baseline if baseline is not None else None,
-                "golden_traces": golden_traces if golden_traces is not None else None,
-            }.items()
-            if value is not None
-        },
+        "drills": drills if drills else None,
         "sbom": (
             {
                 "path": str(context.evidence_file("sbom.cdx.json")),
@@ -251,8 +235,6 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
 
 
 def write_release_manifest(out_dir: Path) -> Path:
-    """Persist the manifest JSON and return the file path."""
-
     manifest = generate_release_manifest(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / "release_manifest.json"
@@ -265,7 +247,7 @@ def _parse_summary_ts(summary: Dict[str, Any]) -> datetime:
     if not ts:
         raise ReleaseManifestError("SUMMARY_TS_MISSING")
     try:
-        if ts.endswith("Z"):
+        if isinstance(ts, str) and ts.endswith("Z"):
             ts = ts[:-1] + "+00:00"
         return datetime.fromisoformat(ts)
     except ValueError as exc:
@@ -279,8 +261,6 @@ def _derive_release_version(summary: Dict[str, Any], override: Optional[str]) ->
 
 
 def build_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> Dict[str, Any]:
-    """Return a consolidated metadata payload derived from the manifest."""
-
     manifest_path = write_release_manifest(out_dir)
     manifest = _load_json(manifest_path)
     summary = manifest.get("summary", {})
@@ -313,24 +293,11 @@ def build_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> D
 
 
 def write_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> Path:
-    """Persist the release metadata file and return its path."""
-
     metadata = build_release_metadata(out_dir, version=version)
     out_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = out_dir / "release_metadata.json"
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return metadata_path
-
-
-__all__ = [
-    "ReleaseManifestError",
-    "generate_release_manifest",
-    "write_release_manifest",
-    "build_release_metadata",
-    "write_release_metadata",
-    "build_release_notes",
-    "write_release_notes",
-]
 
 
 def _status_marker(value: Optional[bool]) -> str:
@@ -391,18 +358,13 @@ def build_release_notes(out_dir: Path) -> str:
         f"# CRD-8 Observability Release — {metadata.get('tag', 'unknown')}",
         "",
         "## Resumo",
+        f"- Versão: `{metadata.get('version', 'n/a')}`",
+        f"- Perfil ORR: `{summary.get('profile', 'n/a')}`",
+        f"- Ambiente: `{summary.get('environment', 'n/a')}`",
+        f"- Acceptance: `{summary.get('acceptance', 'n/a')}`",
+        f"- Gatecheck: `{summary.get('gatecheck', 'n/a')}`",
+        f"- Timestamp: `{summary.get('ts', 'n/a')}`",
     ]
-
-    lines.extend(
-        [
-            f"- Versão: `{metadata.get('version', 'n/a')}`",
-            f"- Perfil ORR: `{summary.get('profile', 'n/a')}`",
-            f"- Ambiente: `{summary.get('environment', 'n/a')}`",
-            f"- Acceptance: `{summary.get('acceptance', 'n/a')}`",
-            f"- Gatecheck: `{summary.get('gatecheck', 'n/a')}`",
-            f"- Timestamp: `{summary.get('ts', 'n/a')}`",
-        ]
-    )
 
     lines.extend(
         [
@@ -504,4 +466,14 @@ def write_release_notes(out_dir: Path) -> Path:
     notes_path = out_dir / "release_notes.md"
     notes_path.write_text(notes, encoding="utf-8")
     return notes_path
+
+
+__all__ = [
+    "ReleaseManifestError",
+    "generate_release_manifest",
+    "write_release_manifest",
+    "build_release_metadata",
+    "write_release_metadata",
+    "build_release_notes",
+    "write_release_notes",
 ]
