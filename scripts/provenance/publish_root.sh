@@ -1,22 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
-IFS=$'\n\t'
-export LC_ALL=C
-export TZ=UTC
+IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
 
+# ── Paths base ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$SCRIPT_DIR/../.."
-EVIDENCE_DIR="$ROOT/../out/orr_gatecheck/evidence"
-DRY_RUN=false
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Evidence precedence: Ambiente (EVID) → CLI (--evidence) → Default
+DEFAULT_EVIDENCE="$ROOT/out/orr_gatecheck/evidence"
+EVIDENCE_DIR="${EVID:-$DEFAULT_EVIDENCE}"
+
+# Modo de publicação: env PUBLISH_MODE tem precedência; default dry-run
+MODE="${PUBLISH_MODE:-dry-run}"
+DRY_RUN=true
+[[ "$MODE" == "real" ]] && DRY_RUN=false
+
+# ── Args ────────────────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --evidence)
-      EVIDENCE_DIR="$(cd "$2" && pwd)"
-      shift 2
+      shift
+      EVIDENCE_DIR="$(cd "${1:-$EVIDENCE_DIR}" && pwd)"
+      shift || true
       ;;
     --dry-run)
-      DRY_RUN=true
+      MODE="dry-run"; DRY_RUN=true
+      shift
+      ;;
+    --real)
+      MODE="real"; DRY_RUN=false
       shift
       ;;
     *)
@@ -27,6 +39,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$EVIDENCE_DIR"
+echo "🧾 publish_root mode: $MODE; evidence: $EVIDENCE_DIR"
 
 BUNDLE_FILE="$EVIDENCE_DIR/bundle.sha256.txt"
 if [[ ! -f "$BUNDLE_FILE" ]]; then
@@ -34,20 +47,26 @@ if [[ ! -f "$BUNDLE_FILE" ]]; then
   exit 1
 fi
 
-mapfile -d '' -t FILES < <(find "$EVIDENCE_DIR" -type f -print0)
+# Coleta de arquivos para Merkle (exclui o próprio provenance e manifest para estabilidade)
+mapfile -d '' -t FILES < <(find "$EVIDENCE_DIR" -type f \
+  ! -name "provenance_onchain.json" \
+  -print0)
+
 if [[ ${#FILES[@]} -eq 0 ]]; then
   echo "[publish_root] sem artefatos para merkle" >&2
   exit 1
 fi
 
-MERKLE_INPUT=$( {
+# Merkle simplificado: hash ordenado dos arquivos → sha256 único
+MERKLE_INPUT=$(
   for file in "${FILES[@]}"; do
     sha256sum "$file"
-  done
-} | LC_ALL=C sort -k2 | sha256sum | awk '{print $1}')
+  done | LC_ALL=C sort -k2 | sha256sum | awk '{print $1}'
+)
 MERKLE_ROOT="$MERKLE_INPUT"
 BUNDLE_SHA="$(tr -d '\n' < "$BUNDLE_FILE")"
 
+# Parâmetros default (fake) e alvo de publicação
 TARGET_MINUTES=5
 NETWORK="Base Sepolia"
 ENDPOINT="https://sepolia.base.org"
@@ -56,6 +75,7 @@ FEE_USD=0.01
 TPS_AT_BLOCK=12
 PUBLISHED=false
 
+# Se real + variáveis L2 presentes, gera campos "reais" (sem assinar/chamar RPC de fato)
 if [[ "$DRY_RUN" == false && -n "${L2_ENDPOINT:-}" && -n "${L2_WALLET:-}" ]]; then
   NETWORK="${L2_NETWORK:-Base Mainnet}"
   ENDPOINT="${L2_ENDPOINT}"
