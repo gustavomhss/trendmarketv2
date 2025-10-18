@@ -20,4 +20,4 @@
 ## Pós-promoção
 - [#] Burn rate < 1.0 nas 24h seguintes.
 - [#] Atualizar roadmap com próximos incrementos de observabilidade.
-- [#] Arquivar evidências no storage compartilhado (≥30 dias).
+- [#] Arquivar evidências no storage compartilhado (≥30 dias). 
