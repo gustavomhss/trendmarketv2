@@ -34,6 +34,11 @@ generate_with_cargo() {
 
 generate_fallback() {
   local tmp="${SBOM_JSON}.tmp"
+  REPO_ROOT="$ROOT" SBOM_OUTPUT="$tmp" python3 <<'PY'
+import hashlib
+import json
+import os
+import subprocess
   python3 - "$ROOT" "$tmp" <<'PY'
 import hashlib
 import json
@@ -43,6 +48,13 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+
+def git_rev(repo_root: Path) -> str:
+    try:
+        result = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo_root),
+            stderr=subprocess.DEVNULL,
 def git_rev(repo_root: Path) -> str:
     try:
         result = subprocess.check_output(
@@ -86,6 +98,9 @@ def build_sbom(repo_root: Path) -> dict:
         "serialNumber": f"urn:uuid:{uuid.uuid4()}",
         "version": 1,
         "metadata": {
+            "timestamp": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "tools": [
                 {
@@ -106,6 +121,8 @@ def build_sbom(repo_root: Path) -> dict:
 
 
 def main() -> None:
+    repo_root = Path(os.environ["REPO_ROOT"]).resolve()
+    sbom_path = Path(os.environ["SBOM_OUTPUT"]).resolve()
     repo_root = Path(sys.argv[1]).resolve()
     sbom_path = Path(sys.argv[2]).resolve()
     sbom = build_sbom(repo_root)
@@ -118,6 +135,24 @@ PY
   mv "$tmp" "$SBOM_JSON"
 }
 
+write_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$SBOM_JSON" >"$SBOM_SHA"
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$SBOM_JSON" >"$SBOM_SHA"
+    return
+  fi
+
+  SBOM_INPUT="$SBOM_JSON" SHA_OUTPUT="$SBOM_SHA" python3 <<'PY'
+import hashlib
+import os
+from pathlib import Path
+
+
+sbom_path = Path(os.environ["SBOM_INPUT"]).resolve()
+sha_path = Path(os.environ["SHA_OUTPUT"]).resolve()
 main() {
   if ! generate_with_cargo; then
     generate_fallback
@@ -139,6 +174,21 @@ sha_path = Path(sys.argv[2]).resolve()
 digest = hashlib.sha256(sbom_path.read_bytes()).hexdigest()
 sha_path.write_text(f"{digest}  {sbom_path.name}\n", encoding="utf-8")
 PY
+}
+
+main() {
+  rm -f "$SBOM_JSON" "$SBOM_SHA"
+
+  if ! generate_with_cargo; then
+    generate_fallback
+  fi
+
+  write_sha256
+
+  echo SBOM_OK
+}
+
+main "$@"
   fi
 
   echo SBOM_OK

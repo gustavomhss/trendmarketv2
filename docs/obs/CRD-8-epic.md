@@ -175,6 +175,23 @@ Script
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 OUT="$ROOT/out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+
+if [[ -f "$ROOT/Cargo.toml" ]] && command -v cargo >/dev/null 2>&1; then
+  command -v cargo-cyclonedx >/dev/null 2>&1 || cargo install cargo-cyclonedx >/dev/null 2>&1 || true
+  cargo cyclonedx --format json >"$OUT/sbom.cdx.json"
+else
+  REPO_ROOT="$ROOT" OUT="$OUT" python3 <<'PY'
+import hashlib
+import json
+import os
+import subprocess
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+root = Path(os.environ["REPO_ROOT"]).resolve()
+out_dir = Path(os.environ["OUT"]).resolve()
+out_dir.mkdir(parents=True, exist_ok=True)
 if [ -f "$ROOT/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
   cargo cyclonedx --format json >"$OUT/sbom.cdx.json"
 else
@@ -198,6 +215,20 @@ for folder in ("src", "scripts", "ops", "docs/obs"):
     if not base.exists():
         continue
     for path in sorted(base.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        if "/." in f"/{rel}":
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        components.append(
+            {
+                "bom-ref": f"file:{rel}",
+                "type": "file",
+                "name": rel,
+                "hashes": [{"alg": "SHA-256", "content": digest}],
+            }
+        )
         if path.is_file() and "/." not in f"/{path.relative_to(root).as_posix()}":
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             components.append(
@@ -301,6 +332,29 @@ bom = {
     },
     "components": components,
 }
+
+(out_dir / "sbom.cdx.json").write_text(json.dumps(sbom, indent=2), encoding="utf-8")
+PY
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+elif command -v shasum >/dev/null 2>&1; then
+  shasum -a 256 "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+else
+  python3 - "$OUT/sbom.cdx.json" "$OUT/sbom.cdx.sha256" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+sbom_path = Path(sys.argv[1]).resolve()
+sha_path = Path(sys.argv[2]).resolve()
+sha_path.write_text(
+    f"{hashlib.sha256(sbom_path.read_bytes()).hexdigest()}  {sbom_path.name}\n",
+    encoding="utf-8",
+)
+PY
+fi
 
 json.dump(sbom, sys.stdout, indent=2)
 PY
