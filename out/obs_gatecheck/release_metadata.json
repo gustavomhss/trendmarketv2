@@ -1,0 +1,126 @@
+{
+  "tag": "crd-8-obs-20251018",
+  "version": "20251018",
+  "manifest_path": "/home/runner/work/trendmarketv2/trendmarketv2/out/obs_gatecheck/release_manifest.json",
+  "summary": {
+    "ts": "2025-10-18T04:09:17Z",
+    "profile": "unknown",
+    "environment": "unknown",
+    "acceptance": "OK",
+    "gatecheck": "OK"
+  },
+  "bundle": {
+    "path": "/home/runner/work/trendmarketv2/trendmarketv2/out/obs_gatecheck/bundle.zip",
+    "sha256": "2347fd4e19a44a1bfaec5427a271fb2bb526f2f3ce7c682fb467366d3b1c69d5",
+    "size_bytes": 20687
+  },
+  "evidence_checks": {
+    "metrics_unit": true,
+    "prometheus_text": true,
+    "amm_state": true,
+    "metrics_summary": true,
+    "trace_log_smoke": true,
+    "pii_probe": true,
+    "synthetic_probe": true,
+    "chaos_summary": true,
+    "costs_cardinality": true,
+    "sbom": true,
+    "baseline_perf": true,
+    "golden_traces": true
+  },
+  "costs": {
+    "total_estimated_usd_month": 7.74,
+    "max_ratio": 0.5833,
+    "max_metric": "synthetic_latency_seconds_bucket"
+  },
+  "synthetic_probe": {
+    "ok": 20,
+    "total": 20,
+    "ok_ratio": 1.0
+  },
+  "metrics": {
+    "p95_swap_seconds": 0.04925,
+    "synthetic_swap_ok_ratio": 1.0
+  },
+  "watchers": {
+    "simulated": true,
+    "alerts_expected": [
+      {
+        "alert": "OBS_P95_Swap_TooHigh",
+        "reason": "p95 swap > 60ms durante rampa sint\u00e9tica"
+      },
+      {
+        "alert": "OBS_Oracle_Stale",
+        "reason": "freshness oracle > 5s por 10m"
+      },
+      {
+        "alert": "OBS_CDC_Lag_Warn",
+        "reason": "stream orders com lag > 10s"
+      },
+      {
+        "alert": "OBS_Drift_Critical_Feature_Warn",
+        "reason": "drift_score price_psi acima de 0.2"
+      },
+      {
+        "alert": "OBS_Hook_Coverage_Low",
+        "reason": "hook_coverage_ratio abaixo de 0.95"
+      },
+      {
+        "alert": "OBS_Hook_Execution_Stalled",
+        "reason": "hook_pre_trade sem execu\u00e7\u00f5es em 1h"
+      },
+      {
+        "alert": "OBS_Cardinality_Budget_Warn",
+        "reason": "observability_series_budget_ratio > 0.7"
+      },
+      {
+        "alert": "OBS_Cardinality_Budget_Crit",
+        "reason": "observability_series_budget_ratio > 0.9"
+      },
+      {
+        "alert": "OBS_Synthetic_OK_Ratio_Low",
+        "reason": "synthetic_ok_ratio abaixo de 99%"
+      }
+    ],
+    "alerts_count": 9
+  },
+  "drills": {
+    "trace_log_smoke": {
+      "total_spans": 23,
+      "correlated_ratio": 1.0,
+      "observability_level": "full",
+      "skipped": false
+    },
+    "pii_probe": {
+      "fields": [
+        "cpf",
+        "email",
+        "msg"
+      ],
+      "pii_fields": [
+        "email",
+        "cpf"
+      ]
+    },
+    "chaos": {
+      "chaos": "docker",
+      "service": "prom",
+      "duration_sec": 10
+    },
+    "baseline_perf": {
+      "host": "x86_64",
+      "p95_ms": 55,
+      "cpu_overhead_pct": 2.6
+    },
+    "golden_traces": {
+      "swap": true,
+      "add_liquidity": true,
+      "cdc_consume": true,
+      "pricing_quote": true
+    }
+  },
+  "sbom": {
+    "path": "/home/runner/work/trendmarketv2/trendmarketv2/out/obs_gatecheck/evidence/sbom.cdx.json",
+    "sha256": "a6e3fed551508133492e3b5af3a561ed7541ff78fc63f15aa914dd696ef8cd03"
+  }
+}

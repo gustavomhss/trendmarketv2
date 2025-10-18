@@ -1,0 +1,13 @@
+{
+  "p95_swap_seconds": 0.04925,
+  "count_swap": 6,
+  "exemplar_trace_id": "91b9ffb44a97517699f688ca81f2716b",
+  "freshness_oracle_seconds": 2.4,
+  "cdc_orders_partition0_seconds": 4.2,
+  "hook_coverage_ratio": 1.0,
+  "synthetic_swap_ok_ratio": 1.0,
+  "synthetic_swap_count": 6,
+  "total_estimated_cost_usd_month": 7.74,
+  "max_cardinality_ratio": 0.5833,
+  "max_cardinality_metric": "synthetic_latency_seconds_bucket"
+}

@@ -1,0 +1,1 @@
+RELEASE_METADATA_OK /home/runner/work/trendmarketv2/trendmarketv2/out/obs_gatecheck/release_metadata.json
