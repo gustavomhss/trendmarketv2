@@ -14,7 +14,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Tooling versions
+        shell: bash
         run: |
+          set -euo pipefail
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           bash --version | head -n1 || true
           jq --version || true
           convert -version || echo "ImageMagick (convert) not installed"
@@ -24,14 +27,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IFS=$'\n\t'
-          export LC_ALL=C
-          export TZ=UTC
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           sudo apt-get update
           sudo apt-get install -y jq coreutils imagemagick || echo "imagemagick não instalado (prosseguindo)"
 
       - name: Prepare evidence dirs
+        shell: bash
         run: |
+          set -euo pipefail
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           mkdir -p out/orr_gatecheck/evidence out/sim
           echo "📁 Evidence dir ready: out/orr_gatecheck/evidence"
 
@@ -39,9 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IFS=$'\n\t'
-          export LC_ALL=C
-          export TZ=UTC
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           bash scripts/orr_all.sh
 
       - name: Fail Fast on Spec Failure
@@ -49,9 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IFS=$'\n\t'
-          export LC_ALL=C
-          export TZ=UTC
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           if grep -q "RESULT=FAIL" out/orr_gatecheck/evidence/spec_check.txt; then
             echo "Spec check falhou" >&2
             exit 1
@@ -59,11 +59,10 @@ jobs:
 
       - name: Shellcheck (advisory)
         continue-on-error: true
+        shell: bash
         run: |
           set -euo pipefail
-          IFS=$'\n\t'
-          export LC_ALL=C
-          export TZ=UTC
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
           if command -v shellcheck >/dev/null 2>&1; then
             shellcheck scripts/**/*.sh
           else
@@ -80,10 +79,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IFS=$'\n\t'
-          export LC_ALL=C
-          export TZ=UTC
-          find out/orr_gatecheck/evidence -maxdepth 1 -type f -printf "%f %s bytes\n" | sort
+          IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
+          if [ -d out/orr_gatecheck/evidence ]; then
+            find out/orr_gatecheck/evidence -maxdepth 1 -type f -printf "%f %s bytes\n" | sort || true
+          else
+            echo "sem diretório de evidências"
+          fi
 
       - name: Comentário no PR
         if: ${{ github.event_name == 'pull_request' }}
@@ -92,8 +93,8 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const core = require('@actions/core');
             const base = path.join(process.cwd(), 'out/orr_gatecheck/evidence');
+            const read = (file) => fs.readFileSync(path.join(base, file), 'utf8').trim();
             const safeRead = (file) => {
               const p = path.join(base, file);
               return fs.existsSync(p) ? fs.readFileSync(p, 'utf8').trim() : '';
@@ -108,16 +109,21 @@ jobs:
             const signatures = safeRead('signatures.json');
             const sigJson = signatures ? JSON.parse(signatures) : {};
             const sigSummary = sigJson.threshold ? `${sigJson.threshold}-de-${sigJson.pubkeys?.length || 0} (${(sigJson.signatures || []).length} assinaturas)` : 'indisponível';
-            const hashesManifestRaw = safeRead('hashes_manifest.txt');
-            const hashesManifest = hashesManifestRaw ? hashesManifestRaw.split('\n').filter(Boolean).slice(0, 3).join(' | ') : 'indisponível';
+            const hashesManifest = safeRead('hashes_manifest.txt').split('\n').filter(Boolean).slice(0, 3).join(' | ');
             const cardinalityRaw = safeRead('cardinality.txt');
-            const cardinality = cardinalityRaw ? (cardinalityRaw.split('\n')[0] || cardinalityRaw) : 'indisponível';
-            const histogramMatch = safeRead('env_dump.txt').match(/HistogramSchemaVersion: (.+)/);
+            const cardinality = cardinalityRaw.split('\n')[0] || cardinalityRaw;
+            const envDump = safeRead('env_dump.txt');
+            const histogramMatch = envDump.match(/HistogramSchemaVersion:\s*(.+)/);
             const histogramVersion = histogramMatch ? histogramMatch[1] : 'v0';
             const posterPath = 'dashboards/poster_a4.png';
             const posterExists = fs.existsSync(path.join(base, posterPath));
             const posterLink = posterExists ? `[Poster](${path.posix.join('out/orr_gatecheck/evidence', posterPath)})` : 'poster não gerado';
             const indexLink = `[Evidence Index](out/orr_gatecheck/evidence/analysis/index.html)`;
+            const simBase = path.join(process.cwd(), 'out/sim');
+            const resilienceFast = fs.existsSync(path.join(simBase, 'report_fast.json')) ? fs.readFileSync(path.join(simBase, 'report_fast.json'), 'utf8').trim() : '';
+            const resilienceJsonFast = resilienceFast ? JSON.parse(resilienceFast) : {};
+            const resilienceTag = 'fast';
+
             const comment = [
               'Segurança Primeiro, Rollback Em Minutos.',
               'Se PASS, avance para Canary M1 em stage.',
@@ -126,21 +132,16 @@ jobs:
               `✅ BUNDLE_SHA256: ${bundleSha}`,
               `✅ MERKLE_ROOT / TX_HASH (L2 ou WORM): ${merkle} / ${txHash}`,
               `✅ SIGNATURES (2-de-N): ${sigSummary} → [signatures.json](out/orr_gatecheck/evidence/signatures.json)`,
-              `✅ CARDINALITY: ${cardinality} | Bounds: DEC≤2000, MBP≤3000, FE≤2000, DATA≤2000, INT≤1000, SEC≤1000`,
-              `✅ RESILIENCE_INDEX: fast`,
+              `✅ CARDINALITY: ${cardinality || 'indisponível'} | Bounds: DEC≤2000, MBP≤3000, FE≤2000, DATA≤2000, INT≤1000, SEC≤1000`,
+              `✅ RESILIENCE_INDEX: ${resilienceTag}`,
               `✅ OBS HistogramSchemaVersion: ${histogramVersion}`,
               `📄 Hashes (3 primeiros): ${hashesManifest}`,
               `🔗 Evidence index: ${indexLink}`,
               `🖼️ Poster: ${posterLink}`
             ].join('\n');
-            try {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: context.issue.number,
-                body: comment
-              });
-              core.info('PR comment posted successfully.');
-            } catch (error) {
-              const statusCode = error?.status || error?.response?.status;
-              core.warning(`Falha ao publicar comentário no PR (status ${statusCode ?? 'desconhecido'}): ${error.message}`);
-            }
+
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
