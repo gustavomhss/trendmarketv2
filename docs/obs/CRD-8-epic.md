@@ -173,10 +173,62 @@ Script
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-OUT="out/obs_gatecheck/evidence"; mkdir -p "$OUT"
-cargo install cargo-cyclonedx >/dev/null 2>&1 || true
-cargo cyclonedx generate --format json --output "$OUT/sbom.cdx.json"
-shasum -a 256 "$OUT/sbom.cdx.json" > "$OUT/sbom.cdx.sha256"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+OUT="$ROOT/out/obs_gatecheck/evidence"; mkdir -p "$OUT"
+if [ -f "$ROOT/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
+  cargo cyclonedx --format json >"$OUT/sbom.cdx.json"
+else
+  ROOT="$ROOT" python3 <<'PY' >"$OUT/sbom.cdx.json"
+import hashlib, json, os, subprocess, sys, uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+root = Path(os.environ["ROOT"]).resolve()
+
+try:
+    revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=root, stderr=subprocess.DEVNULL
+    ).decode().strip()
+except Exception:
+    revision = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+components = []
+for folder in ("src", "scripts", "ops", "docs/obs"):
+    base = root / folder
+    if not base.exists():
+        continue
+    for path in sorted(base.rglob("*")):
+        if path.is_file() and "/." not in f"/{path.relative_to(root).as_posix()}":
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            components.append(
+                {
+                    "bom-ref": f"file:{path.relative_to(root).as_posix()}",
+                    "type": "file",
+                    "name": path.relative_to(root).as_posix(),
+                    "hashes": [{"alg": "SHA-256", "content": digest}],
+                }
+            )
+
+sbom = {
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.4",
+    "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+    "version": 1,
+    "metadata": {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "component": {"type": "application", "name": root.name, "version": revision},
+    },
+    "components": components,
+}
+
+json.dump(sbom, sys.stdout, indent=2)
+PY
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+else
+  shasum -a 256 "$OUT/sbom.cdx.json" >"$OUT/sbom.cdx.sha256"
+fi
 echo SBOM_OK
 ```
 
