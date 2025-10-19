@@ -93,23 +93,12 @@ jobs:
       - name: Semgrep (binary v1.80.0, SHA256 verify)
         run: |
           set -euo pipefail
-          VER=1.80.0
-          BASE="https://github.com/semgrep/semgrep/releases/download/v${VER}"
-          # baixa binário e checksum (independente do formato publicado)
-          curl -sSLO "${BASE}/semgrep-linux-amd64"
-          curl -sSLo checksum.txt "${BASE}/semgrep-linux-amd64.sha256"
-          # extrai um hash SHA-256 (64 hex) de qualquer linha do checksum
-          EXPECTED=$(grep -Eio '[a-f0-9]{64}' checksum.txt | head -n1)
-          ACTUAL=$(sha256sum semgrep-linux-amd64 | awk '{print $1}')
-          if [ -z "$EXPECTED" ]; then
-            echo "Não foi possível extrair SHA-256 do checksum da release"; exit 1
-          fi
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "SHA256 mismatch: expected $EXPECTED got $ACTUAL"; exit 1
-          fi
-          sudo install -m 0755 semgrep-linux-amd64 /usr/local/bin/semgrep
-          semgrep --version
-          rm -f semgrep-linux-amd64 checksum.txt
+          SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
+          docker pull "$SEMGREP_IMG" >/dev/null
+          # sanity: versão
+          docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
+          # (opcional) varredura rápida sem depender de login/regra privada:
+          # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
 
       # -------- Node (opcional) --------
       - name: Setup Node
