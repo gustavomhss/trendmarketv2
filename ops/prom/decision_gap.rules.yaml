@@ -1,0 +1,15 @@
+groups:
+  - name: decision_gap
+    interval: 1m
+    rules:
+      - record: decision_gap_ratio:5m
+        expr: sum(rate(decision_gap_events_total[5m])) / sum(rate(decision_total[5m]))
+      - alert: DecisionGapHigh
+        expr: decision_gap_ratio:5m > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Decision gap ratio acima de 5%"
+          runbook: docs/runbooks/decision_gap.md

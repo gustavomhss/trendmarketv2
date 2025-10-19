@@ -1,0 +1,62 @@
+groups:
+  - name: dec_cdc_rules
+    interval: 30s
+    rules:
+      - record: dec:p95_ms:5m
+        expr: dec:p95_seconds:5m * 1000
+      - alert: DECPerformanceDegradation
+        expr: dec:p95_seconds:5m > 0.8
+        for: 5m
+        labels:
+          severity: page
+          team: sre
+        annotations:
+          summary: "DEC p95 acima de 800ms"
+          runbook: docs/runbooks/dec_slo.md
+      - alert: CDCLagHigh
+        expr: cdc:lag_p95_seconds:5m > 120
+        for: 10m
+        labels:
+          severity: page
+          team: data
+        annotations:
+          summary: "CDC lag p95 acima de 120s"
+          runbook: docs/runbooks/cdc_lag.md
+      - alert: SchemaDriftDetected
+        expr: registry_schema_drift_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: data
+        annotations:
+          summary: "Schema drift detectado"
+          runbook: docs/runbooks/schema_registry.md
+      - alert: HookCoverageGap
+        expr: decision_hook_coverage_ratio < 0.98
+        for: 15m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Hook coverage abaixo do limite"
+          runbook: docs/runbooks/decision_gap.md
+      - alert: AuditCoverageGap
+        expr: audit_log_coverage_ratio < 0.99
+        for: 15m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Audit coverage abaixo do limite"
+          runbook: docs/runbooks/decision_gap.md
+      - alert: SLOBudgetBreach
+        expr: slo_budget_burn_rate > 1
+        for: 10m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "SLO budget burn rate acima de 1x"
+          runbook: docs/runbooks/dec_slo.md
+      - record: dec:rollback_recovery_minutes
+        expr: (time() - decision_last_recovery_timestamp) / 60
