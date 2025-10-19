@@ -25,7 +25,7 @@ EVIDENCES=(
   "$OUT_DIR/EVI/governance.json"
   "$ROOT/docs/spec/invariants.md"
   "$ROOT/docs/spec/tla/dec_pre_ga.tla"
-  "$ROOT/docs/adr"
+  "$ROOT/docs/ADRs"
   "$ROOT/ops/prom"
   "$ROOT/docs/runbooks"
 )

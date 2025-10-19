@@ -1,0 +1,65 @@
+owners:
+  sre_primary: sre@trendmarketv2.dev
+  data_platform: data@trendmarketv2.dev
+  product_dec: pm.dec@trendmarketv2.dev
+  compliance: compliance@trendmarketv2.dev
+
+watchers:
+  - hook: cdc_lag
+    metric: cdc:lag_p95_seconds:5m
+    threshold: "> 120s"
+    action: degrade+rollback
+    owner: sre_primary
+    runbook: docs/runbooks/cdc_lag.md
+    notify:
+      pagerduty: sre-primary
+      slack: "#dec-incident"
+  - hook: dbt_test_failure
+    metric: dbt.test.failure_rate
+    threshold: "> 0"
+    action: block_merge
+    owner: data_platform
+    runbook: analytics/dbt/models/README.md
+    notify:
+      slack: "#data-quality"
+  - hook: schema_registry_drift
+    metric: schema.registry.drift
+    threshold: "== true"
+    action: block_deploy
+    owner: data_platform
+    runbook: docs/runbooks/schema-drift.md
+    notify:
+      slack: "#dec-incident"
+  - hook: slo_budget_breach
+    metric: dec.latency_p95
+    threshold: ">= 0.8s (5m)"
+    action: degrade+rollback
+    owner: sre_primary
+    runbook: docs/runbooks/rollback-degrade.md
+    notify:
+      pagerduty: sre-primary
+      slack: "#dec-incident"
+  - hook: web_cwv_regression
+    metric: web.cwv.core_web_vitals_score
+    threshold: "drop > 10%"
+    action: rollback
+    owner: product_dec
+    runbook: docs/runbooks/rollback-degrade.md
+    notify:
+      slack: "#dec-product"
+  - hook: twap_divergence
+    metric: engine.twap_gap
+    threshold: "> 1.0% (2 janelas)"
+    action: freeze
+    owner: product_dec
+    runbook: docs/runbooks/cdc_lag.md
+    notify:
+      slack: "#dec-incident"
+  - hook: abuse_spike
+    metric: abuse.events.rate
+    threshold: "> baseline +3σ"
+    action: escalate
+    owner: compliance
+    runbook: docs/runbooks/decision_gap.md
+    notify:
+      slack: "#compliance"
