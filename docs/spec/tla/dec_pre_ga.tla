@@ -1,7 +1,16 @@
 ---- MODULE dec_pre_ga ----
 EXTENDS Naturals, Sequences, TLC
 
-VARIABLES dec_p95, breach, rollback, recovered
+VARIABLES
+    \* @type: Int;
+    dec_p95, \* DEC p95 em milissegundos
+    \* @type: Bool;
+    breach, \* flag de violação da meta DEC
+    \* @type: Bool;
+    rollback, \* flag de rollback emitido
+    \* @type: Bool;
+    recovered \* sistema recuperado dentro do orçamento
+\* Corrigido: anotações Snowcat para variáveis de estado
 
 vars == <<dec_p95, breach, rollback, recovered>>
 
