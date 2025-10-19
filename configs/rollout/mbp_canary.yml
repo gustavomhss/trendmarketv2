@@ -1,0 +1,4 @@
+canary:
+  enabled: true
+  percent: 5
+  audience: internal
