@@ -123,8 +123,7 @@ jobs:
       - name: Install npm deps
         run: npm ci --ignore-scripts
 
-      - name: Install npm deps
-        run: npm ci --ignore-scripts
+     
       - name: Resolve k6 digest
         id: k6
         run: |
@@ -180,6 +179,7 @@ jobs:
           path: out/s4_evidence_bundle_*.zip
 
   microbench:
+    if: ${{ inputs.run_microbench == true }}
     if: ${{ inputs.run_microbench }}
     if: inputs.run_microbench == true
     runs-on: ubuntu-22.04
@@ -217,6 +217,7 @@ jobs:
           path: out/s4_orr/microbench.txt
 
   tla:
+    if: ${{ inputs.run_tla == true }}
     if: ${{ inputs.run_tla }}
     if: inputs.run_tla == true
     runs-on: ubuntu-22.04
