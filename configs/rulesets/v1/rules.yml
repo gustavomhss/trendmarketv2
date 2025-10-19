@@ -1,0 +1,21 @@
+version: 1
+kind: ruleset
+namespace: mbp
+rules:
+  - id: RS-YESNO-001
+    name: yesno_binario_truth
+    source_kind: table
+    table: rules_truth_yesno
+    field_question: question_id
+    field_answer: resolved_value
+    resolution_window_h: 24
+  - id: RS-CONT-001
+    name: continuous_internal_endpoint
+    source_kind: endpoint
+    url: http://internal.svc/benchmarks/v1
+    timeout_ms: 1500
+    resolution_window_h: 24
+fallback:
+  manual:
+    required_evidence: true
+    approvers: ["pm@trend", "bc@trend"]

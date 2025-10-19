@@ -1,0 +1,31 @@
+version: 1
+sprint: S3
+watchers:
+  markets_active:
+    min: 5
+    max: 10
+  depth_2pct:
+    min: 500
+  twap_divergence_pct:
+    max: 1.0
+    freeze_windows: 2    # 2 janelas consecutivas >1.0%
+    ic99_exceed_count: 3 # ou exceder IC-99 3x na janela
+  resolution_sla_h:
+    max: 24
+  ttpv_p95_ms:
+    max: 800
+  inp_p75_ms:
+    max: 200
+  cdc_lag_p95_s:
+    max: 120
+risk_caps:
+  template_yesno:
+    max_exposure_per_user: 1000
+    max_trade_rate_per_min: 30
+    max_open_interest: 10000
+  template_continuous:
+    max_exposure_per_user: 5000
+    max_trade_rate_per_min: 60
+    max_open_interest: 50000
+feature_flags:
+  mbp.create.by_template: true

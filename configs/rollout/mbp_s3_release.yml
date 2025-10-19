@@ -1,0 +1,13 @@
+release:
+  enabled: true
+  audience: internal
+  preconditions:
+    - watchers_green
+    - orr_s3_pass
+  abort_rules:
+    - name: twap_divergence
+      if: "twap_divergence_pct > 1.0 for 2 consecutive windows"
+      action: freeze
+    - name: markets_depth
+      if: "depth_2pct < 500"
+      action: degrade_route
