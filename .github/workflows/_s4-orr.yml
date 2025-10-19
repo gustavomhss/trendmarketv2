@@ -36,9 +36,9 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Harden runner
-        uses: step-security/harden-runner@v3
+        uses: step-security/harden-runner@v2
         with:
-          egress-policy: block
+          egress-policy: audit
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
