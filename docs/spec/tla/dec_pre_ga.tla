@@ -1,6 +1,19 @@
 ---- MODULE dec_pre_ga ----
 EXTENDS Naturals, Sequences, TLC
 
+VARIABLES
+    \* @type: Int;
+    \* DEC p95 em milissegundos
+    dec_p95,
+    \* @type: Bool;
+    \* flag de violação da meta DEC
+    breach,
+    \* @type: Bool;
+    \* flag de rollback emitido
+    rollback,
+    \* @type: Bool;
+    \* sistema recuperado dentro do orçamento
+    recovered
 VARIABLES dec_p95, breach, rollback, recovered
 \* @type: dec_p95: Int;
 \* @type: breach: Bool;
