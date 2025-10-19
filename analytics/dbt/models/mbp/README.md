@@ -24,5 +24,5 @@ raw.mbp_abuse_events -> stg.mbp_abuse_events -> mbp_abuse_events
 - Regras A106/A87/A89 incorporadas via constraints de status/TWAP.
 
 ## Documentação Complementar
-- Runbooks: `docs/runbooks/dec_slo.md`, `docs/runbooks/cdc_lag.md`, `docs/runbooks/schema_registry.md`.
-- ADRs: `docs/adr/ADR-001-DEC-SLO-Degrade-Rollback.md`, `docs/adr/ADR-002-Resolution-Engine-Regra.md`, `docs/adr/ADR-003-TWAP-Benchmarks.md`.
+- Runbooks: `docs/runbooks/dec_slo.md`, `docs/runbooks/cdc_lag.md`, `docs/runbooks/schema-drift.md`, `docs/runbooks/rollback-degrade.md`.
+- ADRs: `docs/ADRs/ADR-001-DEC-Decision-Engine.md`, `docs/ADRs/ADR-002-Rule-Engine-Resolution.md`, `docs/ADRs/ADR-003-TWAP-Benchmarks.md`.

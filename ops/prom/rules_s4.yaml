@@ -30,7 +30,7 @@ groups:
           team: data
         annotations:
           summary: "Schema drift detectado"
-          runbook: docs/runbooks/schema_registry.md
+          runbook: docs/runbooks/schema-drift.md
       - alert: HookCoverageGap
         expr: decision_hook_coverage_ratio < 0.98
         for: 15m

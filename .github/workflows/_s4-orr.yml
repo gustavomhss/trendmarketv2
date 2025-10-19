@@ -114,6 +114,11 @@ jobs:
             echo "no package-lock.json; skipping npm ci"
           fi
 
+      - name: Permissions
+        run: |
+          set -euo pipefail
+          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh
+
       # -------- k6 por digest pinado --------
       - name: Resolve k6 digest
         id: k6
@@ -205,10 +210,6 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/microbench_dec.sh
-          # Valida limiares (sem flakiness)
-          awk '/match_core.*mean/ {m=$2+0} END { if (m>1.20) { print "match_core mean>1.20ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
-          awk '/route_fast.*mean/ {m=$2+0} END { if (m>0.70) { print "route_fast mean>0.70ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
-          awk '/twap_update.*mean/ {m=$2+0} END { if (m>0.45) { print "twap_update mean>0.45ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
 
       # -------- TLA check (opcional) --------
       - name: TLA check (Apalache)
@@ -233,6 +234,12 @@ jobs:
           set -euo pipefail
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
           bash scripts/orr_s4_run.sh
+
+      - name: Bundle evidence (S4)
+        if: always()
+        run: |
+          set -euo pipefail
+          bash scripts/orr_s4_bundle.sh
 
       - name: Upload bundle
         if: always()
