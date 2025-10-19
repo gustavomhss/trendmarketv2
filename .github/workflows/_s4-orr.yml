@@ -14,22 +14,6 @@ on:
         required: false
         type: boolean
         default: false
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: Optional ref to run against
-        required: false
-        type: string
-      run_microbench:
-        description: Enable microbench gate
-        required: false
-        type: boolean
-        default: false
-      run_tla:
-        description: Enable TLA verification
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: s4-orr-${{ inputs.ref || github.sha }}
@@ -51,119 +35,71 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.sha }}
-
       - name: Harden runner
         uses: step-security/harden-runner@v2
         with:
           egress-policy: audit
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Install Python deps (dbt only)
-        run: |
-          python -m pip install --upgrade pip
-          pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
-
-      - name: Python env audit
-        run: |
-          mkdir -p out/pip-audit
-          pip --version > out/pip-audit/pip-version.txt
-          pip freeze | sort > out/pip-audit/pip-freeze.txt
-
-      - name: Upload pip audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: pip-audit
-          path: out/pip-audit
-
+      - name: Install Python deps
+        run: pip install -r requirements.lock
       - name: Install security tools
         run: |
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
-          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
-          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
-          sudo install -m 0755 trivy /usr/local/bin/trivy
-
-      - name: Install Semgrep (binary)
-        run: |
-          curl -sSLo semgrep https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64
-          curl -sSLo semgrep.sha256 https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64.sha256
-          sha256sum -c semgrep.sha256
-          sudo install -m 0755 semgrep /usr/local/bin/semgrep
-          semgrep --version
-
+          pip install semgrep==1.80.0
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz && sudo mv gitleaks /usr/local/bin/
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz && sudo mv trivy /usr/local/bin/
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install npm deps
         run: npm ci --ignore-scripts
-
       - name: Resolve k6 digest
         id: k6
         run: |
           IMAGE=grafana/k6:0.52.0
           docker pull "$IMAGE" >/dev/null
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
-
-      - name: Run dbt build
-        run: dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
-
-      - name: Generate dbt docs
-        run: dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
-
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
       - name: Run ORR
         env:
-          K6_IMAGE: ${{ steps.k6.outputs.image }}
+          K6: docker run --rm -i -v ${{ github.workspace }}:/work -w /work ${{ steps.k6.outputs.digest }}
         run: |
-          export K6="docker run --rm -i -v $GITHUB_WORKSPACE:/work -w /work $K6_IMAGE"
           bash scripts/env_pin_check.sh
           bash scripts/orr_s4_run.sh
           bash scripts/s4_bundle.sh
           bash scripts/anchor_integrity.sh
-
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4_evidence_bundle
+          path: out/s4_evidence_bundle_*.zip
       - name: Upload dbt docs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
           path: |
-            analytics/dbt/target/catalog.json
-            analytics/dbt/target/manifest.json
-            analytics/dbt/target/index.html
-
-      - name: Upload bundle
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: s4_evidence_bundle
-          path: out/s4_evidence_bundle_*.zip
+            target/catalog.json
+            target/manifest.json
+            target/index.html
 
   microbench:
-    if: inputs.run_microbench == true
+    if: inputs.run_microbench
     runs-on: ubuntu-22.04
     needs: orr
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-
+      - uses: actions/checkout@v4
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
       - name: Run microbench gate
         run: |
           scripts/microbench_dec.sh --scenario dec_tail
           python3 scripts/verify_microbench.py out/s4_orr/microbench.txt
-
       - name: Upload microbench
         uses: actions/upload-artifact@v4
         with:
@@ -171,25 +107,18 @@ jobs:
           path: out/s4_orr/microbench.txt
 
   tla:
-    if: inputs.run_tla == true
+    if: inputs.run_tla
     runs-on: ubuntu-22.04
     needs: orr
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-
+      - uses: actions/checkout@v4
       - name: Install Apalache
         run: |
           curl -sSL https://github.com/informalsystems/apalache/releases/download/v0.41.2/apalache-0.41.2.tgz | tar xz
-          sudo install -m 0755 apalache-0.41.2/bin/apalache /usr/local/bin/apalache
-
+          sudo mv apalache-0.41.2/bin/apalache /usr/local/bin/
       - name: Run TLA checks
         run: |
-          mkdir -p out/s4_orr
           apalache check docs/spec/tla/dec_pre_ga.tla > out/s4_orr/tla_report.txt
-
       - name: Upload TLA report
         uses: actions/upload-artifact@v4
         with:
