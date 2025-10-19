@@ -214,21 +214,19 @@ jobs:
       # -------- TLA check (opcional) --------
       - name: Locate TLA models
         id: tla
+        shell: bash
         run: |
           set -euo pipefail
-          # Procura .tla em paths típicos e globalmente como fallback
-          # Prioriza docs/spec/tla para manter convenção do repo
+          # Procura .tla em paths convencionais e globalmente como fallback
           TLA_GLOB=$(git ls-files 'docs/spec/tla/*.tla' || true)
           if [ -z "$TLA_GLOB" ]; then
             TLA_GLOB=$(git ls-files '*.tla' || true)
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            # seleciona o primeiro para check; matrix pode vir depois
             SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"
-            printf "  - %s\n" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -240,9 +238,10 @@ jobs:
         env:
           APAL_IMG_PRIMARY: ghcr.io/apalache-mc/apalache:v0.50.3
           APAL_IMG_FALLBACK: ghcr.io/apalache-mc/apalache:main
+        shell: bash
         run: |
           set -euo pipefail
-          # tenta versão pinada; se indisponível, fallback para :main
+          command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
           if ! docker pull "$APAL_IMG_PRIMARY" >/dev/null 2>&1; then
             echo "[apalache] tag v0.50.3 indisponível; usando :main"
             docker pull "$APAL_IMG_FALLBACK" >/dev/null
@@ -250,18 +249,26 @@ jobs:
           else
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
-          docker run --rm "$APAL_IMG" apalache-mc version
+          # Persiste para próximos steps
+          echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
+          # Override ENTRYPOINT para evitar /var/apalache
+          docker run --rm --entrypoint apalache-mc "$APAL_IMG" version
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p out/s4_orr
           SEL="${{ steps.tla.outputs.tla_file }}"
-          # monta diretório do arquivo selecionado como /work e roda check
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          docker run --rm -v "$PWD/$SEL_DIR:/work" "$APAL_IMG" apalache-mc check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
+          # Monta as TLA como read-only em /work; executa em /tmp (gravável)
+          docker run --rm \
+            --entrypoint apalache-mc \
+            -w /tmp \
+            -v "$PWD/$SEL_DIR:/work:ro" \
+            "$APAL_IMG" check "/work/$SEL_FILE" | tee out/s4_orr/tla_report.txt
 
       - name: Upload TLA report
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
