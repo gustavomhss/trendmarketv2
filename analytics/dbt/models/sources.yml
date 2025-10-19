@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: mbp
+    schema: "{{ env_var('DBT_BQ_DATASET', 'ce_mbp_ci') }}"
+    tables:
+      - name: mbp_markets
+      - name: mbp_quotes
+      - name: mbp_resolutions
+      - name: mbp_abuse_events

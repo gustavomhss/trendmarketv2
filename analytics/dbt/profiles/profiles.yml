@@ -1,11 +1,13 @@
-mbp:
-  target: prod
+ce_mbp_bq:
+  target: ci
   outputs:
-    prod:
+    ci:
       type: bigquery
       method: service-account-json
-      project: trendmarketv2-analytics
-      dataset: mbp
+      keyfile_json: "{{ env_var('GCP_SA_JSON') }}"
+      project: "{{ env_var('DBT_BQ_PROJECT') }}"
+      dataset: "{{ env_var('DBT_BQ_DATASET', 'ce_mbp_ci') }}"
+      location: "{{ env_var('DBT_BQ_LOCATION', 'US') }}"
+      priority: interactive
       threads: 4
       timeout_seconds: 300
-      keyfile_json: "{{ env_var('DBT_BIGQUERY_SERVICE_ACCOUNT') }}"
