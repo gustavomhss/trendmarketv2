@@ -33,6 +33,7 @@ jobs:
     timeout-minutes: 120
     env:
       PROM_URL: http://127.0.0.1:9090
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,27 +51,36 @@ jobs:
           python-version: '3.11'
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y jq
 
+      # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
 
       - name: Python env audit
         run: |
+          set -euo pipefail
           mkdir -p out/pip-audit
-          pip --version > out/pip-audit/pip-version.txt
-          pip freeze | sort > out/pip-audit/pip-freeze.txt
+          python -m pip --version | tee out/pip-audit/pip-version.txt
+          pip freeze | sort | tee out/pip-audit/pip-freeze.txt
 
       - name: Upload pip audit
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pip-audit
           path: out/pip-audit
 
-      - name: Install security tools
+      # -------- Ferramentas de segurança (binários) --------
+      - name: Install security tools (Trivy & Gitleaks)
         run: |
+          set -euo pipefail
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           rm -f gitleaks LICENSE README.md || true
@@ -79,21 +89,35 @@ jobs:
           sudo install -m 0755 trivy /usr/local/bin/trivy
           rm -f trivy LICENSE README.md || true
 
-          curl -sSLo semgrep https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64
-          curl -sSLo semgrep.sha256 https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64.sha256
-          sha256sum -c semgrep.sha256
-          sudo install -m 0755 semgrep /usr/local/bin/semgrep
-          rm -f semgrep semgrep.sha256
+      - name: Semgrep (binary v1.80.0, SHA256 verify)
+        run: |
+          set -euo pipefail
+          VER=1.80.0
+          # Baixe preservando o nome esperado pelo arquivo .sha256
+          curl -sSLO "https://github.com/semgrep/semgrep/releases/download/v${VER}/semgrep-linux-amd64"
+          curl -sSLO "https://github.com/semgrep/semgrep/releases/download/v${VER}/semgrep-linux-amd64.sha256"
+          # Verifica: o .sha256 contém "<hash>  semgrep-linux-amd64"
+          sha256sum -c semgrep-linux-amd64.sha256
+          sudo install -m 0755 semgrep-linux-amd64 /usr/local/bin/semgrep
           semgrep --version
+          rm -f semgrep-linux-amd64 semgrep-linux-amd64.sha256
 
+      # -------- Node (se o repo usa scripts/front) --------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install npm deps
-        run: npm ci --ignore-scripts
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --ignore-scripts
+          else
+            echo "no package-lock.json; skipping npm ci"
+          fi
 
+      # -------- k6 por digest pinado --------
       - name: Resolve k6 digest
         id: k6
         run: |
@@ -103,17 +127,68 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
+      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Run dbt build
         if: ${{ hashFiles('analytics/dbt/**') != '' }}
-        run: dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+        run: |
+          set -euo pipefail
+          dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
 
       - name: Generate dbt docs
         if: ${{ hashFiles('analytics/dbt/**') != '' }}
-        run: dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+        run: |
+          set -euo pipefail
+          dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+      - name: Upload dbt docs
+        if: ${{ hashFiles('analytics/dbt/**') != '' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            analytics/dbt/target/catalog.json
+            analytics/dbt/target/manifest.json
+            analytics/dbt/target/index.html
+
+      # -------- Microbench gate (opcional) --------
+      - name: Microbench (gate)
+        if: ${{ inputs.run_microbench }}
+        run: |
+          set -euo pipefail
+          bash scripts/microbench_dec.sh
+          # Valida limiares (sem flakiness)
+          awk '/match_core.*mean/ {m=$2+0} END { if (m>1.20) { print "match_core mean>1.20ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
+          awk '/route_fast.*mean/ {m=$2+0} END { if (m>0.70) { print "route_fast mean>0.70ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
+          awk '/twap_update.*mean/ {m=$2+0} END { if (m>0.45) { print "twap_update mean>0.45ms"; exit 1 } }' out/s4_orr/logs/microbench.txt
+
+      # -------- TLA check (opcional) --------
+      - name: TLA check (Apalache)
+        if: ${{ inputs.run_tla }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/s4_orr
+          docker run --rm -v "$PWD/docs/spec/tla:/work" ghcr.io/informalsystems/apalache:0.46.2 check dec_pre_ga.tla | tee out/s4_orr/tla_report.txt
 
       - name: Upload TLA report
-        if: ${{ hashFiles('out/s4_orr/tla_report.txt') != '' }}
+        if: ${{ inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
           name: tla-report
           path: out/s4_orr/tla_report.txt
+
+      # -------- ORR principal --------
+      - name: ORR run
+        env:
+          K6_IMAGE: ${{ steps.k6.outputs.image }}
+        run: |
+          set -euo pipefail
+          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
+          sed -i '1s/^/export K6="'"$K6"'"\n/' scripts/orr_s4_run.sh || true
+          bash scripts/orr_s4_run.sh
+
+      - name: Upload bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4_evidence_bundle
+          path: out/s4_evidence_bundle_*.zip
