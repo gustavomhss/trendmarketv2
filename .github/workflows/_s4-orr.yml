@@ -10,6 +10,9 @@ on:
       run_microbench:
         description: Enable microbench gate
         required: false
+        type: string
+      run_microbench:
+        required: false
         type: boolean
         default: false
       run_tla:
@@ -103,6 +106,15 @@ jobs:
           rm -f semgrep semgrep.sha256
           semgrep --version
 
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install Python deps
+        run: pip install -r requirements.lock
+      - name: Install security tools
+        run: |
+          pip install semgrep==1.80.0
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz && sudo mv gitleaks /usr/local/bin/
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz && sudo mv trivy /usr/local/bin/
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -111,6 +123,8 @@ jobs:
       - name: Install npm deps
         run: npm ci --ignore-scripts
 
+      - name: Install npm deps
+        run: npm ci --ignore-scripts
       - name: Resolve k6 digest
         id: k6
         run: |
@@ -130,6 +144,11 @@ jobs:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
         run: |
           export K6="docker run --rm -i -v $GITHUB_WORKSPACE:/work -w /work $K6_IMAGE"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+      - name: Run ORR
+        env:
+          K6: docker run --rm -i -v ${{ github.workspace }}:/work -w /work ${{ steps.k6.outputs.digest }}
+        run: |
           bash scripts/env_pin_check.sh
           bash scripts/orr_s4_run.sh
           bash scripts/s4_bundle.sh
@@ -137,6 +156,13 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{ always() }}
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4_evidence_bundle
+          path: out/s4_evidence_bundle_*.zip
+      - name: Upload dbt docs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
@@ -147,6 +173,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: s4_evidence_bundle
@@ -154,6 +181,7 @@ jobs:
 
   microbench:
     if: ${{ inputs.run_microbench }}
+    if: inputs.run_microbench == true
     runs-on: ubuntu-22.04
     needs: orr
     steps:
@@ -165,6 +193,18 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+            target/catalog.json
+            target/manifest.json
+            target/index.html
+
+  microbench:
+    if: inputs.run_microbench
+    runs-on: ubuntu-22.04
+    needs: orr
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Run microbench gate
         run: |
           scripts/microbench_dec.sh --scenario dec_tail
@@ -178,6 +218,7 @@ jobs:
 
   tla:
     if: ${{ inputs.run_tla }}
+    if: inputs.run_tla == true
     runs-on: ubuntu-22.04
     needs: orr
     steps:
@@ -197,6 +238,18 @@ jobs:
           mkdir -p out/s4_orr
           apalache check docs/spec/tla/dec_pre_ga.tla > out/s4_orr/tla_report.txt
 
+    if: inputs.run_tla
+    runs-on: ubuntu-22.04
+    needs: orr
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Apalache
+        run: |
+          curl -sSL https://github.com/informalsystems/apalache/releases/download/v0.41.2/apalache-0.41.2.tgz | tar xz
+          sudo mv apalache-0.41.2/bin/apalache /usr/local/bin/
+      - name: Run TLA checks
+        run: |
+          apalache check docs/spec/tla/dec_pre_ga.tla > out/s4_orr/tla_report.txt
       - name: Upload TLA report
         uses: actions/upload-artifact@v4
         with:
