@@ -249,26 +249,25 @@ jobs:
           else
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
-          # Persiste para próximos steps
+          # Persiste para os próximos steps
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
-          # Override ENTRYPOINT para evitar /var/apalache
-          docker run --rm --entrypoint apalache-mc "$APAL_IMG" version
+          # Smoke sem depender do PATH do binário: apenas imprime help
+          docker run --rm "$APAL_IMG" --help >/dev/null || true
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out/s4_orr
+          mkdir -p out/s4_orr out/s4_orr/apalache_tmp
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Monta as TLA como read-only em /work; executa em /tmp (gravável)
+          # Monta os modelos em /var/apalache (RO) e um TMP gravável
           docker run --rm \
-            --entrypoint apalache-mc \
-            -w /tmp \
-            -v "$PWD/$SEL_DIR:/work:ro" \
-            "$APAL_IMG" check "/work/$SEL_FILE" | tee out/s4_orr/tla_report.txt
+            -v "$PWD/$SEL_DIR:/var/apalache:ro" \
+            -v "$PWD/out/s4_orr/apalache_tmp:/var/apalache/tmp" \
+            "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
 
       - name: Upload TLA report
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
