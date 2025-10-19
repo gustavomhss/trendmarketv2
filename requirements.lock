@@ -1,0 +1,4 @@
+dbt-core==1.6.4
+dbt-bigquery==1.6.4
+semgrep==1.80.0
+requests==2.31.0

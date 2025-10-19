@@ -1,0 +1,27 @@
+name: s4-exec
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref opcional
+        required: false
+        type: string
+      run_microbench:
+        description: Executar gate de microbench?
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: Executar verificação TLA?
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  call-orr:
+    uses: ./.github/workflows/_s4-orr.yml
+    with:
+      ref: ${{ github.event.inputs.ref }}
+      run_microbench: ${{ fromJSON(github.event.inputs.run_microbench || 'false') }}
+      run_tla: ${{ fromJSON(github.event.inputs.run_tla || 'false') }}
