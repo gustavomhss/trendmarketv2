@@ -249,24 +249,42 @@ jobs:
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
-          # smoke neutro: não aciona o ENTRYPOINT padrão
+          # smoke neutro: não aciona o entrypoint padrão
+          set +e
           docker run --rm --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
+          RC=$?
+          if [ $RC -ne 0 ]; then
+            docker run --rm -u 0:0 --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
+          fi
+          set -e
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out/s4_orr out/s4_orr/apalache_work
+          mkdir -p out/s4_orr out/s4_orr/apalache_work out/s4_orr/apalache_work/tmp
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Copia o arquivo selecionado e possíveis dependências .tla do mesmo diretório
-          cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/
-          # Monta UM ÚNICO volume RW em /var/apalache; o entrypoint criará /var/apalache/tmp
+          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
+          cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
+          # Garante que o usuário do container terá write no bind mount
+          chmod -R 777 out/s4_orr/apalache_work
+          # 1ª tentativa (usuário padrão do container)
+          set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
+          RC=$?
+          set -e
+          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
+          if [ $RC -ne 0 ]; then
+            echo "[tla] retrying as root due to permissions..."
+            docker run --rm -u 0:0 \
+              -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
+              "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
+          fi
 
       - name: Upload TLA report
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
