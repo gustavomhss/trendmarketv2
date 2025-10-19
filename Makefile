@@ -1,11 +1,41 @@
-S3EVID=out/s3_gatecheck/evidence
+SHELL := /usr/bin/env bash
+MAKEFLAGS += --warn-undefined-variables
+.DEFAULT_GOAL := prega
 
-.PHONY: s3 s3-clean s3-orr
-s3:
-	bash scripts/s3/run_all_s3.sh
+OUT_DIR := out/s4_orr
+BUNDLE_DIR := out
 
-s3-clean:
-	rm -rf out/s3_gatecheck || true
+.PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean
 
-s3-orr:
-	gh workflow run _mbp-s3-orr.yml || echo "Use a aba Actions se o gh não estiver configurado"
+prega: env.pin orr bundle anchors nb.perf
+@echo "[prega] pipeline concluída"
+
+env.pin:
+@set -euo pipefail; ./scripts/env_pin_check.sh
+
+orr:
+@set -euo pipefail; ./scripts/orr_s4_run.sh
+
+bundle:
+@set -euo pipefail; ./scripts/s4_bundle.sh
+
+anchors:
+@set -euo pipefail; ./scripts/anchor_integrity.sh
+
+flame:
+@set -euo pipefail; ./scripts/flamegraph_hotpaths.sh
+
+micro:
+@set -euo pipefail; ./scripts/microbench_dec.sh
+
+dbt.docs:
+@set -euo pipefail; dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+rum.docs:
+@set -euo pipefail; node fe/rum/collector_publish.js
+
+nb.perf:
+@set -euo pipefail; python3 scripts/nb_perf_export.py
+
+clean:
+rm -rf $(OUT_DIR) out/s4_evidence_bundle_*.zip out/s4_evidence_bundle_*.zip.sha256 || true

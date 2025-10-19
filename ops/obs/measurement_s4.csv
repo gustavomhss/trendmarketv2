@@ -1,0 +1,11 @@
+KPI,Fonte,Janela,SLO/Meta,Watcher,Hook,Owner,Query/Id
+DEC p95 (ms),APM/Traces,5m,<=800,slo_budget_breach,rollback,SRE,apm.ttp_dec_p95
+CDC lag p95 (s),CDC/APM,5m,<=120,cdc_lag,degrade+rollback,DATA,cdc.lag_p95
+Schema drift,Registry,run,==0,schema_registry_drift,block_deploy,DATA,registry.schema_drift
+Data contract break,CI/Tests,run,false,data_contract_break,rollback+waiver,DATA,ci.data_contract_status
+DBT tests status,CI/dbt,run,pass,dbt_test_failure,block_merge,DATA,dbt.test_status
+Hook Coverage %,CI/Repo,24h,>=98,metrics_decision_hook_gap,open_incident,PLAT,ci.hook_coverage
+Audit Coverage %,Logs,24h,>=99,metrics_decision_hook_gap,open_incident,PLAT,logs.audit_coverage
+INP p75 (ms),RUM,24h,<=200,web_cwv_regression,rollback_fe,FE,rum.inp_p75
+Error budget burn,XLA,4h,<1x,slo_budget_breach,rollback,SRE,apm.error_budget_burn
+TWAP divergence %,Engine,5m,<=1.0,mbp_price_spike_divergence,freeze,PM/SRE,engine.twap_gap
