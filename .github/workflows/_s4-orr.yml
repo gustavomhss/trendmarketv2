@@ -93,14 +93,22 @@ jobs:
         run: |
           set -euo pipefail
           VER=1.80.0
-          # Baixe preservando o nome esperado pelo arquivo .sha256
-          curl -sSLO "https://github.com/semgrep/semgrep/releases/download/v${VER}/semgrep-linux-amd64"
-          curl -sSLO "https://github.com/semgrep/semgrep/releases/download/v${VER}/semgrep-linux-amd64.sha256"
-          # Verifica: o .sha256 contém "<hash>  semgrep-linux-amd64"
-          sha256sum -c semgrep-linux-amd64.sha256
+          BASE="https://github.com/semgrep/semgrep/releases/download/v${VER}"
+          # baixa binário e checksum (independente do formato publicado)
+          curl -sSLO "${BASE}/semgrep-linux-amd64"
+          curl -sSLo checksum.txt "${BASE}/semgrep-linux-amd64.sha256"
+          # extrai um hash SHA-256 (64 hex) de qualquer linha do checksum
+          EXPECTED=$(grep -Eio '[[:xdigit:]]{64}' checksum.txt | head -n1)
+          ACTUAL=$(sha256sum semgrep-linux-amd64 | awk '{print $1}')
+          if [ -z "$EXPECTED" ]; then
+            echo "Não foi possível extrair SHA-256 do checksum da release"; exit 1
+          fi
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "SHA256 mismatch: expected $EXPECTED got $ACTUAL"; exit 1
+          fi
           sudo install -m 0755 semgrep-linux-amd64 /usr/local/bin/semgrep
           semgrep --version
-          rm -f semgrep-linux-amd64 semgrep-linux-amd64.sha256
+          rm -f semgrep-linux-amd64 checksum.txt
 
       # -------- Node (se o repo usa scripts/front) --------
       - name: Setup Node
