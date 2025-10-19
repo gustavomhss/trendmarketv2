@@ -3,6 +3,8 @@ EXTENDS Naturals, Sequences, TLC
 
 VARIABLES dec_p95, breach, rollback, recovered
 
+vars == <<dec_p95, breach, rollback, recovered>>
+
 Init ==
     /\ dec_p95 \in Nat
     /\ dec_p95 = 0
@@ -36,14 +38,15 @@ Stutter ==
 
 Next == MeasureBreached \/ RollbackIssued \/ RecoveredWithinBudget \/ Stutter
 
-Spec == Init /\ [][Next]_<<dec_p95, breach, rollback, recovered>>
+Spec == Init /\ [][Next]_vars
 
 Safety == [](breach => dec_p95 <= 1600)
 
-Liveness == WF_<<dec_p95, breach, rollback, recovered>>(RollbackIssued) /\
-            WF_<<dec_p95, breach, rollback, recovered>>(RecoveredWithinBudget)
+Liveness == WF_vars(RollbackIssued) /\
+            WF_vars(RecoveredWithinBudget)
 
 THEOREM Spec => Safety
-THEOREM Spec => <>RecoveredWithinBudget
+\* Corrigido: ação sob <> deve estar na forma <<A>>_vars (SANY)
+THEOREM Spec => <> <<RecoveredWithinBudget>>_vars
 
 ====
