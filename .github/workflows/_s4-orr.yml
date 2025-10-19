@@ -4,6 +4,11 @@ on:
   workflow_call:
     inputs:
       ref:
+        description: Optional ref to run against
+        required: false
+        type: string
+      run_microbench:
+        description: Enable microbench gate
         required: false
         type: string
       run_microbench:
@@ -11,6 +16,7 @@ on:
         type: boolean
         default: false
       run_tla:
+        description: Enable TLA verification
         required: false
         type: boolean
         default: false
@@ -148,6 +154,8 @@ jobs:
           bash scripts/s4_bundle.sh
           bash scripts/anchor_integrity.sh
 
+      - name: Upload dbt docs
+        if: ${{ always() }}
       - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
@@ -164,6 +172,7 @@ jobs:
             analytics/dbt/target/index.html
 
       - name: Upload bundle
+        if: ${{ always() }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -171,6 +180,7 @@ jobs:
           path: out/s4_evidence_bundle_*.zip
 
   microbench:
+    if: ${{ inputs.run_microbench }}
     if: inputs.run_microbench == true
     runs-on: ubuntu-22.04
     needs: orr
@@ -207,6 +217,7 @@ jobs:
           path: out/s4_orr/microbench.txt
 
   tla:
+    if: ${{ inputs.run_tla }}
     if: inputs.run_tla == true
     runs-on: ubuntu-22.04
     needs: orr
