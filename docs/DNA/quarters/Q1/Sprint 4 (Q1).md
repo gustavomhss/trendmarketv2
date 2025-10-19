@@ -1,180 +1,102 @@
-# Q1 • Sprint 4 — MVP Hardening + CE$ Fundações (DEC≤0,8s • A106/A87/A89 • dbt • Schema Registry • ADRs) • v1.1 FINAL (deepdive 10×)
-> **Alinhado a**: *Q1 Roadmap — MBP GA interno + CE$ Fundações (v1.1 FINAL)*, *S1 v1.1*, *S2 v1.1*, *S3 v1.1*, e *Roadmap — Kickoff Intake (CE$) • V1/v0.2 (Jeff Patton)*.  
-> **Objetivo (2 semanas)**: **endurecer o MVP do MBP** e **fechar CE$ Fundações** com **DEC p95 ≤ 0,8s**, **CDC lag p95 ≤ 120s**, **Schema Registry sem drift**, **contratos A106/A87/A89** com **dbt tests** e **ADRs 001–003 aprovados**, atingindo **Gate Pre‑GA (M2)**.
+# S4 — v1.4 FINAL (Gate Pre-GA M2)
+
+> **Codex Engenheiro** — Operar em excelência Steve Jobs × Donald Knuth. Saída idempotente, sem placeholders, com provas executáveis.
+> **Painel Oficial:** Donald Knuth, Steve Jobs, Fernando Pérez, Alan Kay, Leslie Lamport, Vitalik Buterin.
 
 ---
 
-## 0) Delta S3 → S4 (elevações)
-- **DEC/Perf**: tuning do pipeline (roteamento, cache, GC, conexões), com **p95 ≤ 0,8s** estável em carga‑alvo.  
-- **Dados/CDC**: contratos **A106/A87/A89** concluídos para domínios MBP; **dbt tests** (unique/not null/FKs/expectations) + monitor DQ; documentação ≥ **95%**.  
-- **Schema Registry**: versões **semver**, *compat rules* ativas; **schema_drift=0**.  
-- **Governança**: **Hook Coverage ≥ 98%**; **Audit Coverage ≥ 99%**; owners de watchers confirmados.  
-- **ADRs 001–003**: DEC; Resolução Regrada; TWAP/Benchmarks — **aprovados**.  
-- **Segurança/Privacidade (A108)**: amostragem de logs 100% **sem PII**; SBOM/SAST/Secrets **sem críticos**.
+## 0) Contexto e Objetivo
+
+- **Sprint:** Q1 • S4 — MVP Hardening + CE$ Fundações.
+- **Meta:** Endurecer o MVP do MBP e fechar CE$ Fundações com **Gate Pre-GA (M2) aprovado**.
 
 ---
 
-## 1) Sprint Goal & DoA (S4)
-**Sprint Goal:** deixar **CE$ Fundações “verde”** e o **MVP MBP endurecido**, prontos para **Pre‑GA (M2)**.  
-**Definition of Awesome (S4):**  
-- **DEC p95 ≤ 0,8s** por ≥ 1h na carga‑alvo (**N rps**, ORR).  
-- **CDC lag p95 ≤ 120s** nas tabelas quentes MBP (`mbp_markets`, `mbp_quotes`, `mbp_resolutions`, `mbp_abuse_events`).  
-- **Schema drift = 0**; **data_contract_break = false**; **dbt tests=pass**.  
-- **Hook Coverage ≥ 98%**; **Audit Coverage ≥ 99%** (rolling 24h).  
-- **ADRs 001–003 aprovados** e arquivados.  
-- **P1=0**; **error‑budget burn < 1×/4h** (janela S4).  
-- **INP p75 ≤ 200ms** (painel MBP) — sem regressão CWV.
+## 1) SLOs e Critérios de Aceite (não negociáveis)
+
+| Domínio | SLO | Valor | Observações |
+| --- | --- | --- | --- |
+| Performance (DEC) | p95 ≤ 800 ms (60 min @ 120 rps) | 5xx = 0, erro de orquestração = 0 | thresholds aplicados em k6 + Prometheus |
+| CDC | `lag p95 ≤ 120 s` (tabelas quentes) | `mbp_markets`, `mbp_quotes`, `mbp_resolutions`, `mbp_abuse_events` | coleta contínua |
+| Dados | `schema_drift=0`, `data_contract_break=false`, `dbt tests=pass` | inclui regras A106/A87/A89 | fail-closed |
+| Governança | Hook Coverage ≥ 98%, Audit Coverage ≥ 99% (rolling 24h) | watchers automáticos | métricas Prom/CI |
+| FE (RUM) | INP p75 ≤ 200 ms | sem regressão | ingest Prom format |
+| Segurança | SBOM/SAST/Secrets sem críticos; logs 0 PII | Trivy, Semgrep, Gitleaks | bloqueia merge |
+| Âncora | Evidence Pack com SHA-256 + Merkle root + tag Git `anchor-M2-<root>` | scripts dedicados | torna release auditável |
 
 ---
 
-## 2) Definition of Ready (DoR)
-- **Ambientes**: `dev`/`stage` estáveis; `prod‑shadow` liberado.  
-- **Acessos**: APM/Logs/Traces/RUM; **schema registry**; **CI/CD**; notebooks de goldens.  
-- **Contratos**: rascunhos A106/A87/A89 criados (S3) e campos críticos definidos.  
-- **Observabilidade**: painéis S3 publicados; alarmes base ativos.  
-- **Governança**: matriz de owners (watchers) revisada; queries do Measurement Plan disponíveis.
+## 2) Invariantes, Liveness e Ordem Temporal
+
+1. **Materializar invariantes:** `docs/spec/invariants.md` com Safety (I1..I5), Liveness (L1..L3) e Ordem Temporal (O1..O2).
+2. **Formalização TLA+:** `docs/spec/tla/dec_pre_ga.tla` com Init/Next/Safety/Liveness compatíveis com TLC/Apalache.
+3. **Verificação opcional:** job de CI off-by-default para rodar TLC/Apalache e anexar relatório quando habilitado.
 
 ---
 
-## 3) Escopo S4 (alto nível — sem backlog CSV)
-- **DEC (Performance/Confiabilidade)**  
-  - *Profiling* + ajustes (pool de conexões, GC, cache de preço, roteamento rápido).  
-  - Testes de estresse (picos/caudas); *graceful degrade* por SLO.  
-- **Dados/CDC & Contratos (A106/A87/A89)**  
-  - Finalizar contratos para `mbp_markets|quotes|resolutions|abuse_events`.  
-  - **dbt tests**: unique/not null/FKs + regras de consistência (ex.: market fechado ⇒ sem novos trades).  
-  - **DQ**: monitoração e alertas; documentação ≥95% pacote MBP.  
-  - **CDC**: garantir `lag p95 ≤ 120s` + alarmes e *runbook*.  
-- **Schema Registry**  
-  - Políticas de compatibilidade; *lint* de schema; automação de *breaking checks* no CI; **drift=0**.  
-- **Governança/Observabilidade**  
-  - **Hook Coverage ≥ 98%**; **Audit Coverage ≥ 99%**; owners/rotas de alerta confirmados.  
-  - Painéis consolidados (DEC/MBP/DATA/FE) + alertas de **error budget**, **cdc lag**, **schema drift**, **decision gap**.  
-- **Segurança/Privacidade (A108)**  
-  - Amostragem de logs **sem PII**; SBOM/SAST/Secrets **verdes**; *least‑privilege* revisado.  
-- **ADRs 001–003**  
-  - Fechamento e publicação (DEC; Rule Engine; TWAP).  
-- **FE (RUM/CWV)**  
-  - Verificações INP p75; *no‑regression*; *preload/hydration* mínimo se necessário.
+## 3) Fronteiras Arquiteturais & Reprodutibilidade
 
-**Fora do escopo S4**: auto‑resolução por oráculo (→ **S5**); fees dinâmicos; backtesting/simulação avançada; moderação avançada.
+- Estruturar/validar diretórios: `engine/`, `data/` (`cdc/`, `analytics/dbt/`), `obs/` (`ops/prom/`, `ops/otel/`, `dashboards/`), `fe/` (`rum/`, `web/`), `schemas/`, `docs/` (`adr/`, `runbooks/`, `spec/`, `demo/`), `scripts/`, `sim/` (harness).
+- Harness atual deve permanecer compatível com a separação futura (S5: `sim/` como serviço independente).
+- **ENV pinado:** manter `requirements.lock`, `Cargo.lock`, `package-lock.json`, `ops/containers/orr.Dockerfile` com digest fixo.
+- **Reprodutibilidade:** gerar `docs/REPRO.md` com 6 passos “do zero ao `make prega`”.
 
 ---
 
-## 4) Plano de 10 dias (quem faz o quê)
-**D1** — DEC: *profiling* e plano de remediação; DATA: priorizar A106/A87/A89; SRE: baseline de carga.  
-**D2** — DEC: cache/roteamento; DATA: *dbt tests* (unique/not null/FKs); SRE: alarmes de **error budget**.  
-**D3** — DEC: *stress* com picos; DATA: regras de consistência; FE: revisão INP p75.  
-**D4** — Registry: compat rules; CI com *breaking checks*; DATA: documentação (≥95%).  
-**D5** — CDC: otimização ingest; alarmes; drill *Runbook CDC*.  
-**D6** — Observabilidade: painéis consolidados; *decision gap* watcher; *web CWV* verificado.  
-**D7** — Segurança: SBOM/SAST/Secrets; *least‑privilege*; auditoria de logs.  
-**D8** — **Fault‑injection**: `schema_drift`, `contract_break`, `cdc_delay`, `lat_p95`.  
-**D9** — *Bug‑bash*; *perf pass* (p95≤0,8s); *dbt tests=pass*; documentação verificada.  
-**D10** — Review/Demo; Retro; **Gate Pre‑GA (M2)**.
+## 4) Entregáveis Obrigatórios
 
-> **Capacidade**: {PO:0,5 • ST:1,0 • PY:1,0 • DC:0,5 • ML:1,0 • SRE:0,5 • FE:0,5}.  
-> **WIP máx**: 2 por trilha (DEC/DATA/Registry/Obs/FE/SEC).
-
----
-
-## 5) Test Plan & Perf Budget (S4)
-**Perf**: carga‑alvo **N rps** em `stage` por 60 min; **p95 ≤ 0,8s**; 5xx=0; *graceful degrade* acionando rollback quando necessário.  
-**Dados**: *dbt tests* verdes; **schema_drift=0**; **contract_break=false**; documentação ≥95%.  
-**CDC**: **lag p95 ≤ 120s**; *alert* e *runbook* verificados.  
-**Gov/Obs**: **Hook Coverage ≥ 98%**; **Audit Coverage ≥ 99%**; alarmes testados.  
-**FE**: **INP p75 ≤ 200ms** (sem regressão).  
-**Aprovação**: P1=0; **error‑budget burn < 1×/4h**.
-
----
-
-## 6) Measurement Sheet — S4
-```csv
-KPI,Fonte,Janela,SLO/Meta,Watcher,Hook,Owner,Query/Id
-DEC p95 (ms),APM/Traces,5m,<=800,slo_budget_breach,rollback,SRE,apm.ttp_dec_p95
-CDC lag p95 (s),CDC/APM,5m,<=120,cdc_lag,degrade+rollback,DATA,cdc.lag_p95
-Schema drift,Registry,run,==0,schema_registry_drift,block_deploy,DATA,registry.schema_drift
-Data contract break,CI/Tests,run,false,data_contract_break,rollback+waiver,DATA,ci.data_contract_status
-DBT tests status,CI/dbt,run,pass,dbt_test_failure,block_merge,DATA,dbt.test_status
-Hook Coverage %,CI/Repo,24h,>=98,metrics_decision_hook_gap,open_incident,PLAT,ci.hook_coverage
-Audit Coverage %,Logs,24h,>=99,metrics_decision_hook_gap,open_incident,PLAT,logs.audit_coverage
-INP p75 (ms),RUM,24h,<=200,web_cwv_regression,rollback_fe,FE,rum.inp_p75
-Error budget burn,XLA,4h,<1x,slo_budget_breach,rollback,SRE,apm.error_budget_burn
-TWAP divergence %,Engine,5m,<=1.0,mbp_price_spike_divergence,freeze,PM/SRE,engine.twap_gap
-```
+1. **Makefile** (`prega`, `env.pin`, `orr`, `bundle`, `anchors`, `flame`, `micro`, `dbt.docs`, `rum.docs`, `nb.perf`). `make prega` = env pin → ORR → bundle → anchors → export perf notebook.
+2. **Scripts:**
+   - `scripts/env_pin_check.sh` (checa ferramentas, locks e versões; falha se divergente).
+   - `scripts/orr_s4_run.sh` (120 rps/60 m, coleta DEC/CDC, `dbt build`, schema compat, scanners, RUM snapshot, governança, bundle staging).
+   - `scripts/s4_bundle.sh` (zipa evidências, ADRs, rules; gera SHA-256).
+   - `scripts/anchor_root.py`, `scripts/anchor_integrity.sh` (Merkle root + tag Git `anchor-M2-<root>`).
+   - `scripts/microbench_dec.sh` e `scripts/flamegraph_hotpaths.sh` (inclui cenário `--scenario dec_tail` com `dec_flame_p99.svg`).
+3. **Observabilidade:**
+   - `ops/prom/rules_s4.yaml` (DEC p95, CDC lag, SchemaDrift, Hook/Audit coverage, SLOBudgetBreach, CDCLagHigh, recuperação pós-rollback).
+   - `ops/prom/decision_gap.rules.yaml` + `docs/runbooks/decision_gap.md`.
+4. **Dados/Contratos/dbt:**
+   - `analytics/dbt/models/mbp/schema.yml`, `analytics/dbt/models/mbp/README.md` (≥95% docs, lineage, owners).
+   - `analytics/dbt/profiles/profiles.yml` pinado.
+   - Publicar docs dbt como artifact (CI executa `dbt docs generate` + upload `catalog.json`, `manifest.json`, `index.html`).
+5. **Schema Registry:**
+   - `schemas/mbp/quotes/v1.2.0.json` e `scripts/schema_compat_check.py` (fail-closed para breaking). Guardar diff em `EVI/schema_diff.txt`.
+6. **ADRs Accepted:** `docs/adr/ADR-001-DEC-SLO-Degrade-Rollback.md`, `ADR-002-Resolution-Engine-Regra.md`, `ADR-003-TWAP-Benchmarks.md`.
+7. **Runbooks:** `docs/runbooks/dec_slo.md`, `cdc_lag.md`, `schema_registry.md`, `decision_gap.md`.
+8. **RUM → Prom:** `fe/rum/collector.js`, `fe/rum/server.js` (porta 9314, métrica `web_vitals_inp_ms{page,env}`), `fe/rum/collector_publish.js`. Snapshot `/metrics` → `EVI/web_inp_snapshot.json`.
+9. **CI (GitHub Actions):** `_s4-orr.yml` (reusável endurecido) e `s4-exec.yml` (dispatcher). Incluir jobs opcionais (off-by-default) para TLA e microbench (limites Knuth).
+10. **Measurement Sheet:** `ops/obs/measurement_s4.csv` com KPIs definidos.
+11. **ORR & Evidências:** k6 script `tests/perf/dec_120rps_60m.js`, métricas DEC/CDC exportadas, RUM snapshot, relatórios Trivy/Semgrep/Gitleaks, microbench/flame (`dec_flame.svg`, `dec_flame_p99.svg`), relatórios TLA (quando habilitado), âncora (`ANCHOR.json`, `ANCHOR.txt`, tag git), bundle `out/s4_evidence_bundle_<UTC>.zip` + `.sha256`.
+12. **PR & Release:** cabeçalho do PR com `ANCHOR_ROOT`, link do Evidence Pack e resumo do `make prega`. Release com `ANCHOR_ROOT`, SHA-256 do bundle e lista de artefatos. Tags `s4-v1.4` e `anchor-M2-<root>`.
+13. **Demo One-Pager:** `docs/demo/s4_prega_onepager.md` com roteiro em 7 passos + bloco “60s para ler o `make prega`”.
 
 ---
 
-## 7) Hooks A110 — exercícios (validação)
-```yaml
-exercises:
-  schema_drift:
-    inject: registry.bump_version(incompatible=true)
-    expect: action=='block_deploy' && pipeline.status=='halted'
-  data_contract_break:
-    inject: ci.break_data_contract('mbp.quotes.v1')
-    expect: action=='rollback+waiver_timebox' && owner=='DATA'
-  dbt_failure:
-    inject: dbt.fail_test('mbp_resolutions_fk')
-    expect: action=='block_merge' && pr.status=='blocked'
-  cdc_delay:
-    inject: cdc.delay(p95='+180s', window='10m')
-    expect: action=='degrade+rollback' && ticket.owner=='DATA'
-  dec_latency:
-    inject: apm.loadtest(rps=N*1.2, duration='10m')
-    expect: action=='rollback' && error_budget_burn<1
-  web_inp_regression:
-    inject: fe.inp_regress(p75='+80ms', window='24h')
-    expect: action=='rollback_fe'
-```
+## 5) DoR / DoD
+
+- **DoR:** ambientes `dev/stage` estáveis, acessos a APM/Logs/Traces/RUM, registry/CI ativos, drafts A106/A87/A89 prontos, painéis S3 operacionais, owners confirmados, locks presentes.
+- **DoD:** SLOs atendidos, ORR bundle com SHA-256 + âncora, ADRs publicados, workflows verdes, release S4 publicada, nenhum waiver aberto.
 
 ---
 
-## 8) ORR — **Gate Pre‑GA (M2)** (checklist)
-- **Perf (DEC)**: p95≤0,8s por 1h com N rps; 5xx=0; degrade/rollback testado.  
-- **Dados/CDC**: *dbt tests* **pass**; **schema_drift=0**; **contract_break=false**; **CDC lag p95≤120s**.  
-- **Governança**: **Hook Coverage≥98%**; **Audit Coverage≥99%**; owners/rotas de alerta **OK**.  
-- **ADRs 001–003**: publicados; *decision log* anexado.  
-- **Segurança/Privacidade**: SBOM/SAST/Secrets sem críticos; amostragem de logs **sem PII**.  
-- **Change**: *Pre‑GA Plan* (escopo/flags/rollback/comunicação).  
-- **Assinaturas**: **PO, Eng (ST), Data (DC), SRE, FE, SEC/RSK, INT**.
+## 6) Riscos e Mitigações
+
+| Risco | Watcher/Hook | Mitigação |
+| --- | --- | --- |
+| DEC p95 > 800 ms | `slo_budget_breach` | degrade/rollback, profiling, hotfix, cache, GC, roteamento |
+| CDC lag > 120 s | `cdc_lag` | degrade/rollback, otimizar ingest, partições, backpressure |
+| Schema/Contracts | `schema_registry_drift` / `data_contract_break` | bloquear deploy, hotfix MINOR, revisão |
+| dbt failures | `dbt_test_failure` | bloquear merge até correção |
+| CWV/INP regressão | `web_cwv_regression` | rollback FE, otimizar hydration/preload |
 
 ---
 
-## 9) Riscos & Mitigações (watcher/hook)
-1) **DEC p95>800ms** → `slo_budget_breach` → **rollback/degrade** + *profiling*; ajuste de cache/GC.  
-2) **CDC lag** → `cdc_lag` → **degrade/rollback**; priorizar ingest.  
-3) **Schema drift/contract break** → `schema_registry_drift`/`data_contract_break` → **block_deploy/rollback**.  
-4) **dbt failures** → `dbt_test_failure` → **block_merge** até correção.  
-5) **CWV regressão** → `web_cwv_regression` → **rollback_fe**.
+## 7) Execução do Codex
 
----
+1. Seguir esta spec literalmente; instruções em `AGENTS.md` continuam válidas exceto quando conflitarem com esta versão.
+2. Scripts/CI sem placeholders e determinísticos. Sem dependências locais/sudo obrigatório.
+3. Tudo essencial deve entrar no Evidence Pack.
+4. Tag/âncora obrigatórias antes do PR.
+5. Painel Oficial = gate de revisão (NOTA ≥ 9,6).
 
-## 10) Evidence Pack & Assinaturas
-- **Evidências**: prints de dashboards (DEC/CDC/Hook/Audit), *trace_ids*, relatórios **dbt/CI**, *commit sha*, ADRs 001–003, resultados de exercícios A110.  
-- **Assinaturas**: PO • ST • PY • DC • ML • SRE • FE • SEC/RSK • INT.
-
----
-
-## 11) Demo (Review)
-- **Roteiro**: mostrar painéis consolidados; provar p95≤0,8s; exibir **schema registry** (sem drift) e **dbt tests** *pass*; simular **cdc delay** (ver *degrade/rollback*); destacar **ADRs** e **evidence pack**.  
-- **AC (Given/When/Then)**:  
-  - *Given* janelas de 5m; *When* medir DEC; *Then* `p95≤800ms` e **error budget OK**.  
-  - *Given* contratos publicados; *When* rodar CI/dbt; *Then* `tests=pass` e `schema_drift=0`.
-
----
-
-## 12) Pós‑Review → Prep **S5**
-- Consolidar *gaps/waivers* (A106) com dono/timebox.  
-- Planejar **S5**: **Slice 2 / Escala** (auto‑resolução por oráculo; fees dinâmicos; simulação/backtesting; moderação avançada; feature flags).  
-- Pré‑work: rascunhos de auto‑resolução; parametrização de fees; selecionar cenários de simulação; reforçar *benchmarks*.
-
----
-
-## 13) Políticas & No‑Go (reafirmação)
-- **Sem Pre‑GA** com watcher crítico vermelho; **sem logs com PII**; **waivers** só com *timebox* + rollback e aprovação **PO+Eng+Data+SRE**.
-
----
-
-> **Resultado esperado da S4**: **Gate Pre‑GA (M2) aprovado** com **CE$ Fundações verde**, **DEC ≤ 0,8s**, **CDC ≤ 120s**, **schema drift=0**, **contratos/documentação/dbt** ok, **ADRs 001–003** publicados, **governança A110** e **observabilidade consolidada**.
-
+> **Checklist final:** gerar patch, rodar `make prega`, publicar Evidence Pack (com SHA-256 e ANCHOR_ROOT), abrir PR + release com informações completas.
