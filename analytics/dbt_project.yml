@@ -1,0 +1,6 @@
+name: mbp
+version: 1.0
+profile: default
+models:
+  mbp:
+    +materialized: table

@@ -1,0 +1,3 @@
+question_id,resolved_value,evidence_uri
+Q-001,YES,s3://evidence/yesno/Q-001.pdf
+Q-002,NO,s3://evidence/yesno/Q-002.pdf
