@@ -1,3 +1,4 @@
+# ---------- .github/workflows/_s4-orr.yml ----------
 name: _s4-orr
 
 on:
@@ -19,7 +20,7 @@ on:
         default: false
 
 concurrency:
-  group: "s4-orr-${{ inputs.ref || github.sha }}"
+  group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -71,7 +72,7 @@ jobs:
           pip freeze | sort | tee out/pip-audit/pip-freeze.txt
 
       - name: Upload pip audit
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pip-audit
@@ -98,22 +99,8 @@ jobs:
           curl -sSLO "${BASE}/semgrep-linux-amd64"
           curl -sSLo checksum.txt "${BASE}/semgrep-linux-amd64.sha256"
           # extrai um hash SHA-256 (64 hex) de qualquer linha do checksum
-          EXPECTED_RAW=$(python - <<'PY' || true
-import re
-from pathlib import Path
-
-data = Path('checksum.txt').read_text(encoding='utf-8', errors='ignore')
-match = re.search(r'([0-9a-fA-F]{64})', data)
-if match:
-    print(match.group(1))
-else:
-    collapsed = ''.join(ch for ch in data if ch in '0123456789abcdefABCDEF')
-    if len(collapsed) >= 64:
-        print(collapsed[:64])
-PY
-)
-          EXPECTED=$(printf '%s\n' "$EXPECTED_RAW" | head -n1 | tr '[:upper:]' '[:lower:]')
-          ACTUAL=$(sha256sum semgrep-linux-amd64 | awk '{print tolower($1)}')
+          EXPECTED=$(grep -Eio '[a-f0-9]{64}' checksum.txt | head -n1)
+          ACTUAL=$(sha256sum semgrep-linux-amd64 | awk '{print $1}')
           if [ -z "$EXPECTED" ]; then
             echo "Não foi possível extrair SHA-256 do checksum da release"; exit 1
           fi
@@ -124,7 +111,7 @@ PY
           semgrep --version
           rm -f semgrep-linux-amd64 checksum.txt
 
-      # -------- Node (se o repo usa scripts/front) --------
+      # -------- Node (opcional) --------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -163,7 +150,7 @@ PY
           dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
 
       - name: Upload dbt docs
-        if: ${{ always() && hashFiles('analytics/dbt/**') != '' }}
+        if: ${{ hashFiles('analytics/dbt/**') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
@@ -205,10 +192,12 @@ PY
         run: |
           set -euo pipefail
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
+          sed -i '1s/^/export K6="'"$K6"'"\
+/' scripts/orr_s4_run.sh || true
           bash scripts/orr_s4_run.sh
 
       - name: Upload bundle
-        if: ${{ always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: s4_evidence_bundle
