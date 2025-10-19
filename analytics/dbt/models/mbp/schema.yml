@@ -1,0 +1,79 @@
+version: 2
+models:
+  - name: mbp_markets
+    description: >-
+      Tabela canônica de mercados do MBP com metadados de status, horários e controle de abuse.
+    columns:
+      - name: market_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['open', 'closed', 'frozen', 'resolved']
+      - name: resolved_at
+        description: Timestamp de resolução final do mercado.
+  - name: mbp_quotes
+    description: Quotes emitidas para mercados ativos.
+    columns:
+      - name: quote_id
+        tests:
+          - unique
+          - not_null
+      - name: market_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('mbp_markets')
+              field: market_id
+      - name: quote_ts
+        description: Timestamp de emissão da quote.
+        tests:
+          - not_null
+      - name: price
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['active', 'expired', 'cancelled']
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "status != 'active' or {{ ref('mbp_markets') }}.status != 'closed'"
+  - name: mbp_resolutions
+    description: Eventos de resolução com TWAP validado.
+    columns:
+      - name: resolution_id
+        tests:
+          - unique
+          - not_null
+      - name: market_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('mbp_markets')
+              field: market_id
+      - name: twap_divergence_percent
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0.0, 0.1, 0.5, 1.0]
+  - name: mbp_abuse_events
+    description: Eventos de abuso sinalizados pelo engine.
+    columns:
+      - name: abuse_event_id
+        tests:
+          - unique
+          - not_null
+      - name: market_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('mbp_markets')
+              field: market_id
+      - name: severity
+        tests:
+          - accepted_values:
+              values: ['low', 'medium', 'high']
