@@ -1,0 +1,15 @@
+name: ce_mbp
+version: 1.0.0
+config-version: 2
+
+profile: ce_mbp_bq
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+models:
+  ce_mbp:
+    +materialized: view

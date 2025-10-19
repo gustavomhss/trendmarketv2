@@ -90,14 +90,13 @@ jobs:
           sudo install -m 0755 trivy /usr/local/bin/trivy
           rm -f trivy LICENSE README.md || true
 
-      - name: Semgrep (binary v1.80.0, SHA256 verify)
+      - name: Semgrep (container v1.80.0, pinned digest)
         run: |
           set -euo pipefail
           SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
           docker pull "$SEMGREP_IMG" >/dev/null
-          # sanity: versão
           docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
-          # (opcional) varredura rápida sem depender de login/regra privada:
+          # opcional: varredura
           # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
 
       # -------- Node (opcional) --------
@@ -126,27 +125,79 @@ jobs:
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
       # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
-      - name: Run dbt build
-        if: ${{ hashFiles('analytics/dbt/**') != '' }}
+      - name: Locate dbt project
+        id: dbt
         run: |
           set -euo pipefail
-          dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+          DBT_DIR=$(find . -type f -name dbt_project.yml | head -n1 | xargs -r dirname)
+          if [ -n "$DBT_DIR" ]; then
+            echo "dir=$DBT_DIR" >> "$GITHUB_OUTPUT"
+            echo "Found dbt project at $DBT_DIR"
+          else
+            echo "dir=" >> "$GITHUB_OUTPUT"
+            echo "No dbt project found; skipping dbt steps."
+          fi
 
-      - name: Generate dbt docs
-        if: ${{ hashFiles('analytics/dbt/**') != '' }}
+      - name: Configure BigQuery credentials for dbt (if secrets present)
+        id: bq
         run: |
           set -euo pipefail
-          dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+          if [ -n "${{ secrets.GCP_SA_JSON || '' }}" ] && [ -n "${{ secrets.DBT_BQ_PROJECT || '' }}" ]; then
+            echo "have_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+
+      - name: dbt deps
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        run: |
+          set -euo pipefail
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+
+      - name: dbt build
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        run: |
+          set -euo pipefail
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt build --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+
+      - name: dbt docs generate
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        run: |
+          set -euo pipefail
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt docs generate --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
 
       - name: Upload dbt docs
-        if: ${{ hashFiles('analytics/dbt/**') != '' }}
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
           path: |
-            analytics/dbt/target/catalog.json
-            analytics/dbt/target/manifest.json
-            analytics/dbt/target/index.html
+            ${{ steps.dbt.outputs.dir }}/target/catalog.json
+            ${{ steps.dbt.outputs.dir }}/target/manifest.json
+            ${{ steps.dbt.outputs.dir }}/target/index.html
 
       # -------- Microbench gate (opcional) --------
       - name: Microbench (gate)
