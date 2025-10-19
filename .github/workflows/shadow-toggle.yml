@@ -1,0 +1,33 @@
+name: Shadow Toggle (FastAPI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      enabled:
+        description: "true para ligar, false para desligar"
+        type: choice
+        required: true
+        options: ["true", "false"]
+        default: "true"
+      target:
+        description: "URL do shadow target"
+        type: string
+        required: true
+        default: "https://api.mbp-s2-shadow"
+
+jobs:
+  toggle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Atualizar configs/shadow.env
+        run: |
+          mkdir -p configs
+          printf "# managed by CI\nSHADOW_ENABLED=%s\nSHADOW_TARGET=%s\n" "${{ github.event.inputs.enabled }}" "${{ github.event.inputs.target }}" > configs/shadow.env
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add configs/shadow.env
+          git commit -m "chore(shadow): set SHADOW_ENABLED=${{ github.event.inputs.enabled }} via workflow"
+          git push
