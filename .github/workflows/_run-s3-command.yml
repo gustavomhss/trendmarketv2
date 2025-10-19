@@ -1,0 +1,27 @@
+name: S3 Command Runner
+on:
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "Comando a executar"
+        required: true
+        default: "python3 scripts/s3/create_market_from_template.py TPL-YESNO-01 'Pergunta Interna 001'"
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y python3 jq
+      - run: |
+          set -euo pipefail
+          mkdir -p out/s3_gatecheck
+          echo "Executando: ${{ github.event.inputs.cmd }}"
+          eval ${{ github.event.inputs.cmd }} | tee /tmp/cmd.out
+          echo "---"
+          echo "Conteúdo de out/s3_gatecheck:"; ls -la out/s3_gatecheck || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s3-run-output
+          path: |
+            out/s3_gatecheck
+            /tmp/cmd.out
