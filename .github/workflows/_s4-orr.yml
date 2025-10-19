@@ -1,0 +1,152 @@
+name: S4 ORR (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      test_mode:
+        type: boolean
+        required: false
+        default: false
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'git ref'
+        required: false
+        type: string
+      test_mode:
+        description: 'Quick check: deps + dbt docs only'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+  security-events: write
+
+jobs:
+  orr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup base tooling
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-pip python3-venv jq curl make
+          python3 -m pip install --upgrade pip
+
+      - name: Install Python dependencies (dbt)
+        run: |
+          set -euo pipefail
+          pip install --no-cache-dir dbt-core==1.6.4 dbt-bigquery==1.6.4 requests==2.31.0
+
+      - name: Install Semgrep binary (v1.80.0)
+        run: |
+          set -euo pipefail
+          curl -sSLo semgrep https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64
+          curl -sSLo semgrep.sha256 https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64.sha256
+          sha256sum -c semgrep.sha256
+          sudo install -m 0755 semgrep /usr/local/bin/semgrep
+          semgrep --version
+
+      - name: Python env audit (pip, freeze)
+        run: |
+          set -euo pipefail
+          python -m pip --version | tee pip-version.txt
+          pip freeze | sort | tee pip-freeze.txt
+
+      - name: Upload pip audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit
+          path: |
+            pip-version.txt
+            pip-freeze.txt
+
+      - name: Prepare dbt workspace
+        run: |
+          set -euo pipefail
+          mkdir -p analytics/dbt/target
+
+      - name: dbt build
+        env:
+          DBT_TARGET_PATH: analytics/dbt/target
+        run: |
+          dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+      - name: Generate dbt docs
+        env:
+          DBT_TARGET_PATH: analytics/dbt/target
+        run: |
+          dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+      - name: Upload dbt docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            analytics/dbt/target/catalog.json
+            analytics/dbt/target/manifest.json
+            analytics/dbt/target/index.html
+
+      - name: Semgrep scan
+        if: ${{ !inputs.test_mode }}
+        run: |
+          set -euo pipefail
+          semgrep scan --config auto --error
+
+      - name: Resolve k6 image digest
+        if: ${{ !inputs.test_mode }}
+        run: |
+          set -euo pipefail
+          docker pull grafana/k6:0.52.0
+          K6_IMAGE=$(docker inspect --format='{{index .RepoDigests 0}}' grafana/k6:0.52.0)
+          echo "K6_IMAGE=$K6_IMAGE" >> "$GITHUB_ENV"
+
+      - name: Run k6 smoke
+        if: ${{ !inputs.test_mode }}
+        env:
+          K6_IMAGE: ${{ env.K6_IMAGE }}
+        run: |
+          set -euo pipefail
+          docker run --rm "$K6_IMAGE" version
+
+      - name: Execute S4 ORR pipeline
+        if: ${{ !inputs.test_mode }}
+        run: |
+          set -euo pipefail
+          bash scripts/orr_all.sh
+
+      - name: Package S4 evidence bundle
+        if: ${{ !inputs.test_mode }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/s4_gatecheck
+          if [ -d out/orr_gatecheck ]; then
+            cp -a out/orr_gatecheck/. out/s4_gatecheck/
+          fi
+          tar -czf s4_evidence_bundle.tar.gz -C out s4_gatecheck
+
+      - name: Upload S4 evidence bundle
+        if: ${{ always() && !inputs.test_mode }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4_evidence_bundle
+          path: s4_evidence_bundle.tar.gz

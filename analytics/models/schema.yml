@@ -1,0 +1,20 @@
+version: 2
+models:
+  - name: mbp_markets
+    tests:
+      - unique:
+          column_name: market_id
+      - not_null:
+          column_name: name
+  - name: mbp_quotes
+    tests:
+      - not_null:
+          column_name: ts
+  - name: mbp_resolutions
+    tests:
+      - not_null:
+          column_name: started_at
+  - name: mbp_abuse_events
+    tests:
+      - unique:
+          column_name: id

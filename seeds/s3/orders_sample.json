@@ -1,0 +1,4 @@
+[
+  {"user":"u1","market_id":"m1","template_category":"binary","qty":1200,"ts":1700000000},
+  {"user":"u1","market_id":"m1","template_category":"binary","qty":50,"ts":1700000020}
+]

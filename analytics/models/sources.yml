@@ -1,0 +1,9 @@
+version: 2
+sources:
+  - name: mbp
+    schema: mbp
+    tables:
+      - name: markets
+      - name: quotes
+      - name: resolutions
+      - name: abuse_events
