@@ -1,75 +1,138 @@
-
-name: CRD Epic — ORR (Reusable)
+name: _S4 ORR (Reusable)
 
 on:
   workflow_call:
     inputs:
-      profile:
-        type: string
+      ref:
         required: false
-        default: fast
-      environment:
         type: string
+      test_mode:
         required: false
-        default: dev
-      epic_path:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'git ref (optional)'
+        required: false
         type: string
+      test_mode:
+        description: 'Quick check: deps + dbt docs only'
         required: false
-        default: docs/obs/CRD-8-epic.md
-      agents_md:
-        type: string
-        required: false
-        default: AGENTS.md
-      project_dir:
-        type: string
-        required: false
-        default: .
-      scripts_dir:
-        type: string
-        required: false
-        default: scripts
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: s4-orr-${{ inputs.ref || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   orr:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
+    env:
+      PROM: http://127.0.0.1:9090
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
 
-      - name: Print inputs
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: System deps
         run: |
-          echo "profile=${{ inputs.profile }}"
-          echo "environment=${{ inputs.environment }}"
-          echo "epic_path=${{ inputs.epic_path }}"
-          echo "agents_md=${{ inputs.agents_md }}"
-          echo "project_dir=${{ inputs.project_dir }}"
-          echo "scripts_dir=${{ inputs.scripts_dir }}"
+          sudo apt-get update
+          sudo apt-get install -y jq
 
-      - name: Ensure utils (jq/zip/curl)
+      # ---- Python deps (dbt only) + audit ----
+      - name: Install Python deps (dbt only)
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y jq zip curl
+          python -m pip install --upgrade pip
+          pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
 
-      - name: Run ORR pipeline
-        shell: bash
+      - name: Python env audit (pip, freeze)
         run: |
-          set -euo pipefail
-          cd "${{ inputs.project_dir }}"
-          mkdir -p out/obs_gatecheck/logs out/obs_gatecheck/evidence
-          bash "${{ inputs.scripts_dir }}/orr_all.sh"
+          python -m pip --version | tee pip-version.txt
+          pip freeze | sort | tee pip-freeze.txt
 
-      - name: Upload ORR bundle
+      - name: Upload pip audit
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: obs-bundle-${{ inputs.profile }}-${{ inputs.environment }}
+          name: pip-audit
           path: |
-            ${{ inputs.project_dir }}/out/obs_gatecheck/**
-          if-no-files-found: warn
+            pip-version.txt
+            pip-freeze.txt
 
+      # ---- Security tools (binários) ----
+      - name: Security tools (Trivy & Gitleaks)
+        run: |
+          curl -sL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
+          sudo mv trivy /usr/local/bin/
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Semgrep (binary v1.80.0, SHA256 verify)
+        run: |
+          curl -sSLo semgrep https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64
+          curl -sSLo semgrep.sha256 https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64.sha256
+          sha256sum -c semgrep.sha256
+          sudo install -m 0755 semgrep /usr/local/bin/semgrep
+          semgrep --version
+
+      # ---- k6 image pinned by digest ----
+      - name: Resolve k6 image digest
+        id: k6
+        run: |
+          IMG=grafana/k6:0.52.0
+          docker pull "$IMG" >/dev/null
+          DIG=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMG")
+          echo "image=$DIG" >> "$GITHUB_OUTPUT"
+
+      # ---- dbt build → docs (sempre roda; cobre test_mode) ----
+      - name: dbt build
+        run: |
+          dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+      - name: Generate dbt docs
+        run: |
+          dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+
+      - name: Upload dbt docs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            analytics/dbt/target/catalog.json
+            analytics/dbt/target/manifest.json
+            analytics/dbt/target/index.html
+
+      # ---- ORR completo só fora de test_mode ----
+      - name: ORR run
+        if: ${{ !inputs.test_mode }}
+        env:
+          K6_IMAGE: ${{ steps.k6.outputs.image }}
+        run: |
+          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
+          sed -i '1s/^/export K6="'"$K6"'"\n/' scripts/orr_s4_run.sh || true
+          bash scripts/orr_s4_run.sh
+
+      - name: Upload bundle
+        if: ${{ !inputs.test_mode && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4_evidence_bundle
+          path: out/s4_evidence_bundle_*.zip
