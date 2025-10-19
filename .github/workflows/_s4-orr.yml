@@ -19,7 +19,7 @@ on:
         default: false
 
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: "s4-orr-${{ inputs.ref || github.sha }}"
   cancel-in-progress: true
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
           pip freeze | sort | tee out/pip-audit/pip-freeze.txt
 
       - name: Upload pip audit
-        if: always()
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: pip-audit
@@ -98,9 +98,7 @@ jobs:
           curl -sSLO "${BASE}/semgrep-linux-amd64"
           curl -sSLo checksum.txt "${BASE}/semgrep-linux-amd64.sha256"
           # extrai um hash SHA-256 (64 hex) de qualquer linha do checksum
-          EXPECTED_RAW=$(grep -Eio '[[:xdigit:]]{64}' checksum.txt || true)
-          if [ -z "$EXPECTED_RAW" ]; then
-            EXPECTED_RAW=$(python - <<'PY' || true
+          EXPECTED_RAW=$(python - <<'PY' || true
 import re
 from pathlib import Path
 
@@ -114,7 +112,6 @@ else:
         print(collapsed[:64])
 PY
 )
-          fi
           EXPECTED=$(printf '%s\n' "$EXPECTED_RAW" | head -n1 | tr '[:upper:]' '[:lower:]')
           ACTUAL=$(sha256sum semgrep-linux-amd64 | awk '{print tolower($1)}')
           if [ -z "$EXPECTED" ]; then
@@ -166,7 +163,7 @@ PY
           dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
 
       - name: Upload dbt docs
-        if: ${{ hashFiles('analytics/dbt/**') != '' && always() }}
+        if: ${{ always() && hashFiles('analytics/dbt/**') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
@@ -208,11 +205,10 @@ PY
         run: |
           set -euo pipefail
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
-          sed -i '1s/^/export K6="'"$K6"'"\n/' scripts/orr_s4_run.sh || true
           bash scripts/orr_s4_run.sh
 
       - name: Upload bundle
-        if: always()
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: s4_evidence_bundle
