@@ -3,13 +3,22 @@ EXTENDS Naturals, Sequences, TLC
 
 VARIABLES
     \* @type: Int;
-    dec_p95, \* DEC p95 em milissegundos
+    \* DEC p95 em milissegundos
+    dec_p95,
     \* @type: Bool;
-    breach, \* flag de violação da meta DEC
+    \* flag de violação da meta DEC
+    breach,
     \* @type: Bool;
-    rollback, \* flag de rollback emitido
+    \* flag de rollback emitido
+    rollback,
     \* @type: Bool;
-    recovered \* sistema recuperado dentro do orçamento
+    \* sistema recuperado dentro do orçamento
+    recovered
+VARIABLES dec_p95, breach, rollback, recovered
+\* @type: dec_p95: Int;
+\* @type: breach: Bool;
+\* @type: rollback: Bool;
+\* @type: recovered: Bool;
 \* Corrigido: anotações Snowcat para variáveis de estado
 
 vars == <<dec_p95, breach, rollback, recovered>>
