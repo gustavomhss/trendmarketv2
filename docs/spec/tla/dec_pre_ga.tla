@@ -87,7 +87,4 @@ Safety == [](breach => dec_p95 <= 1600)
 Liveness == WF_vars(RollbackIssued) /\ WF_vars(RecoveredWithinBudget)
 
 THEOREM Spec => Safety
-THEOREM Spec => []TypeOK
-THEOREM Spec => <> <<RecoveredWithinBudget>>_vars
-
-====
+TH
