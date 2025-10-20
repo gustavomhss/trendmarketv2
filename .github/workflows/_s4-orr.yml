@@ -120,15 +120,24 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh
 
-      # -------- k6 por digest pinado --------
-      - name: Resolve k6 digest
-        id: k6
+      # -------- Instalação do k6 (binário) --------
+      - name: Install k6
+        shell: bash
         run: |
           set -euo pipefail
-          IMAGE=grafana/k6:0.52.0
-          docker pull "$IMAGE" >/dev/null
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates gnupg
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
+
+      - name: k6 sanity
+        run: |
+          set -euo pipefail
+          command -v k6
+          k6 version
 
       # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
@@ -224,9 +233,11 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s
+" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s
+" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -250,7 +261,6 @@ jobs:
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
-          # smoke neutro: não aciona o entrypoint padrão
           set +e
           docker run --rm --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
           RC=$?
@@ -273,18 +283,14 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
-          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
-          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
-          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -301,11 +307,8 @@ jobs:
 
       # -------- ORR principal --------
       - name: ORR run
-        env:
-          K6_IMAGE: ${{ steps.k6.outputs.image }}
         run: |
           set -euo pipefail
-          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
