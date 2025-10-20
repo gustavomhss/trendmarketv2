@@ -1,20 +1,29 @@
 ---- MODULE dec_pre_ga ----
 EXTENDS Naturals, Sequences, TLC
 
+(***************************************************************************)
+(* State variables with Snowcat type hints (one @type per identifier).      *)
+(***************************************************************************)
 VARIABLES
-(* @type: Int; *) dec_p95,
-(* @type: Bool; *) breach,
-(* @type: Bool; *) rollback,
-(* @type: Bool; *) recovered
+(* @type: Int;  *) dec_p95,   * DEC p95 in milliseconds
+(* @type: Bool; *) breach,    * threshold breach flag
+(* @type: Bool; *) rollback,  * rollback issued
+(* @type: Bool; *) recovered  * system recovered within budget
 
 vars == <<dec_p95, breach, rollback, recovered>>
 
+(***************************************************************************)
+(* Type expectations                                                       *)
+(***************************************************************************)
 TypeOK ==
 /\ dec_p95 \in Nat
 /\ breach \in BOOLEAN
 /\ rollback \in BOOLEAN
 /\ recovered \in BOOLEAN
 
+(***************************************************************************)
+(* Initial state                                                           *)
+(***************************************************************************)
 Init ==
 /\ TypeOK
 /\ dec_p95 = 0
@@ -22,6 +31,9 @@ Init ==
 /\ rollback = FALSE
 /\ recovered = FALSE
 
+(***************************************************************************)
+(* Actions                                                                 *)
+(***************************************************************************)
 MeasureBreached ==
 /\ dec_p95' \in Nat
 /\ dec_p95' > 800
@@ -38,7 +50,7 @@ RecoveredWithinBudget ==
 /\ dec_p95' \in Nat
 /\ dec_p95' <= 800
 /\ recovered' = TRUE
-/\ UNCHANGED <<breach, rollback>>
+/\ UNCHANGED <<breach>>
 
 Stutter ==
 /\ dec_p95' = dec_p95
@@ -48,15 +60,16 @@ Stutter ==
 
 Next == MeasureBreached / RollbackIssued / RecoveredWithinBudget / Stutter
 
-Spec == Init /\ [][Next]_vars
+(***************************************************************************)
+(* Specification and properties                                            *)
+(***************************************************************************)
+Spec == Init /\ [] [Next]_vars
 
-Safety == [](breach => dec_p95 <= 1600)
+Safety == [] (breach => dec_p95 <= 1600)
 
-Liveness ==
-WF_vars(RollbackIssued) /\ WF_vars(RecoveredWithinBudget)
+Liveness == WF_vars(RollbackIssued) /\ WF_vars(RecoveredWithinBudget)
 
 THEOREM Spec => Safety
-
 THEOREM Spec => <> <<RecoveredWithinBudget>>_vars
 
 ====
