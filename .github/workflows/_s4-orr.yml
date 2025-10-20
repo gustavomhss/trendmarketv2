@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: "s4-orr-${{ inputs.ref || github.sha }}"
   cancel-in-progress: true
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq
+      - name: Install jq and base utils
         shell: bash
         run: |
           set -euo pipefail
@@ -144,7 +144,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 (resolução de digest mantida, mas usaremos k6 nativo) --------
+      # -------- k6: mantém digest (compat), mas usaremos binário nativo --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -155,7 +155,6 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      # -------- Instala k6 nativo --------
       - name: Install k6 (native)
         shell: bash
         run: |
@@ -342,72 +341,6 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- SUT: tenta real (compose/npm); se não houver, sobe stub e espera /decisions --------
-      - name: Start SUT (real or safe stub) and wait for /decisions
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          BASE_URL_DEFAULT="http://127.0.0.1:8080"
-          : "${BASE_URL:=$BASE_URL_DEFAULT}"
-          : "${DEC_BASE_URL:=$BASE_URL}"
-
-          mkdir -p out
-
-          have_target() { curl -fsS "$DEC_BASE_URL/decisions" >/dev/null 2>&1; }
-
-          if have_target; then
-            echo "[SUT] endpoint já responde em $DEC_BASE_URL/decisions"
-          else
-            echo "[SUT] tentando iniciar serviço real (compose ou npm)"
-            started="false"
-            if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yaml ]; }; then
-              FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f docker-compose.yaml ] && echo docker-compose.yaml || echo compose.yaml ) )
-              echo "[SUT] docker compose -f $FILE up -d"
-              docker compose -f "$FILE" up -d || true
-              started="true"
-            elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
-              echo "[SUT] npm run start:ci (background)"
-              nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-              started="true"
-            elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
-              echo "[SUT] npm start (background)"
-              nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-              started="true"
-            fi
-
-            if ! have_target; then
-              echo "[SUT] iniciando stub mínimo em :8080 (apenas /health e /decisions)"
-              cat > /tmp/sut_stub.py <<'PY'
-import http.server, socketserver, json
-class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path.startswith('/health'):
-            self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
-        elif self.path.startswith('/decisions'):
-            self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'[]')
-        else:
-            self.send_response(404); self.end_headers()
-    def log_message(self, *args, **kwargs):
-        pass
-with socketserver.TCPServer(('0.0.0.0', 8080), H) as httpd:
-    httpd.serve_forever()
-PY
-              nohup python3 /tmp/sut_stub.py >/dev/null 2>&1 & echo $! > /tmp/sut_stub.pid
-            fi
-
-            echo "[SUT] aguardando disponibilidade de $DEC_BASE_URL/decisions ..."
-            for i in $(seq 1 60); do
-              if have_target; then echo "[SUT] pronto"; break; fi
-              sleep 2
-            done
-            have_target || { echo "[SUT] não ficou pronto a tempo" >&2; exit 1; }
-          fi
-
-          # Exporta BASE_URL/DEC_BASE_URL para passos seguintes
-          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
-          echo "DEC_BASE_URL=$DEC_BASE_URL" >> "$GITHUB_ENV"
-
       # -------- ORR principal --------
       - name: ORR run
         env:
@@ -416,12 +349,10 @@ PY
         shell: bash
         run: |
           set -euo pipefail
-          echo "[ORR] Iniciando ORR S4"
-          echo "[ORR] Executando k6 @120rps/60m"
-          k6 version
-          # Garante que scripts/orr_s4_run.sh usa o binário nativo
+          # Evita que um $K6 herdado (docker run ...) sobrescreva o K6_BIN
+          unset K6 || true
           export K6_BIN="${K6_BIN:-k6}"
-          export K6="$K6_BIN"
+          "$K6_BIN" version
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
