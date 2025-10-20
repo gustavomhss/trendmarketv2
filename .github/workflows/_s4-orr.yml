@@ -18,10 +18,18 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      GCP_SA_JSON:
+        required: false
+      DBT_BQ_PROJECT:
+        required: false
+      DBT_BQ_DATASET:
+        required: false
+      DBT_BQ_LOCATION:
+        required: false
 
-# Keep concurrency simple to avoid parser quirks with operators like "||"
 concurrency:
-  group: s4-orr-${{ github.sha }}
+  group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -41,54 +49,25 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install base tools (jq, k6, semgrep)
+      - name: Install jq
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y jq curl ca-certificates gnupg
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          python -m pip install --upgrade pip
-          python -m pip install "semgrep<2"
-          k6 version
-          semgrep --version
+          sudo apt-get install -y jq
 
-      - name: Install security tools (Trivy & Gitleaks)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
-          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
-          rm -f gitleaks LICENSE README.md || true
-
-          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
-          sudo install -m 0755 trivy /usr/local/bin/trivy
-          rm -f trivy LICENSE README.md || true
-
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install npm deps (if lockfile)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-            npm ci --ignore-scripts
-          else
-            echo "no package-lock.json; skipping npm ci"
-          fi
-
-      - name: Setup Python deps (dbt only)
+      # -------- Python deps (dbt only) + auditoria --------
+      - name: Install Python deps (dbt only)
         shell: bash
         run: |
           set -euo pipefail
@@ -110,13 +89,63 @@ jobs:
           name: pip-audit
           path: out/pip-audit
 
-      - name: Ensure script perms
+      # -------- Ferramentas de segurança (binários) --------
+      - name: Install security tools (Trivy & Gitleaks)
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks LICENSE README.md || true
 
-      # -------- dbt (optional) --------
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+          rm -f trivy LICENSE README.md || true
+
+      - name: Semgrep (container v1.80.0, pinned digest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
+          docker pull "$SEMGREP_IMG" >/dev/null
+          docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
+          # opcional: varredura
+          # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
+
+      # -------- Node (opcional) --------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --ignore-scripts
+          else
+            echo "no package-lock.json; skipping npm ci"
+          fi
+
+      - name: Permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh
+
+      # -------- k6 por digest pinado --------
+      - name: Resolve k6 digest
+        id: k6
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE=grafana/k6:0.52.0
+          docker pull "$IMAGE" >/dev/null
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
         id: dbt
         shell: bash
@@ -131,44 +160,63 @@ jobs:
             echo "No dbt project found; skipping dbt steps."
           fi
 
-      - name: dbt deps
-        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
+      - name: Configure BigQuery credentials for dbt (if secrets present)
+        id: bq
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
-          dbt deps --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
+          if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
+            echo "have_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: dbt deps
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+        run: |
+          set -euo pipefail
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: dbt build
-        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
-          dbt build --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt build --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: dbt docs generate
-        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
-          dbt docs generate --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
+          DBT_DIR="${{ steps.dbt.outputs.dir }}"
+          dbt docs generate --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: Upload dbt docs
-        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
@@ -177,22 +225,30 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
-      # -------- TLA (optional) --------
+      # -------- Microbench gate (opcional) --------
+      - name: Microbench (gate)
+        if: ${{ inputs.run_microbench }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/microbench_dec.sh
+
+      # -------- TLA check (opcional) --------
       - name: Locate TLA models
         id: tla
         if: ${{ inputs.run_tla }}
         shell: bash
         run: |
           set -euo pipefail
-          TLA_LIST=$(git ls-files 'docs/spec/tla/*.tla' 2>/dev/null; git ls-files '*.tla' 2>/dev/null)
-          if [ -n "$TLA_LIST" ]; then
+          TLA_GLOB=$(git ls-files 'docs/spec/tla/*.tla' || true)
+          if [ -z "$TLA_GLOB" ]; then
+            TLA_GLOB=$(git ls-files '*.tla' || true)
+          fi
+          if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf '%s
-' "$TLA_LIST" | head -n1)
+            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"
-            printf '  - %s
-' $TLA_LIST
+            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -201,38 +257,35 @@ jobs:
 
       - name: Apalache (pull + smoke)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        shell: bash
         env:
           APAL_IMG_PRIMARY: ghcr.io/apalache-mc/apalache:v0.50.3
           APAL_IMG_FALLBACK: ghcr.io/apalache-mc/apalache:main
-        shell: bash
         run: |
           set -euo pipefail
-          command -v docker >/dev/null || { echo "docker missing on runner"; exit 1; }
+          command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
           if ! docker pull "$APAL_IMG_PRIMARY" >/dev/null 2>&1; then
-            echo "[apalache] v0.50.3 unavailable; using :main"
+            echo "[apalache] tag v0.50.3 indisponível; usando :main"
             docker pull "$APAL_IMG_FALLBACK" >/dev/null
             APAL_IMG="$APAL_IMG_FALLBACK"
           else
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
+          # smoke neutro: não aciona o entrypoint padrão
           set +e
           docker run --rm --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
-          if [ $? -ne 0 ]; then
+          RC=$?
+          if [ $RC -ne 0 ]; then
             docker run --rm -u 0:0 --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
           fi
           set -e
 
-      - name: TLA ASCII guard (if exists)
+      - name: TLA ASCII guard
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         shell: bash
         run: |
-          set -euo pipefail
-          if [ -x scripts/tla_ascii_guard.sh ]; then
-            bash scripts/tla_ascii_guard.sh
-          else
-            echo "tla_ascii_guard.sh missing; continuing"
-          fi
+          bash scripts/tla_ascii_guard.sh
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
@@ -240,16 +293,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/s4_orr out/s4_orr/apalache_work out/s4_orr/apalache_work/tmp
-          SEL_DIR=$(dirname "${{ steps.tla.outputs.tla_file }}")
-          SEL_FILE=$(basename "${{ steps.tla.outputs.tla_file }}")
+          SEL="${{ steps.tla.outputs.tla_file }}"
+          SEL_DIR=$(dirname "$SEL")
+          SEL_FILE=$(basename "$SEL")
+          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
+          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
+          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
+          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -264,123 +322,14 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- ORR main --------
-      - name: Microbench (gate)
-        if: ${{ inputs.run_microbench }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/microbench_dec.sh
-
-      - name: Start SUT (compose/npm) or WireMock fallback
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          echo "[SUT] Starting..."
-
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
-            echo "[SUT] docker compose -f $FILE up -d"
-            docker compose -f "$FILE" up -d
-          else
-            if [ -f package.json ] && jq -e '.scripts["start:ci"]' package.json >/dev/null; then
-              echo "[SUT] npm run start:ci (background)"
-              nohup npm run start:ci > out/sut.log 2>&1 &
-            elif [ -f package.json ] && jq -e '.scripts["start"]' package.json >/dev/null; then
-              echo "[SUT] npm start (background)"
-              nohup npm start > out/sut.log 2>&1 &
-            else
-              echo "[SUT] No compose/npm; starting WireMock fallback on :8080"
-              docker rm -f sut >/dev/null 2>&1 || true
-              WIREMOCK_IMG="wiremock/wiremock:3x"
-              if ! docker pull "$WIREMOCK_IMG" >/dev/null 2>&1; then
-                WIREMOCK_IMG="wiremock/wiremock:3.13.1-1"
-                docker pull "$WIREMOCK_IMG" >/dev/null 2>&1 || WIREMOCK_IMG=""
-              fi
-              if [ -n "$WIREMOCK_IMG" ]; then
-                docker run -d --name sut -p 8080:8080 "$WIREMOCK_IMG"
-                for i in $(seq 1 60); do
-                  if curl -fsS http://127.0.0.1:8080/__admin/ >/dev/null; then break; fi; sleep 1; done
-                # write stub files to avoid heavy quoting
-                cat > stub-health.json <<'JSON'
-{"request":{"method":"GET","url":"/health"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"status":"UP"}}}
-JSON
-                cat > stub-get-decisions.json <<'JSON'
-{"request":{"method":"GET","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}
-JSON
-                cat > stub-post-decisions.json <<'JSON'
-{"request":{"method":"POST","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}
-JSON
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-health.json
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-get-decisions.json
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-post-decisions.json
-              else
-                echo "[SUT] WireMock image pull failed; starting minimal Python fallback"
-                cat > sut.py <<'PY'
-import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
-class H(BaseHTTPRequestHandler):
-    def _ok(self, data):
-        body = json.dumps(data).encode()
-        self.send_response(200)
-        self.send_header('Content-Type','application/json')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-    def do_GET(self):
-        if self.path.startswith('/health'):
-            return self._ok({'status':'UP'})
-        if self.path.startswith('/decisions'):
-            return self._ok({'ok': True})
-        self.send_response(404); self.end_headers()
-    def do_POST(self):
-        try:
-            l=int(self.headers.get('Content-Length','0'))
-            _=self.rfile.read(l) if l>0 else b''
-        except Exception:
-            pass
-        if self.path.startswith('/decisions'):
-            return self._ok({'ok': True})
-        self.send_response(404); self.endheaders()
-    def log_message(self, *_): pass
-HTTPServer(('0.0.0.0',8080), H).serve_forever()
-PY
-                nohup python3 sut.py > out/sut.log 2>&1 &
-              fi
-            fi
-          fi
-
-      - name: Wait for SUT /health
-        shell: bash
-        run: |
-          set -euo pipefail
-          SUT_URL="${SUT_URL:-http://127.0.0.1:8080/health}"
-          echo "[SUT] waiting for $SUT_URL ..."
-          for i in $(seq 1 120); do
-            if curl -fsS "$SUT_URL" >/dev/null; then
-              echo "[SUT] ready"; exit 0; fi
-            sleep 1
-          done
-          echo "[SUT] not ready after timeout" >&2
-          echo "::group::SUT logs"
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            docker compose logs --no-color --tail 200 || true
-          fi
-          [ -f out/sut.log ] && tail -n 200 out/sut.log || true
-          echo "::endgroup::"
-          exit 1
-
+      # -------- ORR principal --------
       - name: ORR run
         env:
-          K6_BIN: k6
+          K6_IMAGE: ${{ steps.k6.outputs.image }}
         shell: bash
         run: |
           set -euo pipefail
-          export BASE_URL="${BASE_URL:-${SUT_URL%/health}}"
-          [ -z "$BASE_URL" ] && export BASE_URL="http://127.0.0.1:8080"
-          export DEC_BASE_URL="${DEC_BASE_URL:-$BASE_URL}"
-          echo "[ORR] Using BASE_URL=$BASE_URL"
+          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
@@ -389,13 +338,6 @@ PY
         run: |
           set -euo pipefail
           bash scripts/orr_s4_bundle.sh
-
-      - name: Cleanup SUT
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker rm -f sut >/dev/null 2>&1 || true
 
       - name: Upload bundle
         if: always()
