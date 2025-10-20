@@ -24,22 +24,24 @@ Init ==
     /\ recovered = FALSE
 
 MeasureBreached ==
+    /\ breach = FALSE
     /\ dec_p95' \in Nat
     /\ dec_p95' > 800
+    /\ dec_p95' <= 1600
     /\ breach' = TRUE
     /\ UNCHANGED <<rollback, recovered>>
 
 RollbackIssued ==
     /\ breach = TRUE
     /\ rollback' = TRUE
-    /\ UNCHANGED <<dec_p95, recovered>>
+    /\ UNCHANGED <<dec_p95, recovered, breach>>
 
 RecoveredWithinBudget ==
     /\ rollback = TRUE
     /\ dec_p95' \in Nat
     /\ dec_p95' <= 800
     /\ recovered' = TRUE
-    /\ UNCHANGED <<breach>>
+    /\ UNCHANGED <<breach, rollback>>
 
 Stutter ==
     /\ UNCHANGED vars
@@ -59,4 +61,4 @@ Liveness ==
     WF_vars(RecoveredWithinBudget)
 
 THEOREM Spec => Safety
-==== 
+====
