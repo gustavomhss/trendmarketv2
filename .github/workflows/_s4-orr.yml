@@ -18,6 +18,15 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      GCP_SA_JSON:
+        required: false
+      DBT_BQ_PROJECT:
+        required: false
+      DBT_BQ_DATASET:
+        required: false
+      DBT_BQ_LOCATION:
+        required: false
 
 concurrency:
   group: s4-orr-${{ inputs.ref || github.sha }}
@@ -157,7 +166,7 @@ jobs:
         id: bq
         run: |
           set -euo pipefail
-          if [ -n "${{ secrets.GCP_SA_JSON || '' }}" ] && [ -n "${{ secrets.DBT_BQ_PROJECT || '' }}" ]; then
+          if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
             echo "have_secrets=true" >> "$GITHUB_OUTPUT"
           else
             echo "have_secrets=false" >> "$GITHUB_OUTPUT"
@@ -323,3 +332,34 @@ jobs:
         with:
           name: s4_evidence_bundle
           path: out/s4_evidence_bundle_*.zip
+
+
+# ---------- .github/workflows/s4-exec.yml ----------
+name: s4-exec
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref opcional
+        required: false
+        type: string
+      run_microbench:
+        description: Executar gate de microbench?
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: Executar verificação TLA?
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  call-orr:
+    uses: ./.github/workflows/_s4-orr.yml
+    secrets: inherit
+    with:
+      ref: ${{ inputs.ref }}
+      run_microbench: ${{ fromJSON(inputs.run_microbench || 'false') }}
+      run_tla: ${{ fromJSON(inputs.run_tla || 'false') }}
