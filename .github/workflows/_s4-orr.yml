@@ -74,6 +74,25 @@ jobs:
         run: |
           set -euo pipefail
           TRIVY_VERSION="0.48.4"
+          TRIVY_BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          TRIVY_ARCHIVES=("trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" "trivy_${TRIVY_VERSION}_linux-64bit.tar.gz")
+          echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
+          DOWNLOAD_OK=0
+          for archive in "${TRIVY_ARCHIVES[@]}"; do
+            TRIVY_URL="${TRIVY_BASE_URL}/${archive}"
+            echo "[setup] Tentando baixar ${TRIVY_URL}"
+            if curl -fsSL "$TRIVY_URL" -o trivy.tar.gz; then
+              DOWNLOAD_OK=1
+              break
+            else
+              echo "[setup] Falha ao baixar ${TRIVY_URL}"
+              rm -f trivy.tar.gz
+            fi
+          done
+          if [ "$DOWNLOAD_OK" -ne 1 ]; then
+            echo "[setup] Nao foi possivel baixar Trivy ${TRIVY_VERSION}"
+            exit 1
+          fi
           TRIVY_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
           curl -fsSL "$TRIVY_URL" -o trivy.tar.gz
