@@ -66,6 +66,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
+      # NEW: garante semgrep no PATH do runner (além do container opcional)
+      - name: Install Semgrep CLI (pip)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install "semgrep<2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          semgrep --version
+
       # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
         shell: bash
