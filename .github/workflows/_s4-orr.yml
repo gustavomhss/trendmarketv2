@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq
+      - name: Install base tools (jq, curl, ca-certificates, gnupg)
         shell: bash
         run: |
           set -euo pipefail
@@ -75,6 +75,17 @@ jobs:
           python -m pip install "semgrep<2"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
+
+      # Instala k6 via APT oficial (corrige "k6: command not found")
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
 
       # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
@@ -144,7 +155,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado (mantido para referência futura) --------
+      # -------- k6 por digest pinado (mantido p/ referência) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -334,14 +345,12 @@ jobs:
       # -------- ORR principal --------
       - name: ORR run
         env:
-          K6_IMAGE: ${{ steps.k6.outputs.image }}
+          # Não exporte K6 (docker wrapper). Forçamos o binário nativo.
           K6_BIN: k6
         shell: bash
         run: |
           set -euo pipefail
-          # Força o uso do binário nativo do k6, evitando que o script leia um valor de $K6 com docker run
-          export K6_BIN="${K6_BIN:-k6}"
-          export K6="$K6_BIN"
+          command -v "$K6_BIN" >/dev/null || { echo "k6 não instalado" >&2; exit 127; }
           "$K6_BIN" version
           bash scripts/orr_s4_run.sh
 
