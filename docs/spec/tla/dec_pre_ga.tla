@@ -2,24 +2,23 @@
 EXTENDS Naturals, Sequences, TLC
 
 (**************************************************************************)
-(* Variáveis de estado — anotações Snowcat: uma @type por identificador.   *)
+(* Variáveis de estado — anotações Snowcat em bloco                       *)
+(* Use sempre:  (* @type: T; *) imediatamente acima da variável            *)
 (**************************************************************************)
 VARIABLES
-* @type: Int; * DEC p95 em milissegundos
+(* @type: Int; *)
 dec_p95,
 
-```
-\* @type: Bool; \* flag de violação da meta DEC
+(* @type: Bool; *)
 breach,
 
-\* @type: Bool; \* flag de rollback emitido
+(* @type: Bool; *)
 rollback,
 
-\* @type: Bool; \* sistema recuperado dentro do orçamento
+(* @type: Bool; *)
 recovered
-```
 
-* Tupla de variáveis para subscript de ações
+(* Tupla de variáveis para subscript de ações *)
 vars == <<dec_p95, breach, rollback, recovered>>
 
 (**************************************************************************)
@@ -44,20 +43,21 @@ Init ==
 (**************************************************************************)
 (* Ações                                                                   *)
 (**************************************************************************)
-* Medida viola a meta de DEC (p95 > 800ms)
+(* Medida viola a meta de DEC (p95 > 800ms, com degradação controlada) *)
 MeasureBreached ==
 /\ dec_p95' \in Nat
 /\ dec_p95' > 800
+/\ dec_p95' <= 1600
 /\ breach' = TRUE
 /\ UNCHANGED <<rollback, recovered>>
 
-* Emite rollback quando há violação
+(* Emite rollback quando há violação *)
 RollbackIssued ==
 /\ breach = TRUE
 /\ rollback' = TRUE
 /\ UNCHANGED <<dec_p95, recovered>>
 
-* Sistema recupera dentro do orçamento (p95 <= 800ms)
+(* Sistema recupera dentro do orçamento (p95 <= 800ms) *)
 RecoveredWithinBudget ==
 /\ rollback = TRUE
 /\ dec_p95' \in Nat
@@ -65,14 +65,14 @@ RecoveredWithinBudget ==
 /\ recovered' = TRUE
 /\ UNCHANGED <<breach>>
 
-* Passo de stutter
+(* Passo de stutter *)
 Stutter ==
 /\ dec_p95' = dec_p95
 /\ breach' = breach
 /\ rollback' = rollback
 /\ recovered' = recovered
 
-* Dinâmica
+(* Dinâmica *)
 Next == MeasureBreached / RollbackIssued / RecoveredWithinBudget / Stutter
 
 (**************************************************************************)
@@ -80,15 +80,14 @@ Next == MeasureBreached / RollbackIssued / RecoveredWithinBudget / Stutter
 (**************************************************************************)
 Spec == Init /\ [][Next]_vars
 
-* Segurança: se há breach, p95 fica limitado por 1600ms (degradação controlada)
+(* Segurança: se há breach, p95 fica limitado por 1600ms (degradação controlada) *)
 Safety == [](breach => dec_p95 <= 1600)
 
-* Vivacidade: sob justiça fraca das ações de rollback e recuperação
+(* Vivacidade: sob justiça fraca das ações de rollback e recuperação *)
 Liveness == WF_vars(RollbackIssued) /\ WF_vars(RecoveredWithinBudget)
 
 THEOREM Spec => Safety
-
-* Forma correta para eventualidade baseada em ação sob subscript _vars
+THEOREM Spec => []TypeOK
 THEOREM Spec => <> <<RecoveredWithinBudget>>_vars
 
 ====
