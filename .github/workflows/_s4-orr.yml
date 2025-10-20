@@ -220,7 +220,7 @@ jobs:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
-          DBT_BQ_LOCATION: ${{ secrets.DB T_BQ_LOCATION }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
