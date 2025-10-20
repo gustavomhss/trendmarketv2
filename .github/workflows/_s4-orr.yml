@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: 's4-orr-${{ inputs.ref || github.sha }}'
+  group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -216,12 +216,10 @@ jobs:
           TLA_LIST=$(git ls-files 'docs/spec/tla/*.tla' 2>/dev/null; git ls-files '*.tla' 2>/dev/null)
           if [ -n "$TLA_LIST" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf '%s
-' "$TLA_LIST" | head -n1)
+            SEL=$(printf '%s\n' "$TLA_LIST" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
             echo "[tla] found models:"
-            printf '  - %s
-' $TLA_LIST
+            printf '  - %s\n' $TLA_LIST
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
