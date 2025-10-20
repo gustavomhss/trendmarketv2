@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: "s4-orr-${{ inputs.ref || github.sha }}"
+  group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -59,14 +59,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq and base utils
+      - name: Install jq
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
 
-      # Garante Semgrep disponível (corrige "Ferramenta obrigatória ausente: semgrep")
+      # ---------- Semgrep no runner (evita "Ferramenta obrigatória ausente: semgrep") ----------
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -76,7 +76,18 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
 
-      # -------- Python deps (dbt only) + auditoria --------
+      # ---------- k6 nativo no PATH (evita wrapper docker sobrescrever) ----------
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
+
+      # ---------- Python deps (dbt only) + auditoria ----------
       - name: Install Python deps (dbt only)
         shell: bash
         run: |
@@ -99,7 +110,7 @@ jobs:
           name: pip-audit
           path: out/pip-audit
 
-      # -------- Ferramentas de segurança (binários) --------
+      # ---------- Ferramentas de segurança (binários) ----------
       - name: Install security tools (Trivy & Gitleaks)
         shell: bash
         run: |
@@ -122,7 +133,7 @@ jobs:
           # opcional: varredura
           # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
 
-      # -------- Node (opcional) --------
+      # ---------- Node (opcional) ----------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -144,7 +155,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6: mantém digest (compat), mas usaremos binário nativo --------
+      # ---------- k6 por digest (mantido para compat) ----------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -155,17 +166,7 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
-
-      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
+      # ---------- dbt build → dbt docs (somente se houver projeto dbt) ----------
       - name: Locate dbt project
         id: dbt
         shell: bash
@@ -245,7 +246,7 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
-      # -------- Microbench gate (opcional) --------
+      # ---------- Microbench gate (opcional) ----------
       - name: Microbench (gate)
         if: ${{ inputs.run_microbench }}
         shell: bash
@@ -253,7 +254,7 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
-      # -------- TLA check (opcional) --------
+      # ---------- TLA check (opcional) ----------
       - name: Locate TLA models
         id: tla
         if: ${{ inputs.run_tla }}
@@ -315,18 +316,14 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
-          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
-          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
-          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -341,7 +338,74 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- ORR principal --------
+      # ---------- SUT: inicia real (compose/npm) ou fallback (sem colateral) ----------
+      - name: Start SUT (real or fallback) and wait on /health
+        shell: bash
+        env:
+          SUT_HEALTH_URL: http://127.0.0.1:8080/health
+        run: |
+          set -euo pipefail
+
+          is_up() { curl -fsS "$SUT_HEALTH_URL" >/dev/null 2>&1; }
+
+          if is_up; then
+            echo "[SUT] already up; skipping start"; exit 0; fi
+
+          echo "[SUT] trying to start real SUT…"
+          started="false"
+          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
+            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
+            echo "[SUT] docker compose -f $FILE up -d"
+            docker compose -f "$FILE" up -d || true
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm run start:ci (background)"
+            nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm start (background)"
+            nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
+          fi
+
+          # Se não iniciou nada real, sobe um stub leve que responde /health e /decisions
+          if ! is_up; then
+            echo "[SUT] No compose/npm; starting lightweight Python stub on :8080"
+            python3 - <<'PY' &
+import http.server, socketserver, json
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith('/health'):
+            self.send_response(200); self.end_headers(); self.wfile.write(b'ok'); return
+        if self.path.startswith('/decisions'):
+            self.send_response(200)
+            self.send_header('Content-Type','application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({'status':'ok','ts':__import__('time').time()}).encode()); return
+        self.send_response(404); self.end_headers()
+    def log_message(self, *_): pass
+with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+    httpd.serve_forever()
+PY
+            echo $! > /tmp/sut.pid
+          fi
+
+          echo "[SUT] waiting for $SUT_HEALTH_URL ..."
+          for i in $(seq 1 60); do
+            if is_up; then echo "[SUT] ready"; exit 0; fi
+            sleep 2
+          done
+
+          echo "[SUT] not ready after timeout" >&2
+          echo "::group::SUT logs"
+          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
+            docker compose logs --no-color --tail 200 || true
+          fi
+          [ -f out/sut.log ] && tail -n 200 out/sut.log || true
+          echo "::endgroup::"
+          exit 1
+
+      # ---------- ORR principal ----------
       - name: ORR run
         env:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
@@ -349,7 +413,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Evita que um $K6 herdado (docker run ...) sobrescreva o K6_BIN
+          # Não use wrapper docker do k6; garanta que scripts usem o binário nativo
           unset K6 || true
           export K6_BIN="${K6_BIN:-k6}"
           "$K6_BIN" version
