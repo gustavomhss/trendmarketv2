@@ -74,6 +74,9 @@ jobs:
         run: |
           set -euo pipefail
           TRIVY_VERSION="0.48.4"
+          TRIVY_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
+          curl -fsSL "$TRIVY_URL" -o trivy.tar.gz
           echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
           curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o trivy.tar.gz
           tar -xzf trivy.tar.gz trivy
@@ -86,6 +89,9 @@ jobs:
         run: |
           set -euo pipefail
           GITLEAKS_VERSION="8.18.1"
+          GITLEAKS_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "[setup] Instalando Gitleaks ${GITLEAKS_VERSION}"
+          curl -fsSL "$GITLEAKS_URL" -o gitleaks.tar.gz
           echo "[setup] Instalando Gitleaks ${GITLEAKS_VERSION}"
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
           tar -xzf gitleaks.tar.gz gitleaks
