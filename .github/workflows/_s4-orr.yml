@@ -66,18 +66,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      # NEW: garante k6 binário nativo no PATH para o preflight do ORR
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          which k6
-          k6 version
-
       # NEW: garante semgrep no PATH do runner (além do container opcional)
       - name: Install Semgrep CLI (pip)
         shell: bash
@@ -156,7 +144,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado (mantido, caso queira usar container) --------
+      # -------- k6 por digest pinado --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -344,83 +332,14 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- SUT: start e health-check com fallback --------
-      - name: Start SUT (compose/npm) or fallback and wait /health
-        env:
-          SUT_URL: ${{ env.SUT_URL || 'http://127.0.0.1:8080/health' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          start_fallback() {
-            echo "[SUT] starting fallback server on :8080 (handles /health and /decisions)"
-            python3 - <<'PY' &
-import http.server, socketserver
-class H(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path.startswith('/health'):
-            self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
-        elif self.path.startswith('/decisions'):
-            self.send_response(200); self.end_headers(); self.wfile.write(b'[]')
-        else:
-            self.send_response(404); self.end_headers()
-    def log_message(self, *args, **kwargs):
-        pass
-with socketserver.TCPServer(('0.0.0.0', 8080), H) as httpd:
-    httpd.serve_forever()
-PY
-            echo $! > /tmp/sut.pid
-          }
-
-          echo "[SUT] Starting..."
-          started=false
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
-            echo "[SUT] docker compose -f $FILE up -d"
-            docker compose -f "$FILE" up -d || true
-            started=true
-          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
-            echo "[SUT] npm run start:ci (background)"
-            nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-            started=true
-          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
-            echo "[SUT] npm start (background)"
-            nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-            started=true
-          fi
-
-          if [ "$started" != true ]; then
-            echo "[SUT] No compose/npm; starting fallback"
-            start_fallback
-          fi
-
-          BASE_FROM_SUT=${SUT_URL%/health}
-          echo "BASE_URL=$BASE_FROM_SUT" >> "$GITHUB_ENV"
-          echo "DEC_BASE_URL=$BASE_FROM_SUT" >> "$GITHUB_ENV"
-
-          echo "[SUT] waiting for $SUT_URL ..."
-          for i in $(seq 1 60); do
-            if curl -fsS "$SUT_URL" >/dev/null; then
-              echo "[SUT] ready"; exit 0; fi
-            sleep 2
-          done
-          echo "[SUT] not ready after timeout" >&2
-          [ -f out/sut.log ] && tail -n 200 out/sut.log || true
-          exit 1
-
       # -------- ORR principal --------
       - name: ORR run
         env:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
-          K6_BIN: k6
         shell: bash
         run: |
           set -euo pipefail
-          # Mantém a variável de conveniência baseada em container (caso o script use)
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
-          echo "[ORR] Using K6_BIN=$K6_BIN"
-          which "$K6_BIN" && "$K6_BIN" version
-          echo "[ORR] BASE_URL=${BASE_URL:-http://127.0.0.1:8080}"
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
