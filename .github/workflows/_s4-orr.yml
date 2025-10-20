@@ -66,6 +66,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
 
+      # Garante Semgrep disponível (corrige "Ferramenta obrigatória ausente: semgrep")
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -75,16 +76,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
 
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
-
+      # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
         shell: bash
         run: |
@@ -107,6 +99,7 @@ jobs:
           name: pip-audit
           path: out/pip-audit
 
+      # -------- Ferramentas de segurança (binários) --------
       - name: Install security tools (Trivy & Gitleaks)
         shell: bash
         run: |
@@ -126,9 +119,10 @@ jobs:
           SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
           docker pull "$SEMGREP_IMG" >/dev/null
           docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
-          # optional scan
+          # opcional: varredura
           # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
 
+      # -------- Node (opcional) --------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -150,6 +144,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
+      # -------- k6 por digest pinado (mantido para referência futura) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -160,6 +155,7 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
+      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
         id: dbt
         shell: bash
@@ -239,6 +235,7 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
+      # -------- Microbench gate (opcional) --------
       - name: Microbench (gate)
         if: ${{ inputs.run_microbench }}
         shell: bash
@@ -246,6 +243,7 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
+      # -------- TLA check (opcional) --------
       - name: Locate TLA models
         id: tla
         if: ${{ inputs.run_tla }}
@@ -277,7 +275,7 @@ jobs:
           set -euo pipefail
           command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
           if ! docker pull "$APAL_IMG_PRIMARY" >/dev/null 2>&1; then
-            echo "[apalache] tag v0.50.3 indisponivel; usando :main"
+            echo "[apalache] tag v0.50.3 indisponível; usando :main"
             docker pull "$APAL_IMG_FALLBACK" >/dev/null
             APAL_IMG="$APAL_IMG_FALLBACK"
           else
@@ -307,14 +305,18 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
+          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
+          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
+          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
+          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -329,6 +331,7 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
+      # -------- ORR principal --------
       - name: ORR run
         env:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
@@ -336,7 +339,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
+          # Força o uso do binário nativo do k6, evitando que o script leia um valor de $K6 com docker run
+          export K6_BIN="${K6_BIN:-k6}"
+          export K6="$K6_BIN"
+          "$K6_BIN" version
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
