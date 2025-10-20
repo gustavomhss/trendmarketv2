@@ -66,7 +66,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      # NEW: garante semgrep no PATH do runner (além do container opcional)
+      # NEW: Semgrep CLI (pip) para garantir presença no runner
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -75,6 +75,17 @@ jobs:
           python -m pip install "semgrep<2"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
+
+      # NEW: Instala k6 nativo para satisfazer K6_BIN=k6
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
 
       # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
@@ -144,7 +155,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado --------
+      # -------- k6 por digest pinado (mantido) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -256,9 +267,11 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s
+" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s
+" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -336,9 +349,11 @@ jobs:
       - name: ORR run
         env:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
+          K6_BIN: k6
         shell: bash
         run: |
           set -euo pipefail
+          # Mantemos variável K6 (docker) para compatibilidade, mas o script usará K6_BIN=k6
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
           bash scripts/orr_s4_run.sh
 
