@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: "s4-orr-${{ inputs.ref || github.sha }}"
+  group: 's4-orr-${{ inputs.ref || github.sha }}'
   cancel-in-progress: true
 
 permissions:
@@ -66,7 +66,6 @@ jobs:
           sudo apt-get install -y k6
           python -m pip install --upgrade pip
           python -m pip install "semgrep<2"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           k6 version
           semgrep --version
 
@@ -140,6 +139,11 @@ jobs:
             echo "No dbt project found; skipping dbt steps."
           fi
 
+      - name: Export DBT_DIR env (for next steps)
+        if: ${{ steps.dbt.outputs.dir != '' }}
+        shell: bash
+        run: echo "DBT_DIR=${{ steps.dbt.outputs.dir }}" >> "$GITHUB_ENV"
+
       - name: Configure BigQuery credentials for dbt (if secrets present)
         id: bq
         env:
@@ -157,7 +161,7 @@ jobs:
           fi
 
       - name: dbt deps
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -166,11 +170,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: dbt build
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -179,11 +182,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt build --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: dbt docs generate
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -192,18 +194,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt docs generate --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
 
       - name: Upload dbt docs
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
           path: |
-            ${{ steps.dbt.outputs.dir }}/target/catalog.json
-            ${{ steps.dbt.outputs.dir }}/target/manifest.json
-            ${{ steps.dbt.outputs.dir }}/target/index.html
+            ${{ env.DBT_DIR }}/target/catalog.json
+            ${{ env.DBT_DIR }}/target/manifest.json
+            ${{ env.DBT_DIR }}/target/index.html
 
       # -------- TLA (optional) --------
       - name: Locate TLA models
@@ -227,6 +228,11 @@ jobs:
             echo "[tla] no .tla files found; skipping TLA steps."
           fi
 
+      - name: Export TLA file env
+        if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        shell: bash
+        run: echo "TLA_FILE=${{ steps.tla.outputs.tla_file }}" >> "$GITHUB_ENV"
+
       - name: Apalache (pull + smoke)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         env:
@@ -246,8 +252,7 @@ jobs:
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
           set +e
           docker run --rm --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
-          RC=$?
-          if [ $RC -ne 0 ]; then
+          if [ $? -ne 0 ]; then
             docker run --rm -u 0:0 --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
           fi
           set -e
@@ -269,9 +274,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/s4_orr out/s4_orr/apalache_work out/s4_orr/apalache_work/tmp
-          SEL="${{ steps.tla.outputs.tla_file }}"
-          SEL_DIR=$(dirname "$SEL")
-          SEL_FILE=$(basename "$SEL")
+          SEL_DIR=$(dirname "$TLA_FILE")
+          SEL_FILE=$(basename "$TLA_FILE")
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
           chmod -R 777 out/s4_orr/apalache_work
           set +e
@@ -323,7 +327,6 @@ jobs:
             else
               echo "[SUT] No compose/npm; starting WireMock fallback on :8080"
               docker rm -f sut >/dev/null 2>&1 || true
-              # Prefer official Docker Hub image. Fall back to a pinned version if pull fails.
               WIREMOCK_IMG="wiremock/wiremock:3x"
               if ! docker pull "$WIREMOCK_IMG" >/dev/null 2>&1; then
                 WIREMOCK_IMG="wiremock/wiremock:3.13.1-1"
@@ -331,10 +334,8 @@ jobs:
               fi
               if [ -n "$WIREMOCK_IMG" ]; then
                 docker run -d --name sut -p 8080:8080 "$WIREMOCK_IMG"
-                # wait admin up
                 for i in $(seq 1 60); do
                   if curl -fsS http://127.0.0.1:8080/__admin/ >/dev/null; then break; fi; sleep 1; done
-                # create stubs
                 curl -sS -X POST http://127.0.0.1:8080/__admin/mappings \
                   -H 'Content-Type: application/json' \
                   -d '{"request":{"method":"GET","url":"/health"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"status":"UP"}}}'
@@ -346,7 +347,7 @@ jobs:
                   -d '{"request":{"method":"POST","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}'
               else
                 echo "[SUT] WireMock image pull failed; starting minimal Python fallback"
-                python3 - <<'PY' &
+                cat > sut.py <<'PY'
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 class H(BaseHTTPRequestHandler):
@@ -375,6 +376,7 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *_): pass
 HTTPServer(('0.0.0.0',8080), H).serve_forever()
 PY
+                nohup python3 sut.py > out/sut.log 2>&1 &
               fi
             fi
           fi
@@ -385,10 +387,10 @@ PY
           set -euo pipefail
           SUT_URL="${SUT_URL:-http://127.0.0.1:8080/health}"
           echo "[SUT] waiting for $SUT_URL ..."
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             if curl -fsS "$SUT_URL" >/dev/null; then
               echo "[SUT] ready"; exit 0; fi
-            sleep 2
+            sleep 1
           done
           echo "[SUT] not ready after timeout" >&2
           echo "::group::SUT logs"
