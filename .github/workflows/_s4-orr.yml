@@ -65,6 +65,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y k6
           python -m pip install --upgrade pip
+          # Semgrep do PyPI (evita conflito de urllib3)
           python -m pip install "semgrep<2"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           k6 version
@@ -300,41 +301,69 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
-      - name: Start SUT (compose or npm fallback)
+      - name: Start SUT (real or fallback) and wait on /health
+        env:
+          # Permita override via env/inputs no call-site (ex.: with.env: SUT_URL=...)
+          SUT_URL: ${{ env.SUT_URL || 'http://127.0.0.1:8080/health' }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out
-          echo "[SUT] Starting..."
+
+          start_fallback() {
+            echo "[SUT] starting fallback /health server on :8080"
+            python3 - <<'PY' &
+import http.server, socketserver
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/health"):
+            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self, *_): pass
+with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+    httpd.serve_forever()
+PY
+            echo $! > /tmp/sut.pid
+          }
+
+          echo "[SUT] trying to start…"
+          started="false"
           if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
             FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
             echo "[SUT] docker compose -f $FILE up -d"
-            docker compose -f "$FILE" up -d
-          else
-            if [ -f package.json ] && jq -e '.scripts["start:ci"]' package.json >/dev/null; then
-              echo "[SUT] npm run start:ci (background)"
-              nohup npm run start:ci > out/sut.log 2>&1 &
-            elif [ -f package.json ] && jq -e '.scripts["start"]' package.json >/dev/null; then
-              echo "[SUT] npm start (background)"
-              nohup npm start > out/sut.log 2>&1 &
-            else
-              echo "[SUT] No compose or npm start found; skipping."
-            fi
+            docker compose -f "$FILE" up -d || true
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm run start:ci (background)"
+            nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm start (background)"
+            nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
           fi
 
-      - name: Wait for SUT to be ready
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL="${TARGET_URL:-http://127.0.0.1:8080/health}"
-          echo "[SUT] waiting for $URL ..."
+          if [ "$started" != "true" ]; then
+            echo "[SUT] No compose/npm start found; starting fallback"
+            start_fallback
+          fi
+
+          # Propaga BASE_URL para o step do ORR
+          BASE_FROM_SUT=${SUT_URL%/health}
+          echo "BASE_URL=$BASE_FROM_SUT" >> "$GITHUB_ENV"
+
+          echo "[SUT] waiting for $SUT_URL ..."
           for i in $(seq 1 60); do
-            if curl -fsS "$URL" >/dev/null; then
+            if curl -fsS "$SUT_URL" >/dev/null; then
               echo "[SUT] ready"; exit 0; fi
             sleep 2
           done
+
           echo "[SUT] not ready after timeout" >&2
           echo "::group::SUT logs"
+          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
+            docker compose logs --no-color --tail 200 || true
+          fi
           [ -f out/sut.log ] && tail -n 200 out/sut.log || true
           echo "::endgroup::"
           exit 1
