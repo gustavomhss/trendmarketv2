@@ -75,6 +75,30 @@ jobs:
           set -euo pipefail
           TRIVY_VERSION="0.48.4"
           TRIVY_BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
+          ASSET_URL=""
+          if command -v jq >/dev/null 2>&1; then
+            echo "[setup] Consultando assets via API do GitHub"
+            ASSET_URL=$(curl -fsSL "https://api.github.com/repos/aquasecurity/trivy/releases/tags/v${TRIVY_VERSION}" \
+              | jq -r '.assets[] | select((.name | test("(?i)linux.*(64|amd64)"))) | .browser_download_url' \
+              | head -n 1 || true)
+          fi
+          TRIVY_ARCHIVES=(
+            "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+            "trivy_${TRIVY_VERSION}_linux-64bit.tar.gz"
+            "trivy_${TRIVY_VERSION}_Linux-amd64.tar.gz"
+            "trivy_${TRIVY_VERSION}_linux-amd64.tar.gz"
+          )
+          DOWNLOAD_OK=0
+          if [ -n "${ASSET_URL}" ] && [ "${ASSET_URL}" != "null" ]; then
+            TRIVY_ARCHIVES=("${ASSET_URL}" "${TRIVY_ARCHIVES[@]}")
+          fi
+          for archive in "${TRIVY_ARCHIVES[@]}"; do
+            if [[ "$archive" == http* ]]; then
+              TRIVY_URL="$archive"
+            else
+              TRIVY_URL="${TRIVY_BASE_URL}/${archive}"
+            fi
           TRIVY_ARCHIVES=("trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" "trivy_${TRIVY_VERSION}_linux-64bit.tar.gz")
           echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
           DOWNLOAD_OK=0
@@ -86,6 +110,7 @@ jobs:
               break
             else
               echo "[setup] Falha ao baixar ${TRIVY_URL}"
+              rm -f trivy.tar.gz || true
               rm -f trivy.tar.gz
             fi
           done
