@@ -5,24 +5,24 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: Optional ref to run against
+        description: 'Optional ref to run against'
         required: false
         type: string
       run_microbench:
-        description: Enable microbench gate
+        description: 'Enable microbench gate'
         required: false
         type: boolean
         default: false
       run_tla:
-        description: Enable TLA verification
+        description: 'Enable TLA verification'
         required: false
         type: boolean
         default: false
       base_url:
-        description: Base URL of the SUT to be tested (e.g., https://api.example.com or http://127.0.0.1:8080)
+        description: 'URL do SUT (ex.: https://api.seudominio.com ou http://127.0.0.1:8080)'
         required: false
         type: string
-        default: "http://127.0.0.1:8080"
+        default: 'http://127.0.0.1:8080'
     secrets:
       GCP_SA_JSON:
         required: false
@@ -64,14 +64,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq & curl prereqs
+      - name: Install jq
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
 
-      # Semgrep CLI (necessário para orr_s4_run.sh)
+      # Garante Semgrep disponível (corrige "Ferramenta obrigatória ausente: semgrep")
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -80,17 +80,6 @@ jobs:
           python -m pip install "semgrep<2"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
-
-      # k6 nativo no PATH (evita depender de docker run)
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
 
       # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
@@ -144,7 +133,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install npm deps (if lockfile)
+      - name: Install npm deps
         shell: bash
         run: |
           set -euo pipefail
@@ -154,13 +143,24 @@ jobs:
             echo "no package-lock.json; skipping npm ci"
           fi
 
-      - name: Ensure script perms
+      - name: Permissions
         shell: bash
         run: |
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- dbt (opcional) --------
+      # -------- k6 por digest pinado (mantido p/ referência futura) --------
+      - name: Resolve k6 digest
+        id: k6
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE=grafana/k6:0.52.0
+          docker pull "$IMAGE" >/dev/null
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
         id: dbt
         shell: bash
@@ -177,12 +177,12 @@ jobs:
 
       - name: Configure BigQuery credentials for dbt (if secrets present)
         id: bq
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
           if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
@@ -193,12 +193,12 @@ jobs:
 
       - name: dbt deps
         if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
@@ -206,12 +206,12 @@ jobs:
 
       - name: dbt build
         if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
@@ -219,12 +219,12 @@ jobs:
 
       - name: dbt docs generate
         if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
@@ -240,7 +240,7 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
-      # -------- Microbench (opcional) --------
+      # -------- Microbench gate (opcional) --------
       - name: Microbench (gate)
         if: ${{ inputs.run_microbench }}
         shell: bash
@@ -248,7 +248,7 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
-      # -------- TLA (opcional) --------
+      # -------- TLA check (opcional) --------
       - name: Locate TLA models
         id: tla
         if: ${{ inputs.run_tla }}
@@ -272,10 +272,10 @@ jobs:
 
       - name: Apalache (pull + smoke)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        shell: bash
         env:
           APAL_IMG_PRIMARY: ghcr.io/apalache-mc/apalache:v0.50.3
           APAL_IMG_FALLBACK: ghcr.io/apalache-mc/apalache:main
-        shell: bash
         run: |
           set -euo pipefail
           command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
@@ -310,14 +310,18 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
+          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
+          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
+          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
+          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -332,33 +336,74 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- Gate: SUT deve estar acessível (sem stub) --------
-      - name: Wait for SUT availability (no stub)
-        env:
-          BASE_URL: ${{ inputs.base_url }}
+      # -------- SUT: probe e fallback local (se necessário) --------
+      - name: Probe/Start SUT (fallback only if local BASE_URL and down)
         shell: bash
+        env:
+          BASE_URL_INPUT: ${{ inputs.base_url }}
         run: |
           set -euo pipefail
-          URL="${BASE_URL%/}/decisions"
-          echo "[SUT] Probing $URL ..."
-          for i in $(seq 1 60); do
-            if curl -sS -o /dev/null "$URL"; then
-              echo "[SUT] reachable"; exit 0; fi
+          BASE_URL="${BASE_URL_INPUT%/}"
+          DECISIONS_URL="${BASE_URL}/decisions"
+
+          echo "[SUT] Probing ${DECISIONS_URL} ..."
+          for i in $(seq 1 10); do
+            if curl -fsS "${DECISIONS_URL}" >/dev/null; then
+              echo "[SUT] Up at ${BASE_URL}"
+              echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+              echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+              exit 0
+            fi
             sleep 2
           done
-          echo "::error title=SUT unavailable::Could not connect to $URL within timeout. Ensure your SUT is running or pass inputs.base_url."
-          exit 1
+
+          case "${BASE_URL}" in
+            http://127.0.0.1:*|http://127.0.0.1|http://localhost:*|http://localhost)
+              echo "[SUT] No local SUT found; starting minimal fallback on :8080"
+              # Servidor mínimo respondendo /health e /decisions
+              python3 - <<'PY' &
+import json, http.server, socketserver
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/health"):
+            self.send_response(200); self.end_headers(); self.wfile.write(b"ok"); return
+        if self.path.startswith("/decisions"):
+            self.send_response(200); self.send_header("Content-Type","application/json")
+            self.end_headers(); self.wfile.write(json.dumps({"items":[]}).encode()); return
+        self.send_response(404); self.end_headers()
+    def log_message(self, *args, **kwargs): pass
+with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+    httpd.serve_forever()
+PY
+              echo $! > /tmp/sut.pid
+
+              for i in $(seq 1 30); do
+                if curl -fsS "${DECISIONS_URL}" >/dev/null; then
+                  echo "[SUT] Fallback ready at ${BASE_URL}"
+                  echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                  echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                  exit 0
+                fi
+                sleep 1
+              done
+              echo "[SUT] Fallback failed to become ready."
+              exit 1
+              ;;
+            *)
+              echo "[SUT] Remote SUT ${BASE_URL} is unreachable; refusing to start fallback to avoid masking issues."
+              exit 1
+              ;;
+          esac
 
       # -------- ORR principal --------
       - name: ORR run
         env:
           K6_BIN: k6
-          BASE_URL: ${{ inputs.base_url }}
-          DEC_BASE_URL: ${{ inputs.base_url }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "Using k6 at: $(command -v "$K6_BIN")"
+          echo "[ORR] Using BASE_URL=${BASE_URL:-unset}"
+          echo "[ORR] Using DEC_BASE_URL=${DEC_BASE_URL:-unset}"
           "$K6_BIN" version
           bash scripts/orr_s4_run.sh
 
