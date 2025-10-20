@@ -308,7 +308,12 @@ jobs:
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         shell: bash
         run: |
-          bash scripts/tla_ascii_guard.sh
+          set -euo pipefail
+          if [ -f scripts/tla_ascii_guard.sh ]; then
+            bash scripts/tla_ascii_guard.sh
+          else
+            echo "[tla] ascii guard script not found; skipping."
+          fi
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
@@ -329,9 +334,15 @@ jobs:
           set -e
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
+            set +e
             docker run --rm -u 0:0 \
               -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
               "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
+            RC=$?
+            set -e
+            if [ $RC -ne 0 ]; then
+              echo "::error::Apalache check failed (both attempts)"; exit $RC
+            fi
           fi
 
       - name: Upload TLA report
@@ -365,6 +376,12 @@ jobs:
           case "${BASE_URL}" in
             http://127.0.0.1*|http://localhost*)
               echo "[SUT] No local SUT; starting minimal fallback on :8080"
+              BASE_URL="http://127.0.0.1:8080"
+              DECISIONS_URL="${BASE_URL}/decisions"
+
+              cleanup() { test -f /tmp/sut.pid && kill "$(cat /tmp/sut.pid)" 2>/dev/null || true; }
+              trap cleanup EXIT
+
               python3 - <<'PY' &
 import json, http.server, socketserver
 class H(http.server.BaseHTTPRequestHandler):
@@ -383,8 +400,7 @@ PY
               for i in $(seq 1 30); do
                 if curl -fsS "${DECISIONS_URL}" >/dev/null; then
                   echo "[SUT] Fallback ready at ${BASE_URL}"
-                  echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
-                  echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                  printf 'BASE_URL=%s\nDEC_BASE_URL=%s\n' "${BASE_URL}" "${BASE_URL}" >> "$GITHUB_ENV"
                   exit 0
                 fi
                 sleep 1
