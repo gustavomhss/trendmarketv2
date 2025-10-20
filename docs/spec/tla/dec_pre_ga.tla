@@ -23,6 +23,13 @@ VARIABLES dec_p95, breach, rollback, recovered
 
 vars == <<dec_p95, breach, rollback, recovered>>
 
+\* @type: Bool;
+TypeOK ==
+    /\ dec_p95 \in Nat
+    /\ breach \in BOOLEAN
+    /\ rollback \in BOOLEAN
+    /\ recovered \in BOOLEAN
+
 Init ==
     /\ dec_p95 \in Nat
     /\ dec_p95 = 0
