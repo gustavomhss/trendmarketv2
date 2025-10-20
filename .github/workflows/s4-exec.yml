@@ -26,3 +26,4 @@ jobs:
       ref: ${{ inputs.ref }}
       run_microbench: ${{ inputs.run_microbench }}
       run_tla: ${{ inputs.run_tla }}
+    secrets: inherit
