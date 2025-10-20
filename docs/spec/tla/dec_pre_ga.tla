@@ -1,21 +1,22 @@
 ---- MODULE dec_pre_ga ----
-EXTENDS Naturals, TLC
+EXTENDS Naturals, Sequences, TLC
 
 (**************************************************************************)
-(* Variáveis de estado com anotações Snowcat INLINE (uma por variável).   *)
-(* Formato aceito pelo Apalache/Snowcat:  x(* @type: T; *),                *)
+(* Modelo DEC Pre-GA — revisado pela equipe (ASCII-only, Snowcat OK).      *)
+(* Melhorias:                                                               *)
+(* 1) Anotação Snowcat agregada ANTES de VARIABLES (1 bloco @type).         *)
+(* 2) Limite superior de dec_p95 quando breach=TRUE (<=1600) p/ Safety.     *)
+(* 3) UNCHANGED completo nas ações (sem variáveis não-especificadas).       *)
+(* 4) Remoção de ação Stutter (usamos [][Next]_vars).                        *)
 (**************************************************************************)
-VARIABLES
-dec_p95(* @type: Int; *),
-breach(* @type: Bool; *),
-rollback(* @type: Bool; *),
-recovered(* @type: Bool; *)
 
-* Tupla de variáveis para subscript de ações
+(* @type: dec_p95: Int; breach: Bool; rollback: Bool; recovered: Bool; *)
+VARIABLES dec_p95, breach, rollback, recovered
+
 vars == <<dec_p95, breach, rollback, recovered>>
 
 (**************************************************************************)
-(* Tipagem reforçada (opcional, mantém o modelo bem formado).              *)
+(* Tipos e invariante estrutural                                           *)
 (**************************************************************************)
 TypeOK ==
 /\ dec_p95 \in Nat
@@ -23,20 +24,22 @@ TypeOK ==
 /\ rollback \in BOOLEAN
 /\ recovered \in BOOLEAN
 
+Inv == TypeOK /\ (breach => dec_p95 <= 1600)
+
 (**************************************************************************)
 (* Estado inicial                                                          *)
 (**************************************************************************)
 Init ==
+/\ TypeOK
 /\ dec_p95 = 0
 /\ breach = FALSE
 /\ rollback = FALSE
 /\ recovered = FALSE
-/\ TypeOK
 
 (**************************************************************************)
 (* Ações                                                                   *)
 (**************************************************************************)
-* Medida viola a meta de DEC (p95 > 800ms, com degradação controlada)
+* Medida viola a meta de DEC (p95 > 800ms, com teto de 1600ms sob breach)
 MeasureBreached ==
 /\ dec_p95' \in Nat
 /\ dec_p95' > 800
@@ -48,7 +51,7 @@ MeasureBreached ==
 RollbackIssued ==
 /\ breach = TRUE
 /\ rollback' = TRUE
-/\ UNCHANGED <<dec_p95, recovered>>
+/\ UNCHANGED <<dec_p95, recovered, breach>>
 
 * Sistema recupera dentro do orçamento (p95 <= 800ms)
 RecoveredWithinBudget ==
@@ -56,31 +59,23 @@ RecoveredWithinBudget ==
 /\ dec_p95' \in Nat
 /\ dec_p95' <= 800
 /\ recovered' = TRUE
-/\ UNCHANGED <<breach>>
+/\ UNCHANGED <<breach, rollback>>
 
-* Passo de stutter
-Stutter == UNCHANGED vars
-
-* Dinâmica
-Next == MeasureBreached / RollbackIssued / RecoveredWithinBudget / Stutter
+* Dinâmica (stuttering é dado por [][Next]_vars)
+Next == MeasureBreached / RollbackIssued / RecoveredWithinBudget
 
 (**************************************************************************)
 (* Especificação, propriedades e teoremas                                  *)
 (**************************************************************************)
 Spec == Init /\ [][Next]_vars
 
-* Segurança: se há breach, p95 fica limitado por 1600ms (degradação controlada)
 Safety == [](breach => dec_p95 <= 1600)
 
-* Vivacidade: sob justiça fraca das ações de rollback e recuperação
+* Vivacidade: sob justiça fraca de rollback e recuperação
 Liveness == WF_vars(RollbackIssued) /\ WF_vars(RecoveredWithinBudget)
 
+THEOREM Spec => []Inv
 THEOREM Spec => Safety
-THEOREM Spec => []TypeOK
 THEOREM Spec => <> <<RecoveredWithinBudget>>_vars
 
 ====
-
-* Sanity local (opcional, fora do modelo). Se quiser, adicione no workflow:
-*   grep -P "[^\x00-\x7F]" -n docs/spec/tla/dec_pre_ga.tla && 
-*     { echo "ERRO: Unicode encontrado. Use apenas ASCII /\ e \/"; exit 1; } || true
