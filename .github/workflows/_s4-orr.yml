@@ -18,15 +18,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      GCP_SA_JSON:
-        required: false
-      DBT_BQ_PROJECT:
-        required: false
-      DBT_BQ_DATASET:
-        required: false
-      DBT_BQ_LOCATION:
-        required: false
 
 concurrency:
   group: s4-orr-${{ inputs.ref || github.sha }}
@@ -35,7 +26,6 @@ concurrency:
 permissions:
   contents: read
   actions: write
-  id-token: write
 
 jobs:
   orr:
@@ -50,30 +40,63 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - name: Harden runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
-
-      - name: Setup Python
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install jq
+      - name: Install base tools (jq, k6, semgrep)
+        shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq curl ca-certificates gnupg
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          python -m pip install --upgrade pip
+          python -m pip install "semgrep<2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          k6 version
+          semgrep --version
 
-      # -------- Python deps (dbt only) + auditoria --------
-      - name: Install Python deps (dbt only)
+      - name: Install security tools (Trivy & Gitleaks)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks LICENSE README.md || true
+
+          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+          rm -f trivy LICENSE README.md || true
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm deps (if lockfile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --ignore-scripts
+          else
+            echo "no package-lock.json; skipping npm ci"
+          fi
+
+      - name: Setup Python deps (dbt only)
+        shell: bash
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
 
       - name: Python env audit
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p out/pip-audit
@@ -87,70 +110,16 @@ jobs:
           name: pip-audit
           path: out/pip-audit
 
-      # -------- Ferramentas de segurança (binários) --------
-      - name: Install security tools (Trivy & Gitleaks)
-        run: |
-          set -euo pipefail
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
-          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
-          rm -f gitleaks LICENSE README.md || true
-
-          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
-          sudo install -m 0755 trivy /usr/local/bin/trivy
-          rm -f trivy LICENSE README.md || true
-
-      # -------- Semgrep no runner (no PATH) --------
-      - name: Install Semgrep
+      - name: Ensure script perms
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install "semgrep<2"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          semgrep --version
+          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- Node (opcional) --------
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install npm deps
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-            npm ci --ignore-scripts
-          else
-            echo "no package-lock.json; skipping npm ci"
-          fi
-
-      - name: Permissions
-        run: |
-          set -euo pipefail
-          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh
-
-      # -------- Instalação do k6 (binário) --------
-      - name: Install k6
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates gnupg
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
-
-      - name: k6 sanity
-        run: |
-          set -euo pipefail
-          command -v k6
-          k6 version
-
-      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
+      # -------- dbt (opcional) --------
       - name: Locate dbt project
         id: dbt
+        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR=$(find . -type f -name dbt_project.yml | head -n1 | xargs -r dirname)
@@ -164,6 +133,12 @@ jobs:
 
       - name: Configure BigQuery credentials for dbt (if secrets present)
         id: bq
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+        shell: bash
         run: |
           set -euo pipefail
           if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
@@ -171,47 +146,45 @@ jobs:
           else
             echo "have_secrets=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: dbt deps
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-
-      - name: dbt deps
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+
+      - name: dbt build
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-
-      - name: dbt build
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt build --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+
+      - name: dbt docs generate
+        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
           DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-
-      - name: dbt docs generate
-        if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
+        shell: bash
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
           dbt docs generate --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
-        env:
-          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
-          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
-          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
-          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
 
       - name: Upload dbt docs
         if: ${{ steps.dbt.outputs.dir != '' && steps.bq.outputs.have_secrets == 'true' }}
@@ -223,16 +196,10 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
-      # -------- Microbench gate (opcional) --------
-      - name: Microbench (gate)
-        if: ${{ inputs.run_microbench }}
-        run: |
-          set -euo pipefail
-          bash scripts/microbench_dec.sh
-
-      # -------- TLA check (opcional) --------
+      # -------- TLA (opcional) --------
       - name: Locate TLA models
         id: tla
+        if: ${{ inputs.run_tla }}
         shell: bash
         run: |
           set -euo pipefail
@@ -242,11 +209,9 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s
-" "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s
-" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -278,10 +243,16 @@ jobs:
           fi
           set -e
 
-      - name: TLA ASCII guard
+      - name: TLA ASCII guard (if exists)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        shell: bash
         run: |
-          bash scripts/tla_ascii_guard.sh
+          set -euo pipefail
+          if [ -x scripts/tla_ascii_guard.sh ]; then
+            bash scripts/tla_ascii_guard.sh
+          else
+            echo "tla_ascii_guard.sh ausente; seguindo"
+          fi
 
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
@@ -315,13 +286,22 @@ jobs:
           path: out/s4_orr/tla_report.txt
 
       # -------- ORR principal --------
+      - name: Microbench (gate)
+        if: ${{ inputs.run_microbench }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/microbench_dec.sh
+
       - name: ORR run
+        shell: bash
         run: |
           set -euo pipefail
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
         if: always()
+        shell: bash
         run: |
           set -euo pipefail
           bash scripts/orr_s4_bundle.sh
@@ -332,34 +312,3 @@ jobs:
         with:
           name: s4_evidence_bundle
           path: out/s4_evidence_bundle_*.zip
-
-
-# ---------- .github/workflows/s4-exec.yml ----------
-name: s4-exec
-
-on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: Ref opcional
-        required: false
-        type: string
-      run_microbench:
-        description: Executar gate de microbench?
-        required: false
-        type: boolean
-        default: false
-      run_tla:
-        description: Executar verificação TLA?
-        required: false
-        type: boolean
-        default: false
-
-jobs:
-  call-orr:
-    uses: ./.github/workflows/_s4-orr.yml
-    secrets: inherit
-    with:
-      ref: ${{ inputs.ref }}
-      run_microbench: ${{ fromJSON(inputs.run_microbench || 'false') }}
-      run_tla: ${{ fromJSON(inputs.run_tla || 'false') }}
