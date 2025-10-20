@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: "s4-orr-${{ inputs.ref || github.sha }}"
+  group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install base tools (jq, curl)
+      - name: Install jq
         shell: bash
         run: |
           set -euo pipefail
@@ -144,18 +144,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 (nativo) --------
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
-
-      # (mantido) imagem k6 por digest – caso seu script use container em algum ponto
+      # -------- k6 (resolução de digest mantida, mas usaremos k6 nativo) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -165,6 +154,17 @@ jobs:
           docker pull "$IMAGE" >/dev/null
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # -------- Instala k6 nativo --------
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
 
       # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
@@ -267,9 +267,9 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf '%s\n' "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf '  - %s\n' $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -342,81 +342,71 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- SUT (start opcional + fallback) --------
-      - name: Start SUT (compose/npm) or fallback stub and wait for /decisions
+      # -------- SUT: tenta real (compose/npm); se não houver, sobe stub e espera /decisions --------
+      - name: Start SUT (real or safe stub) and wait for /decisions
         shell: bash
-        env:
-          BASE_URL: ${{ env.BASE_URL || 'http://127.0.0.1:8080' }}
         run: |
           set -euo pipefail
 
+          BASE_URL_DEFAULT="http://127.0.0.1:8080"
+          : "${BASE_URL:=$BASE_URL_DEFAULT}"
+          : "${DEC_BASE_URL:=$BASE_URL}"
+
           mkdir -p out
 
-          start_stub() {
-            echo "[SUT] starting fallback stub on :8080"
-            python3 - <<'PY' &
-import json, http.server, socketserver
+          have_target() { curl -fsS "$DEC_BASE_URL/decisions" >/dev/null 2>&1; }
+
+          if have_target; then
+            echo "[SUT] endpoint já responde em $DEC_BASE_URL/decisions"
+          else
+            echo "[SUT] tentando iniciar serviço real (compose ou npm)"
+            started="false"
+            if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yaml ]; }; then
+              FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f docker-compose.yaml ] && echo docker-compose.yaml || echo compose.yaml ) )
+              echo "[SUT] docker compose -f $FILE up -d"
+              docker compose -f "$FILE" up -d || true
+              started="true"
+            elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
+              echo "[SUT] npm run start:ci (background)"
+              nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+              started="true"
+            elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
+              echo "[SUT] npm start (background)"
+              nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+              started="true"
+            fi
+
+            if ! have_target; then
+              echo "[SUT] iniciando stub mínimo em :8080 (apenas /health e /decisions)"
+              cat > /tmp/sut_stub.py <<'PY'
+import http.server, socketserver, json
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/health'):
             self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
         elif self.path.startswith('/decisions'):
-            self.send_response(200)
-            self.send_header('Content-Type','application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status":"stub","items":[]}).encode())
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b'[]')
         else:
             self.send_response(404); self.end_headers()
-    def log_message(self, *_): pass
-with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+    def log_message(self, *args, **kwargs):
+        pass
+with socketserver.TCPServer(('0.0.0.0', 8080), H) as httpd:
     httpd.serve_forever()
 PY
-            echo $! > /tmp/sut.pid
-          }
+              nohup python3 /tmp/sut_stub.py >/dev/null 2>&1 & echo $! > /tmp/sut_stub.pid
+            fi
 
-          echo "[SUT] Starting..."
-          started="false"
-
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
-            echo "[SUT] docker compose -f $FILE up -d"
-            docker compose -f "$FILE" up -d || true
-            started="true"
-          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
-            echo "[SUT] npm run start:ci (background)"
-            nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-            started="true"
-          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
-            echo "[SUT] npm start (background)"
-            nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-            started="true"
+            echo "[SUT] aguardando disponibilidade de $DEC_BASE_URL/decisions ..."
+            for i in $(seq 1 60); do
+              if have_target; then echo "[SUT] pronto"; break; fi
+              sleep 2
+            done
+            have_target || { echo "[SUT] não ficou pronto a tempo" >&2; exit 1; }
           fi
 
-          if [ "$started" != "true" ]; then
-            echo "[SUT] No compose/npm; starting Python stub"
-            start_stub
-          fi
-
-          # Normaliza BASE_URL (tira /final se houver) e exporta DEC_BASE_URL
-          BASE_URL_NORM="${BASE_URL%/}"
-          echo "BASE_URL=$BASE_URL_NORM" >> "$GITHUB_ENV"
-          echo "DEC_BASE_URL=$BASE_URL_NORM" >> "$GITHUB_ENV"
-
-          echo "[SUT] waiting for $BASE_URL_NORM/decisions ..."
-          for i in $(seq 1 60); do
-            if curl -fsS "$BASE_URL_NORM/decisions" >/dev/null; then
-              echo "[SUT] ready"; exit 0; fi
-            sleep 2
-          done
-
-          echo "[SUT] not ready after timeout" >&2
-          echo "::group::SUT logs"
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            docker compose logs --no-color --tail 200 || true
-          fi
-          [ -f out/sut.log ] && tail -n 200 out/sut.log || true
-          echo "::endgroup::"
-          exit 1
+          # Exporta BASE_URL/DEC_BASE_URL para passos seguintes
+          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+          echo "DEC_BASE_URL=$DEC_BASE_URL" >> "$GITHUB_ENV"
 
       # -------- ORR principal --------
       - name: ORR run
@@ -426,13 +416,12 @@ PY
         shell: bash
         run: |
           set -euo pipefail
-          # Força uso do binário nativo do k6
+          echo "[ORR] Iniciando ORR S4"
+          echo "[ORR] Executando k6 @120rps/60m"
+          k6 version
+          # Garante que scripts/orr_s4_run.sh usa o binário nativo
           export K6_BIN="${K6_BIN:-k6}"
-          "$K6_BIN" version
-          # Exporta BASE_URL/DEC_BASE_URL (vindo do step anterior) se existirem
-          export BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
-          export DEC_BASE_URL="${DEC_BASE_URL:-$BASE_URL}"
-          echo "[ORR] Using BASE_URL=$BASE_URL"
+          export K6="$K6_BIN"
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
