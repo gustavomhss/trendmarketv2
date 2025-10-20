@@ -18,9 +18,18 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      GCP_SA_JSON:
+        required: false
+      DBT_BQ_PROJECT:
+        required: false
+      DBT_BQ_DATASET:
+        required: false
+      DBT_BQ_LOCATION:
+        required: false
 
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: "s4-orr-${{ inputs.ref || github.sha }}"
   cancel-in-progress: true
 
 permissions:
@@ -203,17 +212,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TLA_GLOB=$(git ls-files 'docs/spec/tla/*.tla' || true)
-          if [ -z "$TLA_GLOB" ]; then
-            TLA_GLOB=$(git ls-files '*.tla' || true)
-          fi
-          if [ -n "$TLA_GLOB" ]; then
+          TLA_LIST=$(git ls-files 'docs/spec/tla/*.tla' 2>/dev/null; git ls-files '*.tla' 2>/dev/null)
+          if [ -n "$TLA_LIST" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s
-" "$TLA_GLOB" | head -n1)
+            SEL=$(printf '%s\n' "$TLA_LIST" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s
-" $TLA_GLOB
+            echo "[tla] found models:"
+            printf '  - %s\n' $TLA_LIST
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
