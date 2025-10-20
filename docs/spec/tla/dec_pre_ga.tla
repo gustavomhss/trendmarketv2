@@ -3,17 +3,16 @@ EXTENDS Naturals, TLC
 
 (***************************************************************************)
 (* Modelo mínimo para Gate Pre-GA (DEC).                                   *)
-(* Regras: ASCII puro; sem Unicode; Next bem-formado; Snowcat em bloco.   *)
+(* Regras: ASCII puro; sem Unicode; Next bem-formado; Snowcat 1 bloco.     *)
 (***************************************************************************)
-
-VARIABLES dec_p95, breach, rollback, recovered
 
 (*
   @type: dec_p95: Int;
-  @type: breach: Bool;
-  @type: rollback: Bool;
-  @type: recovered: Bool;
+         breach: Bool;
+         rollback: Bool;
+         recovered: Bool;
 *)
+VARIABLES dec_p95, breach, rollback, recovered
 
 vars == <<dec_p95, breach, rollback, recovered>>
 
@@ -69,10 +68,10 @@ Next ==
 (***************************************************************************)
 (* Especificação e propriedade checada no ORR                              *)
 (***************************************************************************)
-Spec == Init /\ [][Next]_vars
+Spec == Init /\ [][][Next]_vars  \* Nota: [][][A]_v == []([A]_v)
 
 Safety == [](breach => dec_p95 <= 1600)
 
 THEOREM Spec => Safety
 
-==== 
+====
