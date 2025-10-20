@@ -220,7 +220,7 @@ jobs:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
           DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
-          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+          DBT_BQ_LOCATION: ${{ secrets.DB T_BQ_LOCATION }}
         run: |
           set -euo pipefail
           DBT_DIR="${{ steps.dbt.outputs.dir }}"
@@ -287,9 +287,9 @@ jobs:
           APAL_IMG_FALLBACK: ghcr.io/apalache-mc/apalache:main
         run: |
           set -euo pipefail
-          command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
+          command -v docker >/dev/null || { echo "docker not present"; exit 1; }
           if ! docker pull "$APAL_IMG_PRIMARY" >/dev/null 2>&1; then
-            echo "[apalache] tag v0.50.3 indisponível; usando :main"
+            echo "[apalache] v0.50.3 unavailable; using :main"
             docker pull "$APAL_IMG_FALLBACK" >/dev/null
             APAL_IMG="$APAL_IMG_FALLBACK"
           else
@@ -341,7 +341,7 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- SUT: probe e fallback local (se necessário) --------
+      # -------- SUT: probe and local fallback (only for local base_url) --------
       - name: Probe/Start SUT (fallback only if local BASE_URL and down)
         shell: bash
         env:
@@ -362,10 +362,10 @@ jobs:
             sleep 2
           done
 
-          if [[ "${BASE_URL}" == http://127.0.0.1* || "${BASE_URL}" == http://localhost* ]]; then
-            echo "[SUT] No local SUT found; starting minimal fallback on :8080"
-
-            cat > /tmp/_sut_server.py <<'PY'
+          case "${BASE_URL}" in
+            http://127.0.0.1*|http://localhost*)
+              echo "[SUT] No local SUT; starting minimal fallback on :8080"
+              python3 - <<'PY' &
 import json, http.server, socketserver
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -375,28 +375,28 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(200); self.send_header("Content-Type","application/json")
             self.end_headers(); self.wfile.write(json.dumps({"items": []}).encode()); return
         self.send_response(404); self.end_headers()
-    def log_message(self, *args, **kwargs): pass
+    def log_message(self, *a, **k): pass
 with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
     httpd.serve_forever()
 PY
-
-            nohup python3 /tmp/_sut_server.py > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
-
-            for i in $(seq 1 30); do
-              if curl -fsS "${DECISIONS_URL}" >/dev/null; then
-                echo "[SUT] Fallback ready at ${BASE_URL}"
-                echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
-                echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
-                exit 0
-              fi
-              sleep 1
-            done
-            echo "[SUT] Fallback failed to become ready."
-            exit 1
-          else
-            echo "[SUT] Remote SUT ${BASE_URL} is unreachable; refusing fallback (no masking)."
-            exit 1
-          fi
+              echo $! > /tmp/sut.pid
+              for i in $(seq 1 30); do
+                if curl -fsS "${DECISIONS_URL}" >/dev/null; then
+                  echo "[SUT] Fallback ready at ${BASE_URL}"
+                  echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                  echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                  exit 0
+                fi
+                sleep 1
+              done
+              echo "[SUT] Fallback failed to become ready."
+              exit 1
+              ;;
+            *)
+              echo "[SUT] Remote SUT ${BASE_URL} is unreachable; refusing fallback."
+              exit 1
+              ;;
+          esac
 
       # -------- ORR principal --------
       - name: ORR run
