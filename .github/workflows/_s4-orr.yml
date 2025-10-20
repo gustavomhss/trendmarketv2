@@ -59,14 +59,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq + curl prereqs
+      - name: Install base tools (jq, curl)
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
 
-      # Garantir semgrep no PATH (evita "Ferramenta obrigatória ausente: semgrep")
+      # Garante Semgrep disponível (corrige "Ferramenta obrigatória ausente: semgrep")
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -75,17 +75,6 @@ jobs:
           python -m pip install "semgrep<2"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
-
-      # k6 nativo (evita depender de variável K6="docker run ...")
-      - name: Install k6 (native)
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install -y k6
-          k6 version
 
       # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
@@ -155,7 +144,18 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado (mantido p/ compat) --------
+      # -------- k6 (nativo) --------
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
+
+      # (mantido) imagem k6 por digest – caso seu script use container em algum ponto
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -342,6 +342,82 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
+      # -------- SUT (start opcional + fallback) --------
+      - name: Start SUT (compose/npm) or fallback stub and wait for /decisions
+        shell: bash
+        env:
+          BASE_URL: ${{ env.BASE_URL || 'http://127.0.0.1:8080' }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p out
+
+          start_stub() {
+            echo "[SUT] starting fallback stub on :8080"
+            python3 - <<'PY' &
+import json, http.server, socketserver
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith('/health'):
+            self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
+        elif self.path.startswith('/decisions'):
+            self.send_response(200)
+            self.send_header('Content-Type','application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"status":"stub","items":[]}).encode())
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self, *_): pass
+with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
+    httpd.serve_forever()
+PY
+            echo $! > /tmp/sut.pid
+          }
+
+          echo "[SUT] Starting..."
+          started="false"
+
+          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
+            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
+            echo "[SUT] docker compose -f $FILE up -d"
+            docker compose -f "$FILE" up -d || true
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start:ci"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm run start:ci (background)"
+            nohup npm run start:ci > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
+          elif [ -f package.json ] && command -v jq >/dev/null && jq -e '.scripts["start"]' package.json >/dev/null 2>&1; then
+            echo "[SUT] npm start (background)"
+            nohup npm start > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+            started="true"
+          fi
+
+          if [ "$started" != "true" ]; then
+            echo "[SUT] No compose/npm; starting Python stub"
+            start_stub
+          fi
+
+          # Normaliza BASE_URL (tira /final se houver) e exporta DEC_BASE_URL
+          BASE_URL_NORM="${BASE_URL%/}"
+          echo "BASE_URL=$BASE_URL_NORM" >> "$GITHUB_ENV"
+          echo "DEC_BASE_URL=$BASE_URL_NORM" >> "$GITHUB_ENV"
+
+          echo "[SUT] waiting for $BASE_URL_NORM/decisions ..."
+          for i in $(seq 1 60); do
+            if curl -fsS "$BASE_URL_NORM/decisions" >/dev/null; then
+              echo "[SUT] ready"; exit 0; fi
+            sleep 2
+          done
+
+          echo "[SUT] not ready after timeout" >&2
+          echo "::group::SUT logs"
+          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
+            docker compose logs --no-color --tail 200 || true
+          fi
+          [ -f out/sut.log ] && tail -n 200 out/sut.log || true
+          echo "::endgroup::"
+          exit 1
+
       # -------- ORR principal --------
       - name: ORR run
         env:
@@ -350,10 +426,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Força o uso do binário nativo do k6
+          # Força uso do binário nativo do k6
           export K6_BIN="${K6_BIN:-k6}"
-          export K6="$K6_BIN"
           "$K6_BIN" version
+          # Exporta BASE_URL/DEC_BASE_URL (vindo do step anterior) se existirem
+          export BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
+          export DEC_BASE_URL="${DEC_BASE_URL:-$BASE_URL}"
+          echo "[ORR] Using BASE_URL=$BASE_URL"
           bash scripts/orr_s4_run.sh
 
       - name: Bundle evidence (S4)
