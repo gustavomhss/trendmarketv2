@@ -18,18 +18,10 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      GCP_SA_JSON:
-        required: false
-      DBT_BQ_PROJECT:
-        required: false
-      DBT_BQ_DATASET:
-        required: false
-      DBT_BQ_LOCATION:
-        required: false
 
+# Keep concurrency simple to avoid parser quirks with operators like "||"
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: s4-orr-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
@@ -139,29 +131,8 @@ jobs:
             echo "No dbt project found; skipping dbt steps."
           fi
 
-      - name: Export DBT_DIR env (for next steps)
-        if: ${{ steps.dbt.outputs.dir != '' }}
-        shell: bash
-        run: echo "DBT_DIR=${{ steps.dbt.outputs.dir }}" >> "$GITHUB_ENV"
-
-      - name: Configure BigQuery credentials for dbt (if secrets present)
-        id: bq
-        env:
-          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
-          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
-          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
-          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
-            echo "have_secrets=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "have_secrets=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: dbt deps
-        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -170,10 +141,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+          dbt deps --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
 
       - name: dbt build
-        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -182,10 +153,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dbt build --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+          dbt build --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
 
       - name: dbt docs generate
-        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -194,17 +165,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dbt docs generate --project-dir "$DBT_DIR" --profiles-dir "$DBT_DIR/profiles"
+          dbt docs generate --project-dir "${{ steps.dbt.outputs.dir }}" --profiles-dir "${{ steps.dbt.outputs.dir }}/profiles"
 
       - name: Upload dbt docs
-        if: ${{ env.DBT_DIR != '' && steps.bq.outputs.have_secrets == 'true' }}
+        if: ${{ steps.dbt.outputs.dir != '' && secrets.GCP_SA_JSON && secrets.DBT_BQ_PROJECT }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-docs
           path: |
-            ${{ env.DBT_DIR }}/target/catalog.json
-            ${{ env.DBT_DIR }}/target/manifest.json
-            ${{ env.DBT_DIR }}/target/index.html
+            ${{ steps.dbt.outputs.dir }}/target/catalog.json
+            ${{ steps.dbt.outputs.dir }}/target/manifest.json
+            ${{ steps.dbt.outputs.dir }}/target/index.html
 
       # -------- TLA (optional) --------
       - name: Locate TLA models
@@ -216,20 +187,17 @@ jobs:
           TLA_LIST=$(git ls-files 'docs/spec/tla/*.tla' 2>/dev/null; git ls-files '*.tla' 2>/dev/null)
           if [ -n "$TLA_LIST" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf '%s\n' "$TLA_LIST" | head -n1)
+            SEL=$(printf '%s
+' "$TLA_LIST" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
             echo "[tla] found models:"
-            printf '  - %s\n' $TLA_LIST
+            printf '  - %s
+' $TLA_LIST
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
             echo "[tla] no .tla files found; skipping TLA steps."
           fi
-
-      - name: Export TLA file env
-        if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
-        shell: bash
-        run: echo "TLA_FILE=${{ steps.tla.outputs.tla_file }}" >> "$GITHUB_ENV"
 
       - name: Apalache (pull + smoke)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
@@ -272,8 +240,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/s4_orr out/s4_orr/apalache_work out/s4_orr/apalache_work/tmp
-          SEL_DIR=$(dirname "$TLA_FILE")
-          SEL_FILE=$(basename "$TLA_FILE")
+          SEL_DIR=$(dirname "${{ steps.tla.outputs.tla_file }}")
+          SEL_FILE=$(basename "${{ steps.tla.outputs.tla_file }}")
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
           chmod -R 777 out/s4_orr/apalache_work
           set +e
@@ -334,15 +302,19 @@ jobs:
                 docker run -d --name sut -p 8080:8080 "$WIREMOCK_IMG"
                 for i in $(seq 1 60); do
                   if curl -fsS http://127.0.0.1:8080/__admin/ >/dev/null; then break; fi; sleep 1; done
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings \
-                  -H 'Content-Type: application/json' \
-                  -d '{"request":{"method":"GET","url":"/health"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"status":"UP"}}}'
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings \
-                  -H 'Content-Type: application/json' \
-                  -d '{"request":{"method":"GET","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}'
-                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings \
-                  -H 'Content-Type: application/json' \
-                  -d '{"request":{"method":"POST","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}'
+                # write stub files to avoid heavy quoting
+                cat > stub-health.json <<'JSON'
+{"request":{"method":"GET","url":"/health"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"status":"UP"}}}
+JSON
+                cat > stub-get-decisions.json <<'JSON'
+{"request":{"method":"GET","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}
+JSON
+                cat > stub-post-decisions.json <<'JSON'
+{"request":{"method":"POST","urlPath":"/decisions"},"response":{"status":200,"headers":{"Content-Type":"application/json"},"jsonBody":{"ok":true}}}
+JSON
+                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-health.json
+                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-get-decisions.json
+                curl -sS -X POST http://127.0.0.1:8080/__admin/mappings -H 'Content-Type: application/json' --data-binary @stub-post-decisions.json
               else
                 echo "[SUT] WireMock image pull failed; starting minimal Python fallback"
                 cat > sut.py <<'PY'
@@ -370,7 +342,7 @@ class H(BaseHTTPRequestHandler):
             pass
         if self.path.startswith('/decisions'):
             return self._ok({'ok': True})
-        self.send_response(404); self.end_headers()
+        self.send_response(404); self.endheaders()
     def log_message(self, *_): pass
 HTTPServer(('0.0.0.0',8080), H).serve_forever()
 PY
