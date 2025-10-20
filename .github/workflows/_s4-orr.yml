@@ -90,14 +90,15 @@ jobs:
           sudo install -m 0755 trivy /usr/local/bin/trivy
           rm -f trivy LICENSE README.md || true
 
-      - name: Semgrep (container v1.80.0, pinned digest)
+      # -------- Semgrep no runner (no PATH) --------
+      - name: Install Semgrep
+        shell: bash
         run: |
           set -euo pipefail
-          SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
-          docker pull "$SEMGREP_IMG" >/dev/null
-          docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
-          # opcional: varredura
-          # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
+          python -m pip install --upgrade pip
+          python -m pip install "semgrep<2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          semgrep --version
 
       # -------- Node (opcional) --------
       - name: Setup Node
@@ -117,7 +118,7 @@ jobs:
       - name: Permissions
         run: |
           set -euo pipefail
-          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh
+          chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh
 
       # -------- k6 por digest pinado --------
       - name: Resolve k6 digest
