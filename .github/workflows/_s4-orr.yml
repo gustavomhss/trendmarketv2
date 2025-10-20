@@ -215,12 +215,10 @@ jobs:
           TLA_LIST=$(git ls-files 'docs/spec/tla/*.tla' 2>/dev/null; git ls-files '*.tla' 2>/dev/null)
           if [ -n "$TLA_LIST" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf '%s
-' "$TLA_LIST" | head -n1)
+            SEL=$(printf '%s\n' "$TLA_LIST" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
             echo "[tla] found models:"
-            printf '  - %s
-' $TLA_LIST
+            printf '  - %s\n' $TLA_LIST
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -302,46 +300,7 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
-      - name: Start SUT (Compose or npm fallback)
-        shell: bash
-        env:
-          TARGET_URL: ${{ env.TARGET_URL || 'http://127.0.0.1:8080/health' }}
-        run: |
-          set -euo pipefail
-          echo "[SUT] Trying to start service..."
-          if command -v docker >/dev/null && { [ -f docker-compose.yml ] || [ -f compose.yaml ] || [ -f docker-compose.yaml ]; }; then
-            FILE=$( [ -f docker-compose.yml ] && echo docker-compose.yml || ( [ -f compose.yaml ] && echo compose.yaml || echo docker-compose.yaml ) )
-            echo "[SUT] docker compose -f $FILE up -d"
-            docker compose -f "$FILE" up -d
-          else
-            if [ -f package.json ] && jq -e '.scripts["start:ci"]' package.json > /dev/null; then
-              echo "[SUT] npm run start:ci (background)";
-              nohup npm run start:ci > out/sut.log 2>&1 &
-            elif [ -f package.json ] && jq -e '.scripts["start"]' package.json > /dev/null; then
-              echo "[SUT] npm start (background)";
-              nohup npm start > out/sut.log 2>&1 &
-            else
-              echo "[SUT] No compose file or npm start script found; proceeding without local SUT";
-            fi
-          fi
-
-      - name: Wait for SUT to be ready
-        shell: bash
-        env:
-          TARGET_URL: ${{ env.TARGET_URL || 'http://127.0.0.1:8080/health' }}
-        run: |
-          set -euo pipefail
-          URL="$TARGET_URL"
-          echo "[SUT] waiting for $URL ..."
-          for i in $(seq 1 60); do
-            if curl -fsS "$URL" >/dev/null; then
-              echo "[SUT] ready"; exit 0; fi
-            sleep 2
-          done
-          echo "[SUT] not ready after timeout"; exit 1
-
-      - name: Start SUT (Compose or npm fallback)
-        if: ${{ !env.SKIP_SUT }}
+      - name: Start SUT (compose or npm fallback)
         shell: bash
         run: |
           set -euo pipefail
@@ -364,7 +323,6 @@ jobs:
           fi
 
       - name: Wait for SUT to be ready
-        if: ${{ !env.SKIP_SUT }}
         shell: bash
         run: |
           set -euo pipefail
