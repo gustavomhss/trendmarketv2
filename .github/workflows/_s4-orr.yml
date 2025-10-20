@@ -209,9 +209,11 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s
+" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s
+" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -294,6 +296,8 @@ jobs:
           bash scripts/microbench_dec.sh
 
       - name: ORR run
+        env:
+          K6_BIN: k6
         shell: bash
         run: |
           set -euo pipefail
