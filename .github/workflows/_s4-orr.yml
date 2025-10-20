@@ -29,7 +29,7 @@ on:
         required: false
 
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: "s4-orr-${{ inputs.ref || github.sha }}"
   cancel-in-progress: true
 
 permissions:
@@ -64,9 +64,8 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq curl ca-certificates gnupg
 
-      # NEW: Semgrep CLI (pip) para garantir presença no runner
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -76,7 +75,6 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           semgrep --version
 
-      # NEW: Instala k6 nativo para satisfazer K6_BIN=k6
       - name: Install k6 (native)
         shell: bash
         run: |
@@ -87,7 +85,6 @@ jobs:
           sudo apt-get install -y k6
           k6 version
 
-      # -------- Python deps (dbt only) + auditoria --------
       - name: Install Python deps (dbt only)
         shell: bash
         run: |
@@ -110,7 +107,6 @@ jobs:
           name: pip-audit
           path: out/pip-audit
 
-      # -------- Ferramentas de segurança (binários) --------
       - name: Install security tools (Trivy & Gitleaks)
         shell: bash
         run: |
@@ -130,10 +126,9 @@ jobs:
           SEMGREP_IMG="semgrep/semgrep:1.80.0-nonroot@sha256:a80fcd5ce03772efeca8fc58f0eeb7ede05c228c8b12c1e078601a4f52de75a4"
           docker pull "$SEMGREP_IMG" >/dev/null
           docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --version
-          # opcional: varredura
+          # optional scan
           # docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMG" semgrep --config auto --error --timeout 120 .
 
-      # -------- Node (opcional) --------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -155,7 +150,6 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado (mantido) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -166,7 +160,6 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           echo "image=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      # -------- dbt build → dbt docs (somente se houver projeto dbt) --------
       - name: Locate dbt project
         id: dbt
         shell: bash
@@ -246,7 +239,6 @@ jobs:
             ${{ steps.dbt.outputs.dir }}/target/manifest.json
             ${{ steps.dbt.outputs.dir }}/target/index.html
 
-      # -------- Microbench gate (opcional) --------
       - name: Microbench (gate)
         if: ${{ inputs.run_microbench }}
         shell: bash
@@ -254,7 +246,6 @@ jobs:
           set -euo pipefail
           bash scripts/microbench_dec.sh
 
-      # -------- TLA check (opcional) --------
       - name: Locate TLA models
         id: tla
         if: ${{ inputs.run_tla }}
@@ -267,11 +258,9 @@ jobs:
           fi
           if [ -n "$TLA_GLOB" ]; then
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            SEL=$(printf "%s
-" "$TLA_GLOB" | head -n1)
+            SEL=$(printf "%s\n" "$TLA_GLOB" | head -n1)
             echo "tla_file=$SEL" >> "$GITHUB_OUTPUT"
-            echo "[tla] found models:"; printf "  - %s
-" $TLA_GLOB
+            echo "[tla] found models:"; printf "  - %s\n" $TLA_GLOB
             echo "[tla] selected: $SEL"
           else
             echo "have_tla=false" >> "$GITHUB_OUTPUT"
@@ -288,14 +277,13 @@ jobs:
           set -euo pipefail
           command -v docker >/dev/null || { echo "docker ausente no runner"; exit 1; }
           if ! docker pull "$APAL_IMG_PRIMARY" >/dev/null 2>&1; then
-            echo "[apalache] tag v0.50.3 indisponível; usando :main"
+            echo "[apalache] tag v0.50.3 indisponivel; usando :main"
             docker pull "$APAL_IMG_FALLBACK" >/dev/null
             APAL_IMG="$APAL_IMG_FALLBACK"
           else
             APAL_IMG="$APAL_IMG_PRIMARY"
           fi
           echo "APAL_IMG=$APAL_IMG" >> "$GITHUB_ENV"
-          # smoke neutro: não aciona o entrypoint padrão
           set +e
           docker run --rm --entrypoint /bin/sh "$APAL_IMG" -c 'echo apalache image ok'
           RC=$?
@@ -319,18 +307,14 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
-          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
-          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
-          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -345,7 +329,6 @@ jobs:
           name: tla-report
           path: out/s4_orr/tla_report.txt
 
-      # -------- ORR principal --------
       - name: ORR run
         env:
           K6_IMAGE: ${{ steps.k6.outputs.image }}
@@ -353,7 +336,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Mantemos variável K6 (docker) para compatibilidade, mas o script usará K6_BIN=k6
           export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
           bash scripts/orr_s4_run.sh
 
