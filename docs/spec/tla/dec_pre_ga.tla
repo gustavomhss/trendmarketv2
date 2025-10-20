@@ -1,12 +1,15 @@
 ---- MODULE dec_pre_ga ----
 EXTENDS Naturals, TLC
 
-\* Snowcat: uma anotação por variável (ASCII puro).
-\* @type: dec_p95: Int;
-\* @type: breach: Bool;
-\* @type: rollback: Bool;
-\* @type: recovered: Bool;
-VARIABLES dec_p95, breach, rollback, recovered
+VARIABLES
+  \* @type: Int;
+  dec_p95,
+  \* @type: Bool;
+  breach,
+  \* @type: Bool;
+  rollback,
+  \* @type: Bool;
+  recovered
 
 vars == <<dec_p95, breach, rollback, recovered>>
 
