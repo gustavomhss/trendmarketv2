@@ -5,24 +5,24 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: 'Optional ref to run against'
+        description: "Optional ref to run against"
         required: false
         type: string
       run_microbench:
-        description: 'Enable microbench gate'
+        description: "Enable microbench gate"
         required: false
         type: boolean
         default: false
       run_tla:
-        description: 'Enable TLA verification'
+        description: "Enable TLA verification"
         required: false
         type: boolean
         default: false
       base_url:
-        description: 'URL do SUT (ex.: https://api.seudominio.com ou http://127.0.0.1:8080)'
+        description: "URL do SUT (ex.: https://api.seudominio.com ou http://127.0.0.1:8080)"
         required: false
         type: string
-        default: 'http://127.0.0.1:8080'
+        default: "http://127.0.0.1:8080"
     secrets:
       GCP_SA_JSON:
         required: false
@@ -62,16 +62,25 @@ jobs:
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install jq
+      - name: Install jq + curl + gpg
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
 
-      # Garante Semgrep disponível (corrige "Ferramenta obrigatória ausente: semgrep")
+      - name: Install k6 (native)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 version
+
       - name: Install Semgrep CLI (pip)
         shell: bash
         run: |
@@ -131,7 +140,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install npm deps
         shell: bash
@@ -149,7 +158,7 @@ jobs:
           set -euo pipefail
           chmod +x scripts/microbench_dec.sh scripts/orr_s4_bundle.sh scripts/orr_s4_run.sh || true
 
-      # -------- k6 por digest pinado (mantido p/ referência futura) --------
+      # -------- k6 digest (mantido para referência; não é obrigatório) --------
       - name: Resolve k6 digest
         id: k6
         shell: bash
@@ -310,18 +319,14 @@ jobs:
           SEL="${{ steps.tla.outputs.tla_file }}"
           SEL_DIR=$(dirname "$SEL")
           SEL_FILE=$(basename "$SEL")
-          # Copia o selecionado e dependências .tla do mesmo diretório (se houver)
           cp -f "$SEL_DIR"/*.tla out/s4_orr/apalache_work/ || true
-          # Garante que o usuário do container terá write no bind mount
           chmod -R 777 out/s4_orr/apalache_work
-          # 1ª tentativa (usuário padrão do container)
           set +e
           docker run --rm \
             -v "$PWD/out/s4_orr/apalache_work:/var/apalache" \
             "$APAL_IMG" check "$SEL_FILE" | tee out/s4_orr/tla_report.txt
           RC=$?
           set -e
-          # Fallback como root (UID/GID 0) se a 1ª falhar por permissão
           if [ $RC -ne 0 ]; then
             echo "[tla] retrying as root due to permissions..."
             docker run --rm -u 0:0 \
@@ -357,11 +362,10 @@ jobs:
             sleep 2
           done
 
-          case "${BASE_URL}" in
-            http://127.0.0.1:*|http://127.0.0.1|http://localhost:*|http://localhost)
-              echo "[SUT] No local SUT found; starting minimal fallback on :8080"
-              # Servidor mínimo respondendo /health e /decisions
-              python3 - <<'PY' &
+          if [[ "${BASE_URL}" == http://127.0.0.1* || "${BASE_URL}" == http://localhost* ]]; then
+            echo "[SUT] No local SUT found; starting minimal fallback on :8080"
+
+            cat > /tmp/_sut_server.py <<'PY'
 import json, http.server, socketserver
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -369,31 +373,30 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send_response(200); self.end_headers(); self.wfile.write(b"ok"); return
         if self.path.startswith("/decisions"):
             self.send_response(200); self.send_header("Content-Type","application/json")
-            self.end_headers(); self.wfile.write(json.dumps({"items":[]}).encode()); return
+            self.end_headers(); self.wfile.write(json.dumps({"items": []}).encode()); return
         self.send_response(404); self.end_headers()
     def log_message(self, *args, **kwargs): pass
 with socketserver.TCPServer(("0.0.0.0", 8080), H) as httpd:
     httpd.serve_forever()
 PY
-              echo $! > /tmp/sut.pid
 
-              for i in $(seq 1 30); do
-                if curl -fsS "${DECISIONS_URL}" >/dev/null; then
-                  echo "[SUT] Fallback ready at ${BASE_URL}"
-                  echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
-                  echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
-                  exit 0
-                fi
-                sleep 1
-              done
-              echo "[SUT] Fallback failed to become ready."
-              exit 1
-              ;;
-            *)
-              echo "[SUT] Remote SUT ${BASE_URL} is unreachable; refusing to start fallback to avoid masking issues."
-              exit 1
-              ;;
-          esac
+            nohup python3 /tmp/_sut_server.py > out/sut.log 2>&1 & echo $! > /tmp/sut.pid
+
+            for i in $(seq 1 30); do
+              if curl -fsS "${DECISIONS_URL}" >/dev/null; then
+                echo "[SUT] Fallback ready at ${BASE_URL}"
+                echo "BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                echo "DEC_BASE_URL=${BASE_URL}" >> "$GITHUB_ENV"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "[SUT] Fallback failed to become ready."
+            exit 1
+          else
+            echo "[SUT] Remote SUT ${BASE_URL} is unreachable; refusing fallback (no masking)."
+            exit 1
+          fi
 
       # -------- ORR principal --------
       - name: ORR run
