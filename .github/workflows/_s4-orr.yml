@@ -258,6 +258,11 @@ jobs:
           fi
           set -e
 
+      - name: TLA ASCII guard
+        if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
+        run: |
+          bash scripts/tla_ascii_guard.sh
+
       - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla.outputs.have_tla == 'true' }}
         shell: bash
