@@ -15,8 +15,7 @@ on:
         required: false
         default: false
 
-concurrency:
-  group: ${{ format('s4-orr-{0}', inputs.ref || github.sha) }}
+concurrency: 's4-orr-${{ inputs.ref || github.sha }}'
 
 permissions:
   contents: read
@@ -91,18 +90,12 @@ jobs:
               -H "User-Agent: trendmarketv2-orr" \
               "https://api.github.com/repos/aquasecurity/trivy/releases/tags/v${TRIVY_VERSION}" \
               -o "$api_tmp"; then
-              mapfile -t api_urls < <(jq -r '.assets[] | select(.name | test("(?i)linux.*(64|amd64).*\\.tar\\.gz$")) | .browser_download_url' "$api_tmp")
-              if [ "${#api_urls[@]}" -gt 0 ]; then
-                for api_url in "${api_urls[@]}"; do
-                  if [[ "$api_url" == *.tar.gz ]]; then
-                    echo "[setup] Asset tar.gz encontrado via API: $api_url"
-                    candidates+=("$api_url")
-                  else
-                    echo "[setup] Asset via API ignorado (nao eh tar.gz): $api_url"
-                  fi
-                done
+              api_url="$(jq -r '.assets[] | select((.name | test("(?i)linux.*(64|amd64)"))) | .browser_download_url' "$api_tmp" | head -n 1 || true)"
+              if [ -n "$api_url" ] && [ "$api_url" != "null" ]; then
+                echo "[setup] Asset encontrado via API: $api_url"
+                candidates+=("$api_url")
               else
-                echo "[setup] Nenhum asset Linux/amd64 tar.gz retornado pela API"
+                echo "[setup] Nenhum asset Linux/amd64 retornado pela API"
               fi
             else
               echo "[setup] Falha ao consultar API; prosseguindo com nomes conhecidos"
@@ -122,20 +115,6 @@ jobs:
             "trivy_${TRIVY_VERSION}_linux_x86_64.tar.gz"
           )
           candidates+=("${known_archives[@]}")
-          if [ "${#candidates[@]}" -eq 0 ]; then
-            echo "[setup] Lista de candidatos vazia apos verificacoes"
-            exit 1
-          fi
-          declare -A seen_urls=()
-          unique_candidates=()
-          for candidate in "${candidates[@]}"; do
-            if [ -n "$candidate" ] && [ -z "${seen_urls[$candidate]+x}" ]; then
-              unique_candidates+=("$candidate")
-              seen_urls[$candidate]=1
-            fi
-          done
-          candidates=("${unique_candidates[@]}")
-          rm -f trivy.tar.gz || true
           download_ok=0
           for archive in "${candidates[@]}"; do
             if [[ "$archive" == http* ]]; then
@@ -143,12 +122,7 @@ jobs:
             else
               trivy_url="${TRIVY_BASE_URL}/${archive}"
             fi
-            if [[ "$trivy_url" == *.tar.gz ]]; then
-              echo "[setup] Tentando baixar ${trivy_url}"
-            else
-              echo "[setup] Ignorando asset nao suportado: ${trivy_url}"
-              continue
-            fi
+            echo "[setup] Tentando baixar ${trivy_url}"
             if curl "${curl_args[@]}" "$trivy_url" -o trivy.tar.gz; then
               download_ok=1
               break
@@ -358,18 +332,18 @@ jobs:
           if [ -n "$COMPOSE_FILE" ]; then
             echo "[sut] Iniciando via Docker Compose (${COMPOSE_FILE})"
             docker compose -f "$COMPOSE_FILE" up -d --build
-            (docker compose -f "$COMPOSE_FILE" logs -f --no-color > "$LOG_FILE" 2>&1 &) 
+            (docker compose -f "$COMPOSE_FILE" logs -f --no-color > "$LOG_FILE" 2>&1 &)
             exit 0
           fi
           if [ -f package.json ]; then
             if command -v jq >/dev/null 2>&1; then
               if jq -e '.scripts["start:ci"]' package.json >/dev/null; then
                 echo "[sut] Iniciando npm run start:ci"
-                (npm run start:ci > "$LOG_FILE" 2>&1 &) 
+                (npm run start:ci > "$LOG_FILE" 2>&1 &)
                 exit 0
               elif jq -e '.scripts.start' package.json >/dev/null; then
                 echo "[sut] Iniciando npm start"
-                (npm start > "$LOG_FILE" 2>&1 &) 
+                (npm start > "$LOG_FILE" 2>&1 &)
                 exit 0
               fi
             fi
@@ -391,7 +365,7 @@ jobs:
             if [ "$ATTEMPTS" -ge 24 ]; then
               echo "[sut] Timeout aguardando health check"
               if [ -f "$PWD/out/sut.log" ]; then
-                echo "[sut] Ultimas linhas do log:" 
+                echo "[sut] Ultimas linhas do log:"
                 tail -n 100 "$PWD/out/sut.log"
               fi
               exit 1
