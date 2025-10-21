@@ -1,0 +1,28 @@
+name: "S4 ORR Exec"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref opcional para checkout"
+        required: false
+        type: string
+      run_microbench:
+        description: "Executar microbench DEC"
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: "Executar checagens TLA"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  call-orr:
+    name: "Chamar workflow reutilizavel"
+    uses: ./.github/workflows/_s4-orr.yml
+    with:
+      ref: ${{ inputs.ref }}
+      run_microbench: ${{ inputs.run_microbench }}
+      run_tla: ${{ inputs.run_tla }}
