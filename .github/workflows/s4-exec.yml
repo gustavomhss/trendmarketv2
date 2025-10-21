@@ -1,3 +1,4 @@
+# .github/workflows/s4-exec.yml
 name: "S4 ORR Exec"
 
 on:
@@ -20,9 +21,10 @@ on:
 
 jobs:
   call-orr:
-    name: "Chamar workflow reutilizavel"
+    name: "Chamar workflow reutilizável"
     uses: ./.github/workflows/_s4-orr.yml
     with:
       ref: ${{ inputs.ref }}
       run_microbench: ${{ inputs.run_microbench }}
       run_tla: ${{ inputs.run_tla }}
+    secrets: inherit
