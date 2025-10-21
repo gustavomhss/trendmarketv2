@@ -1,0 +1,416 @@
+name: "S4 ORR Reusable"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      run_microbench:
+        type: boolean
+        required: false
+        default: false
+      run_tla:
+        type: boolean
+        required: false
+        default: false
+
+concurrency: 's4-orr-${{ inputs.ref || github.sha }}'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  orr:
+    name: "Executar ORR"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar pacotes base e k6
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Instalando dependencias base via APT"
+          sudo apt-get update
+          sudo apt-get install -y jq curl ca-certificates gnupg
+          echo "[setup] Configurando repositario do k6"
+          curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          echo "[setup] Dependencias base concluidas"
+
+      - name: Instalar Semgrep
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Atualizando pip"
+          python -m pip install --upgrade pip
+          echo "[setup] Instalando semgrep<2 via pip"
+          python -m pip install "semgrep<2"
+          echo "[setup] Semgrep instalado"
+
+      - name: Validar ferramentas basicas
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Versoes das ferramentas"
+          k6 version
+          semgrep --version
+
+      - name: Instalar Trivy
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRIVY_VERSION="0.49.1"
+          TRIVY_BASE_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          echo "[setup] Instalando Trivy ${TRIVY_VERSION}"
+          curl_args=(
+            -fsSL
+            -H "Accept: application/octet-stream"
+            -H "User-Agent: trendmarketv2-orr"
+          )
+          candidates=()
+          if command -v jq >/dev/null 2>&1; then
+            echo "[setup] Consultando assets via API do GitHub"
+            api_tmp="$(mktemp)"
+            if curl -fsSL -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "User-Agent: trendmarketv2-orr" \
+              "https://api.github.com/repos/aquasecurity/trivy/releases/tags/v${TRIVY_VERSION}" \
+              -o "$api_tmp"; then
+              api_url="$(jq -r '.assets[] | select((.name | test("(?i)linux.*(64|amd64)"))) | .browser_download_url' "$api_tmp" | head -n 1 || true)"
+              if [ -n "$api_url" ] && [ "$api_url" != "null" ]; then
+                echo "[setup] Asset encontrado via API: $api_url"
+                candidates+=("$api_url")
+              else
+                echo "[setup] Nenhum asset Linux/amd64 retornado pela API"
+              fi
+            else
+              echo "[setup] Falha ao consultar API; prosseguindo com nomes conhecidos"
+            fi
+            rm -f "$api_tmp"
+          else
+            echo "[setup] jq nao encontrado; prosseguindo com nomes conhecidos"
+          fi
+          known_archives=(
+            "trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+            "trivy_${TRIVY_VERSION}_linux-64bit.tar.gz"
+            "trivy_${TRIVY_VERSION}_Linux-amd64.tar.gz"
+            "trivy_${TRIVY_VERSION}_linux-amd64.tar.gz"
+            "trivy_${TRIVY_VERSION}_Linux_x86_64.tar.gz"
+            "trivy_${TRIVY_VERSION}_linux_x86_64.tar.gz"
+          )
+          candidates+=("${known_archives[@]}")
+          download_ok=0
+          for archive in "${candidates[@]}"; do
+            if [[ "$archive" == http* ]]; then
+              trivy_url="$archive"
+            else
+              trivy_url="${TRIVY_BASE_URL}/${archive}"
+            fi
+            echo "[setup] Tentando baixar ${trivy_url}"
+            if curl "${curl_args[@]}" "$trivy_url" -o trivy.tar.gz; then
+              download_ok=1
+              break
+            else
+              echo "[setup] Falha ao baixar ${trivy_url}"
+              rm -f trivy.tar.gz || true
+            fi
+          done
+          if [ "$download_ok" -ne 1 ]; then
+            echo "[setup] Nao foi possivel baixar Trivy ${TRIVY_VERSION}"
+            exit 1
+          fi
+          tar -xzf trivy.tar.gz trivy
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+          rm -f trivy trivy.tar.gz
+          trivy --version
+
+      - name: Instalar Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.18.1"
+          GITLEAKS_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "[setup] Instalando Gitleaks ${GITLEAKS_VERSION}"
+          curl -fsSL "$GITLEAKS_URL" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks gitleaks.tar.gz
+          gitleaks version
+
+      - name: Configurar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias Node (se houver lockfile)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "[node] Encontrado package-lock.json; executando npm ci"
+            npm ci
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "[node] Encontrado npm-shrinkwrap.json; executando npm ci"
+            npm ci
+          else
+            echo "[node] Nenhum lockfile encontrado; pulando npm ci"
+          fi
+
+      - name: Preparar ambiente DBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[dbt] Criando ambiente virtual dedicado"
+          python -m venv .venv-dbt
+          source .venv-dbt/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
+          deactivate
+
+      - name: Auditoria do ambiente Python
+        id: pip_audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/pip-audit
+          python -m pip --version > out/pip-audit/pip_version.txt
+          python -m pip freeze > out/pip-audit/pip_freeze.txt
+          if [ -s out/pip-audit/pip_version.txt ] || [ -s out/pip-audit/pip_freeze.txt ]; then
+            echo "has_files=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_files=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ajustar permissoes dos scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in scripts/orr_s4_run.sh scripts/orr_s4_bundle.sh scripts/microbench_dec.sh; do
+            if [ -f "$script" ]; then
+              chmod +x "$script"
+            else
+              echo "[scripts] Aviso: ${script} nao encontrado"
+            fi
+          done
+
+      - name: Executar DBT (condicional)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${GCP_SA_JSON:-}" ] || [ -z "${DBT_BQ_PROJECT:-}" ]; then
+            echo "[dbt] Segredos obrigatorios ausentes; pulando execucao"
+            exit 0
+          fi
+          mapfile -t DBT_PROJECTS < <(find "$PWD" -name dbt_project.yml -print)
+          if [ ${#DBT_PROJECTS[@]} -eq 0 ]; then
+            echo "[dbt] Nenhum dbt_project.yml encontrado; pulando"
+            exit 0
+          fi
+          source .venv-dbt/bin/activate
+          for project_file in "${DBT_PROJECTS[@]}"; do
+            project_dir="$(dirname "$project_file")"
+            echo "[dbt] Executando em ${project_dir}"
+            dbt --project-dir "$project_dir" --profiles-dir "$project_dir" deps
+            dbt --project-dir "$project_dir" --profiles-dir "$project_dir" build
+            dbt --project-dir "$project_dir" --profiles-dir "$project_dir" docs generate
+          done
+          deactivate
+
+      - name: Upload artefatos DBT
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-target
+          path: |
+            analytics/**/target
+          if-no-files-found: ignore
+
+      - name: Rodar guarda ASCII do TLA
+        if: ${{ inputs.run_tla }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d docs/spec/tla ]; then
+            echo "[tla] Nenhuma pasta docs/spec/tla; guard sera pulado"
+            exit 0
+          fi
+          if [ -x scripts/tla_ascii_guard.sh ]; then
+            echo "[tla] Executando guarda ASCII"
+            bash scripts/tla_ascii_guard.sh
+          else
+            echo "[tla] Guard ASCII ausente; prosseguindo sem bloqueio"
+          fi
+
+      - name: Executar Apalache (condicional)
+        if: ${{ inputs.run_tla }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t TLA_FILES < <(find "$PWD" -name '*.tla' -print)
+          if [ ${#TLA_FILES[@]} -eq 0 ]; then
+            echo "[tla] Nenhum arquivo .tla encontrado; pulando"
+            exit 0
+          fi
+          SEL_FILE="${TLA_FILES[0]}"
+          echo "[tla] Modelo selecionado: ${SEL_FILE}"
+          WORKDIR="$PWD/out/s4_orr/apalache_work"
+          mkdir -p "$WORKDIR"
+          cp "$SEL_FILE" "$WORKDIR/"
+          chmod 664 "$WORKDIR"/*.tla || true
+          APAL_IMG="ghcr.io/apalache-mc/apalache:v0.50.3"
+          if ! docker pull "$APAL_IMG"; then
+            echo "[tla] Falha ao puxar ${APAL_IMG}, tentando tag main"
+            APAL_IMG="ghcr.io/apalache-mc/apalache:main"
+            docker pull "$APAL_IMG"
+          fi
+          mkdir -p "$PWD/out/s4_orr"
+          REPORT="$PWD/out/s4_orr/tla_report.txt"
+          set +e
+          docker run --rm -v "$WORKDIR:/var/apalache" "$APAL_IMG" check "/var/apalache/$(basename "$SEL_FILE")" | tee "$REPORT"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "[tla] Reexecutando com usuario root"
+            set +e
+            docker run --rm -u 0:0 -v "$WORKDIR:/var/apalache" "$APAL_IMG" check "/var/apalache/$(basename "$SEL_FILE")" | tee "$REPORT"
+            STATUS=${PIPESTATUS[0]}
+            set -e
+          fi
+          exit "$STATUS"
+
+      - name: Upload relatorio TLA
+        if: ${{ inputs.run_tla }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tla-report
+          path: out/s4_orr/tla_report.txt
+          if-no-files-found: ignore
+
+      - name: Executar microbench DEC
+        if: ${{ inputs.run_microbench }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -x scripts/microbench_dec.sh ]; then
+            echo "[bench] Executando microbench"
+            bash scripts/microbench_dec.sh
+          else
+            echo "[bench] Script microbench_dec.sh ausente; pulando"
+          fi
+
+      - name: Iniciar SUT
+        shell: bash
+        run: |
+          set -euo pipefail
+          LOG_DIR="$PWD/out"
+          mkdir -p "$LOG_DIR"
+          LOG_FILE="$LOG_DIR/sut.log"
+          COMPOSE_FILE=""
+          for candidate in docker-compose.yml docker-compose.yaml compose.yaml; do
+            if [ -f "$candidate" ]; then
+              COMPOSE_FILE="$candidate"
+              break
+            fi
+          done
+          if [ -n "$COMPOSE_FILE" ]; then
+            echo "[sut] Iniciando via Docker Compose (${COMPOSE_FILE})"
+            docker compose -f "$COMPOSE_FILE" up -d --build
+            (docker compose -f "$COMPOSE_FILE" logs -f --no-color > "$LOG_FILE" 2>&1 &) 
+            exit 0
+          fi
+          if [ -f package.json ]; then
+            if command -v jq >/dev/null 2>&1; then
+              if jq -e '.scripts["start:ci"]' package.json >/dev/null; then
+                echo "[sut] Iniciando npm run start:ci"
+                (npm run start:ci > "$LOG_FILE" 2>&1 &) 
+                exit 0
+              elif jq -e '.scripts.start' package.json >/dev/null; then
+                echo "[sut] Iniciando npm start"
+                (npm start > "$LOG_FILE" 2>&1 &) 
+                exit 0
+              fi
+            fi
+          fi
+          echo "[sut] Nenhum mecanismo de start encontrado; prosseguindo sem SUT"
+
+      - name: Aguardar health check do SUT
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${TARGET_URL:-http://127.0.0.1:8080/health}"
+          echo "[sut] Verificando health check em ${URL}"
+          if [ ! -f "$PWD/out/sut.log" ]; then
+            echo "[sut] Log de SUT nao encontrado; aguardando mesmo assim"
+          fi
+          ATTEMPTS=0
+          until curl -fsS "$URL" >/dev/null 2>&1; do
+            ATTEMPTS=$((ATTEMPTS + 1))
+            if [ "$ATTEMPTS" -ge 24 ]; then
+              echo "[sut] Timeout aguardando health check"
+              if [ -f "$PWD/out/sut.log" ]; then
+                echo "[sut] Ultimas linhas do log:" 
+                tail -n 100 "$PWD/out/sut.log"
+              fi
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "[sut] Health check OK"
+
+      - name: Executar ORR da S4
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -x scripts/orr_s4_run.sh ]; then
+            echo "[orr] Script scripts/orr_s4_run.sh nao encontrado"
+            exit 1
+          fi
+          if ! command -v k6 >/dev/null 2>&1; then
+            echo "[orr] k6 nao encontrado no PATH"
+            exit 1
+          fi
+          export K6_BIN=k6
+          export BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
+          export DEC_BASE_URL="${DEC_BASE_URL:-$BASE_URL}"
+          echo "[orr] Iniciando execucao do ORR"
+          bash scripts/orr_s4_run.sh
+
+      - name: Empacotar evidencias
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -x scripts/orr_s4_bundle.sh ]; then
+            echo "[bundle] Script scripts/orr_s4_bundle.sh nao encontrado"
+            exit 1
+          fi
+          echo "[bundle] Gerando pacote de evidencias"
+          bash scripts/orr_s4_bundle.sh
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4-bundle
+          path: out/s4_evidence_bundle_*.zip
+          if-no-files-found: ignore
+
+      - name: Upload auditoria pip
+        if: ${{ steps.pip_audit.outputs.has_files == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit
+          path: out/pip-audit
+          if-no-files-found: ignore
