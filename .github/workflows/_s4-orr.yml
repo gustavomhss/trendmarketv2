@@ -14,19 +14,8 @@ on:
         type: boolean
         required: false
         default: false
-    secrets:
-      GCP_SA_JSON:
-        required: false
-      DBT_BQ_PROJECT:
-        required: false
-      DBT_BQ_DATASET:
-        required: false
-      DBT_BQ_LOCATION:
-        required: false
 
-concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
-  cancel-in-progress: true
+concurrency: 's4-orr-${{ inputs.ref || github.sha }}'
 
 permissions:
   contents: read
@@ -53,12 +42,12 @@ jobs:
         run: |
           set -euo pipefail
           echo "[setup] Instalando dependencias base via APT"
-          sudo apt-get update -y
+          sudo apt-get update
           sudo apt-get install -y jq curl ca-certificates gnupg
           echo "[setup] Configurando repositario do k6"
           curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list >/dev/null
-          sudo apt-get update -y
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
           sudo apt-get install -y k6
           echo "[setup] Dependencias base concluidas"
 
@@ -66,25 +55,73 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "[setup] Atualizando pip e instalando semgrep<2 via pip"
+          echo "[setup] Atualizando pip"
           python -m pip install --upgrade pip
+          echo "[setup] Instalando semgrep<2 via pip"
           python -m pip install "semgrep<2"
-          # Garante que o binário do pip user esteja no PATH
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "[setup] Semgrep instalado"
 
-      - name: Instalar Trivy (via APT oficial)
+      - name: Validar ferramentas basicas
         shell: bash
         run: |
           set -euo pipefail
-          echo "[setup] Instalando Trivy via repositório oficial"
-          sudo apt-get update -y
-          sudo apt-get install -y curl gnupg ca-certificates
-          curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | \
-            sudo gpg --dearmor -o /usr/share/keyrings/trivy-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy-archive-keyring.gpg] https://aquasecurity.github.io/trivy-repo/deb stable main" | \
-            sudo tee /etc/apt/sources.list.d/trivy.list >/dev/null
-          sudo apt-get update -y
-          sudo apt-get install -y trivy
+          echo "[setup] Versoes das ferramentas"
+          k6 version
+          semgrep --version
+
+      # ===================== FIX TRIVY: instalacao robusta =====================
+      - name: Instalar Trivy (robusto: APT -> .deb -> tar.gz)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TRIVY_VERSION="${TRIVY_VERSION:-0.53.0}"
+          echo "[setup] Tentando instalar Trivy via APT (repo oficial)"
+          # Tenta adicionar repo oficial; ignora erro e tenta fallbacks
+          {
+            echo "deb [trusted=yes] https://aquasecurity.github.io/trivy-repo/deb/ stable main" | sudo tee /etc/apt/sources.list.d/trivy.list >/dev/null
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends trivy
+          } || echo "[setup] Repo APT do Trivy indisponivel; tentando via GitHub release"
+
+          if command -v trivy >/dev/null 2>&1; then
+            trivy --version
+            exit 0
+          fi
+
+          echo "[setup] Baixando release v${TRIVY_VERSION} do GitHub (.deb preferencial)"
+          DEB_URL=""
+          TGZ_URL=""
+          if command -v jq >/dev/null 2>&1; then
+            API="https://api.github.com/repos/aquasecurity/trivy/releases/tags/v${TRIVY_VERSION}"
+            JSON=$(curl -fsSL -H "Accept: application/vnd.github+json" "$API") || JSON='{}'
+            DEB_URL=$(echo "$JSON" | jq -r '.assets[] | select(.name|test("(?i)(linux|Linux).*(64|amd64).*\\.deb$")) | .browser_download_url' | head -n1 || true)
+            TGZ_URL=$(echo "$JSON" | jq -r '.assets[] | select(.name|test("(?i)(linux|Linux).*(64|amd64).*\\.tar\\.gz$")) | .browser_download_url' | head -n1 || true)
+          fi
+          # Fallback de URLs conhecidas, caso a API falhe
+          DEB_URL=${DEB_URL:-"https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"}
+          TGZ_URL=${TGZ_URL:-"https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"}
+
+          echo "[setup] Tentando instalar pacote .deb: $DEB_URL"
+          if curl -fsSL "$DEB_URL" -o trivy.deb; then
+            if sudo apt-get install -y ./trivy.deb; then
+              rm -f trivy.deb
+              trivy --version
+              exit 0
+            else
+              echo "[setup] Falha ao instalar .deb; tentando tar.gz"
+              rm -f trivy.deb || true
+            fi
+          else
+            echo "[setup] Falha no download do .deb; tentando tar.gz"
+          fi
+
+          echo "[setup] Tentando instalar a partir do tar.gz: $TGZ_URL"
+          curl -fsSL "$TGZ_URL" -o trivy.tar.gz
+          tar -xzf trivy.tar.gz trivy
+          sudo install -m 0755 trivy /usr/local/bin/trivy
+          rm -f trivy trivy.tar.gz
+          trivy --version
+
+      # ========================================================================
 
       - name: Instalar Gitleaks
         shell: bash
@@ -97,15 +134,6 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           rm -f gitleaks gitleaks.tar.gz
-
-      - name: Validar ferramentas basicas
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "[setup] Versoes das ferramentas"
-          k6 version
-          semgrep --version
-          trivy version
           gitleaks version
 
       - name: Configurar Node 20
@@ -166,11 +194,6 @@ jobs:
 
       - name: Executar DBT (condicional)
         if: always()
-        env:
-          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
-          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
-          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
-          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
         shell: bash
         run: |
           set -euo pipefail
@@ -232,24 +255,27 @@ jobs:
           echo "[tla] Modelo selecionado: ${SEL_FILE}"
           WORKDIR="$PWD/out/s4_orr/apalache_work"
           mkdir -p "$WORKDIR"
-          # Copia todos os .tla do diretório do modelo para evitar imports faltando
-          cp "$(dirname "$SEL_FILE")"/*.tla "$WORKDIR/" || true
-          chmod -R 777 "$WORKDIR"
-
+          cp "$SEL_FILE" "$WORKDIR/"
+          chmod 664 "$WORKDIR"/*.tla || true
           APAL_IMG="ghcr.io/apalache-mc/apalache:v0.50.3"
-          if ! docker pull "$APAL_IMG" >/dev/null 2>&1; then
+          if ! docker pull "$APAL_IMG"; then
             echo "[tla] Falha ao puxar ${APAL_IMG}, tentando tag main"
             APAL_IMG="ghcr.io/apalache-mc/apalache:main"
-            docker pull "$APAL_IMG" >/dev/null
+            docker pull "$APAL_IMG"
           fi
-
           mkdir -p "$PWD/out/s4_orr"
           REPORT="$PWD/out/s4_orr/tla_report.txt"
           set +e
-          # Executa como root para evitar 'Permission denied' e problemas de write em /var/apalache
-          docker run --rm -u 0:0 -v "$WORKDIR:/var/apalache" "$APAL_IMG" check "$(basename "$SEL_FILE")" | tee "$REPORT"
+          docker run --rm -v "$WORKDIR:/var/apalache" "$APAL_IMG" check "/var/apalache/$(basename "$SEL_FILE")" | tee "$REPORT"
           STATUS=${PIPESTATUS[0]}
           set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "[tla] Reexecutando com usuario root"
+            set +e
+            docker run --rm -u 0:0 -v "$WORKDIR:/var/apalache" "$APAL_IMG" check "/var/apalache/$(basename "$SEL_FILE")" | tee "$REPORT"
+            STATUS=${PIPESTATUS[0]}
+            set -e
+          fi
           exit "$STATUS"
 
       - name: Upload relatorio TLA
@@ -361,7 +387,6 @@ jobs:
           bash scripts/orr_s4_bundle.sh
 
       - name: Upload bundle
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: s4-bundle
