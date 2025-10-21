@@ -97,6 +97,11 @@ jobs:
             else
               echo "[setup] Falha ao consultar API; prosseguindo com nomes conhecidos"
             fi
+            rm -f "$api_tmp"
+          else
+            echo "[setup] jq nao encontrado; prosseguindo com nomes conhecidos"
+          fi
+          known_archives=(
             rm -f "$API_TMP"
           else
             echo "[setup] jq nao encontrado; prosseguindo com nomes conhecidos"
@@ -117,6 +122,27 @@ jobs:
             "trivy_${TRIVY_VERSION}_Linux_x86_64.tar.gz"
             "trivy_${TRIVY_VERSION}_linux_x86_64.tar.gz"
           )
+          candidates+=("${known_archives[@]}")
+          download_ok=0
+          for archive in "${candidates[@]}"; do
+            if [[ "$archive" == http* ]]; then
+              trivy_url="$archive"
+            else
+              trivy_url="${TRIVY_BASE_URL}/${archive}"
+            fi
+            echo "[setup] Tentando baixar ${trivy_url}"
+            if curl "${curl_args[@]}" "$trivy_url" -o trivy.tar.gz; then
+              download_ok=1
+              break
+            else
+              echo "[setup] Falha ao baixar ${trivy_url}"
+              rm -f trivy.tar.gz || true
+            fi
+          done
+          if [ "$download_ok" -ne 1 ]; then
+            echo "[setup] Nao foi possivel baixar Trivy ${TRIVY_VERSION}"
+            exit 1
+          fi
           CANDIDATES+=("${KNOWN_ARCHIVES[@]}")
           DOWNLOAD_OK=0
           for archive in "${CANDIDATES[@]}"; do
