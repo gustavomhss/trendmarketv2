@@ -64,14 +64,12 @@ jobs:
           set -euo pipefail
           mkdir -p out
           mapfile -t DBT_PROJECTS < <(git ls-files -z '**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u)
-          printf '%s
-' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
+          printf '%s\n' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
           if ((${#DBT_PROJECTS[@]:-0} > 0)); then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
             echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
             echo "[dbt] Projetos encontrados:"
-            printf '  - %s
-' "${DBT_PROJECTS[@]}"
+            printf '  - %s\n' "${DBT_PROJECTS[@]}"
           else
             echo "have_dbt=false" >> "$GITHUB_OUTPUT"
             echo "[dbt] Nenhum dbt_project.yml encontrado; DBT será ignorado"
