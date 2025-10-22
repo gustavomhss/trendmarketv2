@@ -15,6 +15,10 @@ on:
         type: boolean
         required: false
         default: false
+      run_sut:
+        type: boolean
+        required: false
+        default: true
 
 concurrency:
   group: s4-orr-${{ inputs.ref || github.sha }}
@@ -28,8 +32,100 @@ jobs:
   orr:
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
+
       - name: Echo inputs
         run: |
           echo "ref=${{ inputs.ref }}"
           echo "run_microbench=${{ inputs.run_microbench }}"
           echo "run_tla=${{ inputs.run_tla }}"
+          echo "run_sut=${{ inputs.run_sut }}"
+
+      - name: Iniciar SUT (Compose/npm)
+        if: ${{ inputs.run_sut }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[sut] preparing start"
+          mkdir -p out
+          LOG_FILE="out/sut.log"
+          : > "$LOG_FILE"
+          echo "[sut] log file: $LOG_FILE"
+
+          if [ "${EXTERNAL_SUT:-0}" = "1" ]; then
+            echo "[sut] EXTERNAL_SUT=1 -> não iniciaremos processos locais"
+            exit 0
+          fi
+
+          # Detecta compose file
+          FILE=""
+          for f in docker-compose.yml docker-compose.yaml compose.yaml; do
+            if [ -f "$f" ]; then FILE="$f"; break; fi
+          done
+
+          if [ -n "$FILE" ] && command -v docker >/dev/null 2>&1; then
+            echo "[sut] docker compose -f $FILE up -d --build"
+            docker compose -f "$FILE" up -d --build
+            ( docker compose -f "$FILE" logs -f --no-color > "$LOG_FILE" 2>&1 & )
+            exit 0
+          fi
+
+          # Fallback npm
+          if [ -f package.json ]; then
+            if ! command -v npm >/dev/null 2>&1; then
+              echo "[sut] npm não encontrado; não iniciaremos localmente"
+              exit 0
+            fi
+
+            has_script() {
+              local script="$1"
+              if command -v jq >/dev/null 2>&1; then
+                jq -e --arg name "$script" '.scripts[$name]' package.json >/dev/null 2>&1
+              elif command -v node >/dev/null 2>&1; then
+                node -e 'const script = process.argv[1]; try { const pkg = require('./package.json'); if (pkg && pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, script)) process.exit(0); } catch (err) {} process.exit(1);' "$script"
+              else
+                return 1
+              fi
+            }
+
+            if has_script "start:ci"; then
+              echo "[sut] npm run start:ci (background)"
+              nohup npm run start:ci > "$LOG_FILE" 2>&1 &
+              exit 0
+            elif has_script "start"; then
+              echo "[sut] npm start (background)"
+              nohup npm start > "$LOG_FILE" 2>&1 &
+              exit 0
+            else
+              echo "[sut] package.json sem scripts start/start:ci; não iniciaremos localmente"
+              exit 0
+            fi
+          fi
+
+          echo "[sut] Nenhum compose/npm start detectado; presumindo SUT externo via TARGET_URL"
+
+      - name: Health check do SUT
+        if: ${{ inputs.run_sut }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${TARGET_URL:-http://127.0.0.1:8080/health}"
+          echo "[health] URL: $URL"
+
+          ATTEMPTS=0
+          MAX=60
+          while true; do
+            if curl -fsS "$URL" >/dev/null 2>&1; then
+              echo "[health] OK"
+              exit 0
+            fi
+            ATTEMPTS=$((ATTEMPTS+1))
+            if [ "$ATTEMPTS" -ge "$MAX" ]; then
+              echo "[health] timeout após $MAX tentativas" >&2
+              if [ -f out/sut.log ]; then
+                echo "::group::SUT logs (tail)"; tail -n 200 out/sut.log || true; echo "::endgroup::"
+              fi
+              exit 1
+            fi
+            sleep 2
+          done
