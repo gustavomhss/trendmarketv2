@@ -73,6 +73,65 @@ jobs:
           echo "[setup] trivy: $( (command -v trivy >/dev/null && trivy --version | head -n1) || echo 'não instalado')"
           echo "[setup] gitleaks: $( (command -v gitleaks >/dev/null && gitleaks version | head -n1) || echo 'não instalado')"
 
+      - name: Localizar modelos TLA
+        id: tla_scan
+        if: ${{ (github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false')) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          mapfile -t TLA_MODELS < <(git ls-files -z -- ':(glob)**/*.tla' | xargs -0 -r -n1 | sort -u)
+          if [ "${#TLA_MODELS[@]}" -gt 0 ]; then
+            printf '%s\n' "${TLA_MODELS[@]}" > out/tla_models.txt
+            echo "have_tla=true" >> "$GITHUB_OUTPUT"
+            echo "[tla] Modelos encontrados:";
+            printf '  - %s\n' "${TLA_MODELS[@]}"
+          else
+            : > out/tla_models.txt
+            echo "have_tla=false" >> "$GITHUB_OUTPUT"
+            echo "[tla] Nenhum arquivo .tla encontrado; pulando checagens."
+          fi
+
+      - name: Guard ASCII para arquivos TLA
+        if: ${{ ((github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false'))) && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/tla_ascii_guard.sh
+          {
+            echo "[tla] ASCII guard concluído às $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "[tla] Arquivos verificados:"
+            cat out/tla_models.txt
+          } > out/tla_ascii_report.txt
+
+      - name: Apalache (pull + smoke)
+        if: ${{ ((github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false'))) && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          REPORT="out/tla_apalache_smoke.txt"
+          : > "$REPORT"
+          docker pull ghcr.io/informal-systems/apalache:latest
+          while IFS= read -r tla_file; do
+            [ -z "$tla_file" ] && continue
+            echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
+            docker run --rm \
+              -v "$PWD":/workspace \
+              ghcr.io/informal-systems/apalache:latest \
+              check --init=Init --next=Next --inv=Safety "/workspace/${tla_file}" | tee -a "$REPORT"
+          done < out/tla_models.txt
+
+      - name: Upload ASCII report do TLA
+        uses: actions/upload-artifact@v4
+        if: ${{ always() && ((github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false'))) && steps.tla_scan.outputs.have_tla == 'true' }}
+        with:
+          name: tla-ascii-report
+          path: |
+            out/tla_ascii_report.txt
+            out/tla_apalache_smoke.txt
+          if-no-files-found: warn
+
       - name: Localizar projetos DBT
         id: dbt_scan
         shell: bash
