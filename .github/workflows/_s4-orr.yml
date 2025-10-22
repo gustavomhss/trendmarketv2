@@ -41,6 +41,128 @@ jobs:
           echo "run_tla=${{ inputs.run_tla }}"
           echo "run_sut=${{ inputs.run_sut }}"
 
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Instalar pacotes base
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Instalando dependencias base via APT"
+          sudo apt-get update
+          sudo apt-get install -y jq curl ca-certificates gnupg
+
+      - name: Instalar k6 (APT) ou definir fallback Docker
+        id: k6
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Instalando k6 via APT"
+          if ! command -v k6 >/dev/null 2>&1; then
+            curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+            sudo apt-get update || true
+            if sudo apt-get install -y k6; then
+              echo "[setup] k6 instalado via APT"
+            else
+              echo "[setup] Falha no APT; configurando fallback Docker"
+            fi
+          fi
+
+          if command -v k6 >/dev/null 2>&1; then
+            echo "bin=k6" >> "$GITHUB_OUTPUT"
+            echo "K6_BIN=k6" >> "$GITHUB_ENV"
+            k6 version || true
+          else
+            echo "[setup] Usando fallback Docker com digest fixo"
+            IMAGE=grafana/k6:0.52.0
+            docker pull "$IMAGE" >/dev/null
+            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+            echo "bin=docker run --rm -i -v $PWD:/work -w /work $DIGEST" >> "$GITHUB_OUTPUT"
+            echo "K6_BIN=docker run --rm -i -v $PWD:/work -w /work $DIGEST" >> "$GITHUB_ENV"
+            docker run --rm "$DIGEST" version || true
+          fi
+
+      - name: Instalar Semgrep (pip < 2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] Instalando semgrep<2 via pip"
+          python -m pip install --upgrade pip
+          python -m pip install "semgrep<2"
+          # garantir $HOME/.local/bin no PATH
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          semgrep --version || { echo "[setup] semgrep não encontrado no PATH"; exit 1; }
+
+      - name: Instalar Trivy (APT oficial -> fallback tarball)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v trivy >/dev/null 2>&1; then
+            echo "[setup] Trivy já presente: $(trivy --version | head -n1)"; exit 0; fi
+
+          echo "[setup] Tentando instalação via repositório APT oficial"
+          # Algumas execuções retornaram 404 do repositório; por isso há fallback
+          if curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg && \
+             echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb stable main" | sudo tee /etc/apt/sources.list.d/trivy.list >/dev/null && \
+             sudo apt-get update && sudo apt-get install -y trivy; then
+            echo "[setup] Trivy instalado via APT"
+          else
+            echo "[setup] Repositório APT indisponível; usando fallback tarball"
+            VER="0.53.0"
+            BASE="https://github.com/aquasecurity/trivy/releases/download/v${VER}"
+            CAND=(
+              "trivy_${VER}_Linux-64bit.tar.gz"
+              "trivy_${VER}_linux-64bit.tar.gz"
+              "trivy_${VER}_Linux-amd64.tar.gz"
+              "trivy_${VER}_linux-amd64.tar.gz"
+              "trivy_${VER}_Linux_x86_64.tar.gz"
+              "trivy_${VER}_linux_x86_64.tar.gz"
+            )
+            ok=0
+            for f in "${CAND[@]}"; do
+              url="${BASE}/${f}"
+              echo "[setup] Baixando ${url}"
+              if curl -fsSL "$url" -o trivy.tgz; then
+                if tar -xzf trivy.tgz trivy 2>/dev/null; then
+                  sudo install -m 0755 trivy /usr/local/bin/trivy
+                  rm -f trivy trivy.tgz
+                  ok=1; break
+                fi
+              fi
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "[setup] Falha no fallback tarball do Trivy"; exit 1
+            fi
+          fi
+          trivy --version || { echo "[setup] Trivy não responde"; exit 1; }
+
+      - name: Instalar Gitleaks (tarball)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v gitleaks >/dev/null 2>&1; then
+            echo "[setup] Gitleaks já presente: $(gitleaks version | head -n1)"; exit 0; fi
+          VER="8.18.1"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "[setup] Baixando Gitleaks ${VER}"
+          curl -fsSL "$URL" -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks gitleaks.tgz
+          gitleaks version || { echo "[setup] gitleaks não responde"; exit 1; }
+
+      - name: Mostrar versões das ferramentas
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] k6: $( (command -v k6 >/dev/null && k6 version) || echo 'usando Docker via K6_BIN')"
+          echo "[setup] semgrep: $(semgrep --version)"
+          echo "[setup] trivy: $(trivy --version | head -n1)"
+          echo "[setup] gitleaks: $(gitleaks version | head -n1)"
+
       - name: Iniciar SUT (Compose/npm)
         if: ${{ inputs.run_sut }}
         shell: bash
