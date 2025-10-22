@@ -64,12 +64,14 @@ jobs:
           set -euo pipefail
           mkdir -p out
           mapfile -t DBT_PROJECTS < <(git ls-files -z '**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u)
-          printf '%s\n' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
+          printf '%s
+' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
           if ((${#DBT_PROJECTS[@]:-0} > 0)); then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
             echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
             echo "[dbt] Projetos encontrados:"
-            printf '  - %s\n' "${DBT_PROJECTS[@]}"
+            printf '  - %s
+' "${DBT_PROJECTS[@]}"
           else
             echo "have_dbt=false" >> "$GITHUB_OUTPUT"
             echo "[dbt] Nenhum dbt_project.yml encontrado; DBT será ignorado"
@@ -148,7 +150,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Iniciar SUT (Compose/npm)
-        if: ${{ inputs.run_sut }}
+        if: ${{ (github.event_name == 'workflow_call' && inputs.run_sut) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_sut || 'false')) }}
         shell: bash
         run: |
           set -euo pipefail
