@@ -65,7 +65,7 @@ jobs:
           mkdir -p out
           # Procura controlada (git ls-files evita varrer cache/node_modules não versionados)
           DBT_PROJECTS=()
-          mapfile -t DBT_PROJECTS < <( git ls-files -z ':(glob)**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
+          mapfile -t DBT_PROJECTS < <( git ls-files -z -- ':(glob)**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
           printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
           if [ "${#DBT_PROJECTS[@]}" -gt 0 ]; then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
