@@ -163,6 +163,106 @@ jobs:
           echo "[setup] trivy: $(trivy --version | head -n1)"
           echo "[setup] gitleaks: $(gitleaks version | head -n1)"
 
+      - name: Localizar projetos DBT
+        id: dbt_scan_step
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # Procura controlada (git ls-files evita varrer cache/node_modules não versionados)
+          DBT_PROJECTS=()
+          while IFS= read -r project_file; do
+            [ -z "$project_file" ] && continue
+            DBT_PROJECTS+=("$(dirname "$project_file")")
+          done < <(git ls-files '**/dbt_project.yml')
+
+          if ((${#DBT_PROJECTS[@]} > 0)); then
+            mapfile -t DBT_PROJECTS < <(printf '%s\n' "${DBT_PROJECTS[@]}" | sort -u)
+            echo "have_dbt=true" >> "$GITHUB_OUTPUT"
+            echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Projetos encontrados:"; printf '  - %s\n' "${DBT_PROJECTS[@]}"
+          else
+            echo "have_dbt=false" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Nenhum dbt_project.yml encontrado; DBT será ignorado"
+          fi
+
+          printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
+
+      - name: Preparar ambiente DBT (venv isolada)
+        if: ${{ steps.dbt_scan_step.outputs.have_dbt == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv .venv-dbt
+          . .venv-dbt/bin/activate
+          python -m pip install --upgrade pip
+          # Versões fixas (compatíveis entre si); NÃO misturar com env global
+          python -m pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
+          deactivate
+
+      - name: Validar segredos GCP/BigQuery para DBT
+        if: ${{ steps.dbt_scan_step.outputs.have_dbt == 'true' }}
+        id: dbt_secrets_check
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
+            echo "has_bq=true" >> "$GITHUB_OUTPUT"
+            # Normaliza credencial em arquivo temporário e exporta GAC
+            cred_file="$RUNNER_TEMP/gcp-sa.json"
+            if printf '%s' "$GCP_SA_JSON" | grep -q '^{'; then
+              printf '%s' "$GCP_SA_JSON" > "$cred_file"
+            else
+              # tenta decodificar base64; se falhar, grava bruto
+              (printf '%s' "$GCP_SA_JSON" | base64 -d > "$cred_file") || printf '%s' "$GCP_SA_JSON" > "$cred_file"
+            fi
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$cred_file" >> "$GITHUB_ENV"
+            echo "[dbt] Segredos OK e credencial preparada"
+          else
+            echo "has_bq=false" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Segredos GCP/BigQuery ausentes; DBT será ignorado"
+          fi
+
+      - name: Executar DBT (deps, build, docs)
+        if: ${{ steps.dbt_scan_step.outputs.have_dbt == 'true' && steps.dbt_secrets_check.outputs.has_bq == 'true' }}
+        shell: bash
+        env:
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+        run: |
+          set -euo pipefail
+          . .venv-dbt/bin/activate
+          while IFS= read -r project_dir; do
+            [ -z "$project_dir" ] && continue
+            echo "[dbt] Executando em: $project_dir"
+            if [ -d "$project_dir/profiles" ]; then
+              profiles="--profiles-dir $project_dir/profiles"
+            else
+              profiles="--profiles-dir $project_dir"
+            fi
+            dbt deps $profiles --project-dir "$project_dir"
+            dbt build $profiles --project-dir "$project_dir"
+            dbt docs generate $profiles --project-dir "$project_dir"
+          done < out/dbt_projects.txt
+          deactivate
+
+      - name: Upload docs do DBT (se existirem)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dbt-docs
+          path: |
+            **/target/catalog.json
+            **/target/manifest.json
+            **/target/index.html
+          if-no-files-found: ignore
+
       - name: Iniciar SUT (Compose/npm)
         if: ${{ inputs.run_sut }}
         shell: bash
