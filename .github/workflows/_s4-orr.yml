@@ -170,9 +170,9 @@ jobs:
           set -euo pipefail
           mkdir -p out
           # Procura controlada (git ls-files evita varrer cache/node_modules não versionados)
-          mapfile -t DBT_PROJECTS < <( git ls-files -z '**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
-          printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
-          if ((${#DBT_PROJECTS[@]} > 0)); then
+          mapfile -t DBT_PROJECTS < <( git ls-files '**/dbt_project.yml' | xargs -n1 dirname | sort -u )
+          printf '%s\n' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
+          if [ ${#DBT_PROJECTS[@]:-0} -gt 0 ]; then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
             echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
             echo "[dbt] Projetos encontrados:"; printf '  - %s\n' "${DBT_PROJECTS[@]}"
