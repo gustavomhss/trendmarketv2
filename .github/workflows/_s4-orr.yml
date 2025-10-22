@@ -1,144 +1,3 @@
-# .github/workflows/_s4-orr.yml
-name: "S4 ORR Reusable"
-
-on:
-  workflow_call:
-    inputs:
-      ref:
-        type: string
-        required: false
-      run_microbench:
-        type: boolean
-        required: false
-        default: false
-      run_tla:
-        type: boolean
-        required: false
-        default: false
-      run_sut:
-        type: boolean
-        required: false
-        default: true
-
-concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  actions: write
-
-jobs:
-  orr:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Echo inputs
-        run: |
-          echo "ref=${{ inputs.ref }}"
-          echo "run_microbench=${{ inputs.run_microbench }}"
-          echo "run_tla=${{ inputs.run_tla }}"
-          echo "run_sut=${{ inputs.run_sut }}"
-
-      - name: Configurar Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Instalar pacotes base
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "[setup] Instalando dependencias base via APT"
-          sudo apt-get update
-          sudo apt-get install -y jq curl ca-certificates gnupg
-
-      - name: Instalar k6 (APT) ou definir fallback Docker
-        id: k6
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "[setup] Instalando k6 via APT"
-          if ! command -v k6 >/dev/null 2>&1; then
-            curl -fsSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
-            echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-            sudo apt-get update || true
-            if sudo apt-get install -y k6; then
-              echo "[setup] k6 instalado via APT"
-            else
-              echo "[setup] Falha no APT; configurando fallback Docker"
-            fi
-          fi
-
-          if command -v k6 >/dev/null 2>&1; then
-            echo "bin=k6" >> "$GITHUB_OUTPUT"
-            echo "K6_BIN=k6" >> "$GITHUB_ENV"
-            k6 version || true
-          else
-            echo "[setup] Usando fallback Docker com digest fixo"
-            IMAGE=grafana/k6:0.52.0
-            docker pull "$IMAGE" >/dev/null
-            DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-            echo "bin=docker run --rm -i -v $PWD:/work -w /work $DIGEST" >> "$GITHUB_OUTPUT"
-            echo "K6_BIN=docker run --rm -i -v $PWD:/work -w /work $DIGEST" >> "$GITHUB_ENV"
-            docker run --rm "$DIGEST" version || true
-          fi
-
-      - name: Instalar Semgrep (pip < 2)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "[setup] Instalando semgrep<2 via pip"
-          python -m pip install --upgrade pip
-          python -m pip install "semgrep<2"
-          # garantir $HOME/.local/bin no PATH
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          semgrep --version || { echo "[setup] semgrep não encontrado no PATH"; exit 1; }
-
-      - name: Instalar Trivy (APT oficial -> fallback tarball)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if command -v trivy >/dev/null 2>&1; then
-            echo "[setup] Trivy já presente: $(trivy --version | head -n1)"; exit 0; fi
-
-          echo "[setup] Tentando instalação via repositório APT oficial"
-          # Algumas execuções retornaram 404 do repositório; por isso há fallback
-          if curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg && \
-             echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb stable main" | sudo tee /etc/apt/sources.list.d/trivy.list >/dev/null && \
-             sudo apt-get update && sudo apt-get install -y trivy; then
-            echo "[setup] Trivy instalado via APT"
-          else
-            echo "[setup] Repositório APT indisponível; usando fallback tarball"
-            VER="0.53.0"
-            BASE="https://github.com/aquasecurity/trivy/releases/download/v${VER}"
-            CAND=(
-              "trivy_${VER}_Linux-64bit.tar.gz"
-              "trivy_${VER}_linux-64bit.tar.gz"
-              "trivy_${VER}_Linux-amd64.tar.gz"
-              "trivy_${VER}_linux-amd64.tar.gz"
-              "trivy_${VER}_Linux_x86_64.tar.gz"
-              "trivy_${VER}_linux_x86_64.tar.gz"
-            )
-            ok=0
-            for f in "${CAND[@]}"; do
-              url="${BASE}/${f}"
-              echo "[setup] Baixando ${url}"
-              if curl -fsSL "$url" -o trivy.tgz; then
-                if tar -xzf trivy.tgz trivy 2>/dev/null; then
-                  sudo install -m 0755 trivy /usr/local/bin/trivy
-                  rm -f trivy trivy.tgz
-                  ok=1; break
-                fi
-              fi
-            done
-            if [ "$ok" -ne 1 ]; then
-              echo "[setup] Falha no fallback tarball do Trivy"; exit 1
-            fi
-          fi
-          trivy --version || { echo "[setup] Trivy não responde"; exit 1; }
-
       - name: Instalar Gitleaks (tarball)
         shell: bash
         run: |
@@ -169,10 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          # Procura controlada (git ls-files evita varrer cache/node_modules não versionados)
-          mapfile -t DBT_PROJECTS < <( git ls-files '**/dbt_project.yml' | xargs -n1 dirname | sort -u )
-          printf '%s\n' "${DBT_PROJECTS[@]:-}" > out/dbt_projects.txt
-          if [ ${#DBT_PROJECTS[@]:-0} -gt 0 ]; then
+          mapfile -t DBT_PROJECTS < <( git ls-files -z '**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
+          printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
+          if ((${#DBT_PROJECTS[@]} > 0)); then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
             echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
             echo "[dbt] Projetos encontrados:"; printf '  - %s\n' "${DBT_PROJECTS[@]}"
@@ -189,7 +47,6 @@ jobs:
           python -m venv .venv-dbt
           . .venv-dbt/bin/activate
           python -m pip install --upgrade pip
-          # Versões fixas (compatíveis entre si); NÃO misturar com env global
           python -m pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
           deactivate
 
@@ -206,12 +63,10 @@ jobs:
           set -euo pipefail
           if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
             echo "has_bq=true" >> "$GITHUB_OUTPUT"
-            # Normaliza credencial em arquivo temporário e exporta GAC
             cred_file="$RUNNER_TEMP/gcp-sa.json"
             if printf '%s' "$GCP_SA_JSON" | grep -q '^{'; then
               printf '%s' "$GCP_SA_JSON" > "$cred_file"
             else
-              # tenta decodificar base64; se falhar, grava bruto
               (printf '%s' "$GCP_SA_JSON" | base64 -d > "$cred_file") || printf '%s' "$GCP_SA_JSON" > "$cred_file"
             fi
             echo "GOOGLE_APPLICATION_CREDENTIALS=$cred_file" >> "$GITHUB_ENV"
@@ -266,81 +121,15 @@ jobs:
           LOG_FILE="out/sut.log"
           : > "$LOG_FILE"
           echo "[sut] log file: $LOG_FILE"
-
           if [ "${EXTERNAL_SUT:-0}" = "1" ]; then
             echo "[sut] EXTERNAL_SUT=1 -> não iniciaremos processos locais"
             exit 0
           fi
-
-          # Detecta compose file
           FILE=""
           for f in docker-compose.yml docker-compose.yaml compose.yaml; do
             if [ -f "$f" ]; then FILE="$f"; break; fi
           done
-
           if [ -n "$FILE" ] && command -v docker >/dev/null 2>&1; then
             echo "[sut] docker compose -f $FILE up -d --build"
             docker compose -f "$FILE" up -d --build
-            ( docker compose -f "$FILE" logs -f --no-color > "$LOG_FILE" 2>&1 & )
-            exit 0
           fi
-
-          # Fallback npm
-          if [ -f package.json ]; then
-            if ! command -v npm >/dev/null 2>&1; then
-              echo "[sut] npm não encontrado; não iniciaremos localmente"
-              exit 0
-            fi
-
-            has_script() {
-              local script="$1"
-              if command -v jq >/dev/null 2>&1; then
-                jq -e --arg name "$script" '.scripts[$name]' package.json >/dev/null 2>&1
-              elif command -v node >/dev/null 2>&1; then
-                node -e 'const script = process.argv[1]; try { const pkg = require('./package.json'); if (pkg && pkg.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, script)) process.exit(0); } catch (err) {} process.exit(1);' "$script"
-              else
-                return 1
-              fi
-            }
-
-            if has_script "start:ci"; then
-              echo "[sut] npm run start:ci (background)"
-              nohup npm run start:ci > "$LOG_FILE" 2>&1 &
-              exit 0
-            elif has_script "start"; then
-              echo "[sut] npm start (background)"
-              nohup npm start > "$LOG_FILE" 2>&1 &
-              exit 0
-            else
-              echo "[sut] package.json sem scripts start/start:ci; não iniciaremos localmente"
-              exit 0
-            fi
-          fi
-
-          echo "[sut] Nenhum compose/npm start detectado; presumindo SUT externo via TARGET_URL"
-
-      - name: Health check do SUT
-        if: ${{ inputs.run_sut }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          URL="${TARGET_URL:-http://127.0.0.1:8080/health}"
-          echo "[health] URL: $URL"
-
-          ATTEMPTS=0
-          MAX=60
-          while true; do
-            if curl -fsS "$URL" >/dev/null 2>&1; then
-              echo "[health] OK"
-              exit 0
-            fi
-            ATTEMPTS=$((ATTEMPTS+1))
-            if [ "$ATTEMPTS" -ge "$MAX" ]; then
-              echo "[health] timeout após $MAX tentativas" >&2
-              if [ -f out/sut.log ]; then
-                echo "::group::SUT logs (tail)"; tail -n 200 out/sut.log || true; echo "::endgroup::"
-              fi
-              exit 1
-            fi
-            sleep 2
-          done
