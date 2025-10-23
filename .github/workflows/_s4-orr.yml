@@ -1,3 +1,4 @@
+
 name: dbt-gitleaks-and-sut
 
 on:
@@ -5,6 +6,11 @@ on:
     inputs:
       run_sut:
         description: Start SUT via compose/npm
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: Executar checagens TLA
         required: false
         type: boolean
         default: false
@@ -36,6 +42,8 @@ on:
       DBT_BQ_DATASET:
         required: false
       DBT_BQ_LOCATION:
+        required: false
+      GHCR_APALACHE_TOKEN:
         required: false
 
 jobs:
@@ -84,7 +92,7 @@ jobs:
           if [ "${#TLA_MODELS[@]}" -gt 0 ]; then
             printf '%s\n' "${TLA_MODELS[@]}" > out/tla_models.txt
             echo "have_tla=true" >> "$GITHUB_OUTPUT"
-            echo "[tla] Modelos encontrados:";
+            echo "[tla] Modelos encontrados:"
             printf '  - %s\n' "${TLA_MODELS[@]}"
           else
             : > out/tla_models.txt
@@ -104,8 +112,8 @@ jobs:
             cat out/tla_models.txt
           } > out/tla_ascii_report.txt
 
-      - name: Login to GHCR for Apalache
-        if: ${{ ((github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false'))) && steps.tla_scan.outputs.have_tla == 'true' }}
+      - name: GHCR login (opcional)
+        if: ${{ ((github.event_name == 'workflow_call' && inputs.run_tla) || (github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.run_tla || 'false'))) && steps.tla_scan.outputs.have_tla == 'true' && secrets.GHCR_APALACHE_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -117,24 +125,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out
+          mkdir -p out _apalache-out
           REPORT="out/tla_apalache_smoke.txt"
           : > "$REPORT"
-          mkdir -p _apalache-out
-          chmod 775 _apalache-out
-          docker pull ghcr.io/informalsystems/apalache:latest
+          docker pull ghcr.io/apalache-mc/apalache:main
           while IFS= read -r tla_file; do
             [ -z "$tla_file" ] && continue
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
-              --user "$(id -u):$(id -g)" \
-              -e LOCAL_UID="$(id -u)" \
-              -e LOCAL_GID="$(id -g)" \
-              -v "$PWD":/var/apalache \
+              -u 0:0 \
+              -v "$GITHUB_WORKSPACE:/var/apalache:rw" \
               -w /var/apalache \
-              --workdir /var/apalache \
-              ghcr.io/informalsystems/apalache:latest \
-              check --init=Init --next=Next --inv=Safety "/var/apalache/${tla_file}" | tee -a "$REPORT"
+              ghcr.io/apalache-mc/apalache:main \
+              apalache-mc check "$tla_file" | tee -a "$REPORT"
           done < out/tla_models.txt
 
       - name: Upload ASCII report do TLA
@@ -153,14 +156,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          # Procura controlada (git ls-files evita varrer cache/node_modules não versionados)
           DBT_PROJECTS=()
           mapfile -t DBT_PROJECTS < <( git ls-files -z -- ':(glob)**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
           printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
           if [ "${#DBT_PROJECTS[@]}" -gt 0 ]; then
             echo "have_dbt=true" >> "$GITHUB_OUTPUT"
             echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
-            echo "[dbt] Projetos encontrados:"; printf '  - %s\n' "${DBT_PROJECTS[@]}"
+            echo "[dbt] Projetos encontrados:"
+            printf '  - %s\n' "${DBT_PROJECTS[@]}"
           else
             echo "have_dbt=false" >> "$GITHUB_OUTPUT"
             echo "[dbt] Nenhum dbt_project.yml encontrado; DBT será ignorado"
@@ -174,7 +177,6 @@ jobs:
           python -m venv .venv-dbt
           . .venv-dbt/bin/activate
           python -m pip install --upgrade pip
-          # Versões fixas (compatíveis entre si); NÃO misturar com env global
           python -m pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
           deactivate
 
@@ -191,12 +193,10 @@ jobs:
           set -euo pipefail
           if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
             echo "has_bq=true" >> "$GITHUB_OUTPUT"
-            # Normaliza credencial em arquivo temporário e exporta GAC
             cred_file="$RUNNER_TEMP/gcp-sa.json"
             if printf '%s' "$GCP_SA_JSON" | grep -q '^{'; then
               printf '%s' "$GCP_SA_JSON" > "$cred_file"
             else
-              # tenta decodificar base64; se falhar, grava bruto
               (printf '%s' "$GCP_SA_JSON" | base64 -d > "$cred_file") || printf '%s' "$GCP_SA_JSON" > "$cred_file"
             fi
             echo "GOOGLE_APPLICATION_CREDENTIALS=$cred_file" >> "$GITHUB_ENV"
@@ -265,3 +265,4 @@ jobs:
           else
             echo "[sut] docker/compose ausentes; nada a fazer"
           fi
+
