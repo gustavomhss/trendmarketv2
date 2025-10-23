@@ -156,6 +156,70 @@ jobs:
               apalache-mc check "$tla_file" | tee -a "$REPORT"
           done < out/tla_models.txt
 
+      - name: TLA — Preparar workspace (bind-mount)
+        id: tla_ws
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ensure_parent_copy() {
+            local src="$1"
+            [ -f "$src" ] || return 0
+            if [ -n "${COPIED["$src"]:-}" ]; then
+              return 0
+            fi
+            COPIED["$src"]=1
+            mkdir -p "$WORKDIR"
+            cp --parents "$src" "$WORKDIR/"
+            printf '[tla-ws] Copiado: %s\n' "$src"
+          }
+
+          SEL_FILE="${TLA_SELECTED:-}"
+          if [ -z "$SEL_FILE" ] && [ -f out/tla_selected.txt ]; then
+            SEL_FILE="$(head -n1 out/tla_selected.txt | tr -d '\r')"
+          fi
+          if [ -z "$SEL_FILE" ] && [ -f out/tla_models.txt ]; then
+            SEL_FILE="$(head -n1 out/tla_models.txt | tr -d '\r')"
+          fi
+          if [ -z "$SEL_FILE" ]; then
+            echo "[tla-ws] Nenhum módulo selecionado para workspace" >&2
+            exit 1
+          fi
+          if [ ! -f "$SEL_FILE" ]; then
+            echo "[tla-ws] Arquivo selecionado não encontrado: $SEL_FILE" >&2
+            exit 1
+          fi
+
+          WORKDIR="$GITHUB_WORKSPACE/out/s4_orr/apalache_work"
+          rm -rf "$WORKDIR"
+          mkdir -p "$WORKDIR"
+
+          declare -A COPIED=()
+          ensure_parent_copy "$SEL_FILE"
+
+          SEL_DIR="$(dirname "$SEL_FILE")"
+          while IFS= read -r -d '' dep; do
+            ensure_parent_copy "$dep"
+          done < <(find "$SEL_DIR" -maxdepth 1 -type f -name '*.tla' -print0)
+
+          if [ -d docs/spec/tla ]; then
+            while IFS= read -r -d '' lib; do
+              ensure_parent_copy "$lib"
+            done < <(find docs/spec/tla -type f -name '*.tla' -print0)
+          fi
+
+          SEL_BASE_NAME="$(basename "$SEL_FILE")"
+          SEL_BASE="${SEL_BASE_NAME%.tla}"
+
+          printf 'workdir=%s\n' "$WORKDIR" >> "$GITHUB_OUTPUT"
+          printf 'sel_base=%s\n' "$SEL_BASE" >> "$GITHUB_OUTPUT"
+
+          echo "::group::[tla-ws] Conteúdo do workspace"
+          ls -la "$WORKDIR"
+          find "$WORKDIR" -maxdepth 5 -type f -print
+          echo "::endgroup::"
+
       - name: Upload ASCII/Apalache report
         uses: actions/upload-artifact@v4
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
