@@ -137,7 +137,7 @@ jobs:
           password: ${{ secrets.GHCR_APALACHE_TOKEN }}
 
       - name: TLA — Preparar workspace
-        id: tla_ws
+        id: tla_ws_init
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         shell: bash
         run: |
@@ -160,8 +160,8 @@ jobs:
         run: |
           set -uo pipefail
           REPORT="out/s4_orr/tla_report.txt"
-          WORKDIR="${{ steps.tla_ws.outputs.workdir }}"
-          SEL_BASE="${{ steps.tla_ws.outputs.sel_base }}"
+          WORKDIR="${{ steps.tla_ws_init.outputs.workdir }}"
+          SEL_BASE="${{ steps.tla_ws_init.outputs.sel_base }}"
           RC=0
           mkdir -p "$(dirname "$REPORT")"
           : > "$REPORT"
@@ -208,7 +208,7 @@ jobs:
           fi
 
       - name: TLA — Preparar workspace (bind-mount)
-        id: tla_ws
+        id: tla_ws_bind
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         shell: bash
         run: |
