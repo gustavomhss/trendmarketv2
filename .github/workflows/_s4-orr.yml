@@ -136,25 +136,76 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_APALACHE_TOKEN }}
 
-      - name: Apalache (pull + smoke)
+      - name: TLA — Preparar workspace
+        id: tla_ws
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out _apalache-out
-          REPORT="out/tla_apalache_smoke.txt"
+          mkdir -p out/s4_orr
+          WORKDIR="$GITHUB_WORKSPACE"
+          SEL_BASE="$(head -n1 out/tla_models.txt || true)"
+          if [ -z "$SEL_BASE" ]; then
+            echo "[tla] Nenhum modelo TLA disponível para preparação" >&2
+            exit 1
+          fi
+          echo "workdir=${WORKDIR}" >> "$GITHUB_OUTPUT"
+          echo "sel_base=${SEL_BASE}" >> "$GITHUB_OUTPUT"
+
+      - name: TLA — Executar Apalache check
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        env:
+          TLA_STRICT: ${{ env.TLA_STRICT }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          REPORT="out/s4_orr/tla_report.txt"
+          WORKDIR="${{ steps.tla_ws.outputs.workdir }}"
+          SEL_BASE="${{ steps.tla_ws.outputs.sel_base }}"
+          RC=0
+          mkdir -p "$(dirname "$REPORT")"
           : > "$REPORT"
-          docker pull ghcr.io/apalache-mc/apalache:main
-          while IFS= read -r tla_file; do
-            [ -z "$tla_file" ] && continue
-            echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
-            docker run --rm \
-              -u 0:0 \
-              -v "$GITHUB_WORKSPACE:/var/apalache:rw" \
-              -w /var/apalache \
-              ghcr.io/apalache-mc/apalache:main \
-              apalache-mc check "$tla_file" | tee -a "$REPORT"
-          done < out/tla_models.txt
+          if [ -z "$WORKDIR" ] || [ -z "$SEL_BASE" ]; then
+            echo "[tla] Workspace ou modelo base não informado" | tee -a "$REPORT"
+            RC=1
+          else
+            APAL_IMG="${APAL_IMG:-ghcr.io/apalache-mc/apalache:v0.50.3}"
+            FALLBACK_IMG="ghcr.io/apalache-mc/apalache:main"
+            echo "[tla] Tentando usar imagem ${APAL_IMG}" | tee -a "$REPORT"
+            if ! docker pull "$APAL_IMG"; then
+              echo "[tla] Falha ao puxar ${APAL_IMG}; tentando fallback ${FALLBACK_IMG}" | tee -a "$REPORT"
+              if docker pull "$FALLBACK_IMG"; then
+                APAL_IMG="$FALLBACK_IMG"
+              else
+                echo "[tla] Falha ao puxar imagem fallback ${FALLBACK_IMG}" | tee -a "$REPORT"
+                RC=1
+              fi
+            fi
+            if [ "$RC" -eq 0 ]; then
+              echo "[tla] Executando apalache-mc check ${SEL_BASE}" | tee -a "$REPORT"
+              docker run --rm \
+                -v "$WORKDIR:/var/apalache:rw" \
+                -w /var/apalache \
+                "$APAL_IMG" \
+                apalache-mc check "$SEL_BASE" | tee -a "$REPORT"
+              RC=${PIPESTATUS[0]}
+              if [ "$RC" -ne 0 ]; then
+                echo "[tla] Execução falhou com código ${RC}; repetindo com -u 0:0" | tee -a "$REPORT"
+                docker run --rm \
+                  -u 0:0 \
+                  -v "$WORKDIR:/var/apalache:rw" \
+                  -w /var/apalache \
+                  "$APAL_IMG" \
+                  apalache-mc check "$SEL_BASE" | tee -a "$REPORT"
+                RC=${PIPESTATUS[0]}
+              fi
+            fi
+          fi
+          STRICT="${TLA_STRICT:-0}"
+          echo "[tla] Código de saída final: ${RC} (TLA_STRICT=${STRICT})" | tee -a "$REPORT"
+          if [ "${STRICT}" = "1" ] && [ "$RC" -ne 0 ]; then
+            exit "$RC"
+          fi
 
       - name: TLA — Preparar workspace (bind-mount)
         id: tla_ws
@@ -227,7 +278,7 @@ jobs:
           name: tla-reports
           path: |
             out/tla_ascii_report.txt
-            out/tla_apalache_smoke.txt
+            out/s4_orr/tla_report.txt
           if-no-files-found: warn
 
       - name: Upload relatório TLA (Apalache)
