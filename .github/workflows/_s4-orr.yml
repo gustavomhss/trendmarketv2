@@ -24,7 +24,6 @@ on:
         default: false
       run_security:
         description: Run security scanners (Semgrep, Gitleaks, Trivy)
-        description: Enable security scanning gate
         required: false
         type: boolean
         default: false
