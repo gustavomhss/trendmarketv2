@@ -22,6 +22,16 @@ on:
         required: false
         type: boolean
         default: false
+      run_security:
+        description: Run security scanners (Semgrep, Gitleaks, Trivy)
+        required: false
+        type: boolean
+        default: false
+      security_fail_on_findings:
+        description: Fail workflow when security scanners report findings
+        required: false
+        type: boolean
+        default: false
     secrets:
       GCP_SA_JSON:
         required: false
@@ -53,12 +63,27 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - name: Instalar Gitleaks (tarball)
+      - name: Security | Install Semgrep (pip<2)
+        if: ${{ inputs.run_security }}
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p out/security
+          if command -v semgrep >/dev/null 2>&1; then
+            semgrep --version | tee out/security/semgrep-version.txt
+            exit 0
+          fi
+          python3 -m pip install --upgrade "semgrep<2"
+          semgrep --version | tee out/security/semgrep-version.txt
+
+      - name: Security | Install Gitleaks (tarball)
+        if: ${{ inputs.run_security }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/security
           if command -v gitleaks >/dev/null 2>&1; then
-            echo "[setup] Gitleaks já presente: $(gitleaks version | head -n1)"
+            gitleaks version | head -n1 | tee out/security/gitleaks-version.txt
             exit 0
           fi
           VER="8.18.1"
@@ -68,7 +93,101 @@ jobs:
           tar -xzf gitleaks.tgz gitleaks
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           rm -f gitleaks gitleaks.tgz
-          gitleaks version || { echo "[setup] gitleaks não responde"; exit 1; }
+          gitleaks version | head -n1 | tee out/security/gitleaks-version.txt
+
+      - name: Security | Install Trivy (candidate list)
+        if: ${{ inputs.run_security }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/security
+          if command -v trivy >/dev/null 2>&1; then
+            trivy --version | head -n1 | tee out/security/trivy-version.txt
+            exit 0
+          fi
+          sudo apt-get update
+          mapfile -t TRIVY_CANDIDATES < <(apt-cache madison trivy | awk '{print $3}')
+          if [ "${#TRIVY_CANDIDATES[@]}" -eq 0 ]; then
+            echo "trivy indisponível no apt" | tee out/security/trivy-version.txt
+            exit 0
+          fi
+          INSTALLED=1
+          for ver in "${TRIVY_CANDIDATES[@]}"; do
+            if sudo apt-get install -y "trivy=${ver}"; then
+              INSTALLED=0
+              break
+            fi
+          done
+          if [ "$INSTALLED" -ne 0 ] || ! command -v trivy >/dev/null 2>&1; then
+            echo "trivy indisponível após tentativas" | tee out/security/trivy-version.txt
+            exit 0
+          fi
+          trivy --version | head -n1 | tee out/security/trivy-version.txt
+
+      - name: Security | Semgrep scan
+        if: ${{ inputs.run_security }}
+        shell: bash
+        continue-on-error: ${{ !inputs.security_fail_on_findings }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/security
+          JSON="out/security/semgrep-report.json"
+          LOG="out/security/semgrep-report.txt"
+          : > "$LOG"
+          set +e
+          semgrep --config auto --json --output "$JSON" 2>&1 | tee "$LOG"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$STATUS" > out/security/semgrep-exit-code.txt
+          exit "$STATUS"
+
+      - name: Security | Gitleaks detect
+        if: ${{ inputs.run_security }}
+        shell: bash
+        continue-on-error: ${{ !inputs.security_fail_on_findings }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/security
+          JSON="out/security/gitleaks-report.json"
+          LOG="out/security/gitleaks-report.txt"
+          : > "$LOG"
+          set +e
+          gitleaks detect --no-banner --report-format json --report-path "$JSON" 2>&1 | tee "$LOG"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$STATUS" > out/security/gitleaks-exit-code.txt
+          exit "$STATUS"
+
+      - name: Security | Trivy fs (if available)
+        if: ${{ inputs.run_security }}
+        shell: bash
+        continue-on-error: ${{ !inputs.security_fail_on_findings }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/security
+          JSON="out/security/trivy-report.json"
+          LOG="out/security/trivy-report.txt"
+          if ! command -v trivy >/dev/null 2>&1; then
+            echo "trivy não instalado; pulando varredura" | tee "$LOG"
+            printf '{}\n' > "$JSON"
+            printf '0\n' > out/security/trivy-exit-code.txt
+            exit 0
+          fi
+          : > "$LOG"
+          set +e
+          trivy fs --scanners vuln,secret . --format json --output "$JSON" 2>&1 | tee "$LOG"
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$STATUS" > out/security/trivy-exit-code.txt
+          exit "$STATUS"
+
+      - name: Security | Upload findings
+        if: ${{ always() && inputs.run_security }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-findings
+          path: out/security/**
+          if-no-files-found: warn
 
       - name: Mostrar versões das ferramentas
         shell: bash
