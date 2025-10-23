@@ -166,6 +166,14 @@ jobs:
             out/tla_apalache_smoke.txt
           if-no-files-found: warn
 
+      - name: Upload relatório TLA (Apalache)
+        uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        with:
+          name: tla-report
+          path: out/s4_orr/tla_report.txt
+          if-no-files-found: ignore
+
       - name: Localizar projetos DBT
         id: dbt_scan
         shell: bash
