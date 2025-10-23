@@ -125,9 +125,10 @@ jobs:
             [ -z "$tla_file" ] && continue
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
-              -v "$PWD":/workspace \
+              -v "$PWD":/var/apalache \
+              --workdir /var/apalache \
               ghcr.io/informalsystems/apalache:latest \
-              check --init=Init --next=Next --inv=Safety "/workspace/${tla_file}" | tee -a "$REPORT"
+              check --init=Init --next=Next --inv=Safety "/var/apalache/${tla_file}" | tee -a "$REPORT"
           done < out/tla_models.txt
 
       - name: Upload ASCII report do TLA
