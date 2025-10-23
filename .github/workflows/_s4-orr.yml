@@ -125,6 +125,7 @@ jobs:
             [ -z "$tla_file" ] && continue
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
+              --user "$(id -u):$(id -g)" \
               -v "$PWD":/var/apalache \
               -w /var/apalache \
               --workdir /var/apalache \
