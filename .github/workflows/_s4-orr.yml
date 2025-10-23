@@ -126,6 +126,7 @@ jobs:
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
               -v "$PWD":/var/apalache \
+              -w /var/apalache \
               --workdir /var/apalache \
               ghcr.io/informalsystems/apalache:latest \
               check --init=Init --next=Next --inv=Safety "/var/apalache/${tla_file}" | tee -a "$REPORT"
