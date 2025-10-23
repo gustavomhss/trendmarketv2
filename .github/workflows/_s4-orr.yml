@@ -23,13 +23,12 @@ on:
         type: boolean
         default: false
       run_security:
-        description: Run security scanners (Semgrep, Gitleaks, Trivy)
+        description: "Executar varreduras de segurança"
         required: false
         type: boolean
         default: false
       security_fail_on_findings:
-        description: Fail workflow when security scanners report findings
-        description: Fail workflow when security findings are detected
+        description: "Falhar se houver findings de segurança"
         required: false
         type: boolean
         default: false
