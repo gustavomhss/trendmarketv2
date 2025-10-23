@@ -120,11 +120,14 @@ jobs:
           mkdir -p out
           REPORT="out/tla_apalache_smoke.txt"
           : > "$REPORT"
+          mkdir -p _apalache-out
+          chmod 775 _apalache-out
           docker pull ghcr.io/informalsystems/apalache:latest
           while IFS= read -r tla_file; do
             [ -z "$tla_file" ] && continue
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
+              --user "$(id -u):$(id -g)" \
               -e LOCAL_UID="$(id -u)" \
               -e LOCAL_GID="$(id -g)" \
               -v "$PWD":/var/apalache \
