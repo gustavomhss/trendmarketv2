@@ -18,6 +18,16 @@ on:
         required: false
         type: boolean
         default: false
+      run_security:
+        description: "Executar varreduras de segurança"
+        required: false
+        type: boolean
+        default: false
+      security_fail_on_findings:
+        description: "Falhar se houver findings de segurança"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   call-orr:
@@ -27,4 +37,6 @@ jobs:
       ref: ${{ github.event.inputs.ref }}
       run_microbench: ${{ fromJSON(github.event.inputs.run_microbench || 'false') }}
       run_tla: ${{ fromJSON(github.event.inputs.run_tla || 'false') }}
+      run_security: ${{ fromJSON(github.event.inputs.run_security || 'false') }}
+      security_fail_on_findings: ${{ fromJSON(github.event.inputs.security_fail_on_findings || 'false') }}
     secrets: inherit
