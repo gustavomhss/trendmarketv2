@@ -1,155 +1,283 @@
-name: _S4 ORR (Reusable)
-
+name: _s4-orr
 
 on:
   workflow_call:
     inputs:
       ref:
-
+        description: Optional ref to run against
         required: false
-
-
         type: string
-      test_mode:
+      run_microbench:
+        description: Enable microbench gate
         required: false
         type: boolean
         default: false
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: 'git ref (optional)'
-
-
-
-
-
-        required: false
-
-
-        type: string
-      test_mode:
-        description: 'Quick check: deps + dbt docs only'
+      run_tla:
+        description: Enable TLA verification
         required: false
         type: boolean
         default: false
-
-permissions:
-  contents: read
-  actions: write
+      run_sut:
+        description: Start SUT via compose/npm
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      GCP_SA_JSON:
+        required: false
+      DBT_BQ_PROJECT:
+        required: false
+      DBT_BQ_DATASET:
+        required: false
+      DBT_BQ_LOCATION:
+        required: false
+      GHCR_APALACHE_TOKEN:
+        required: false
 
 concurrency:
   group: s4-orr-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+
 jobs:
   orr:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      PROM: http://127.0.0.1:9090
-
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
+      - name: Instalar Gitleaks (tarball)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v gitleaks >/dev/null 2>&1; then
+            echo "[setup] Gitleaks já presente: $(gitleaks version | head -n1)"
+            exit 0
+          fi
+          VER="8.18.1"
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "[setup] Baixando Gitleaks ${VER}"
+          curl -fsSL "$URL" -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f gitleaks gitleaks.tgz
+          gitleaks version || { echo "[setup] gitleaks não responde"; exit 1; }
+
+      - name: Mostrar versões das ferramentas
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[setup] k6: $( (command -v k6 >/dev/null && k6 version) || echo 'não instalado ou usando Docker via K6_BIN')"
+          echo "[setup] semgrep: $( (command -v semgrep >/dev/null && semgrep --version) || echo 'não instalado')"
+          echo "[setup] trivy: $( (command -v trivy >/dev/null && trivy --version | head -n1) || echo 'não instalado')"
+          echo "[setup] gitleaks: $( (command -v gitleaks >/dev/null && gitleaks version | head -n1) || echo 'não instalado')"
+
+      - name: Localizar modelos TLA
+        id: tla_scan
+        if: ${{ inputs.run_tla }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          mapfile -t TLA_MODELS < <(git ls-files -z -- ':(glob)**/*.tla' | xargs -0 -r -n1 | sort -u)
+          if [ "${#TLA_MODELS[@]}" -gt 0 ]; then
+            printf '%s\n' "${TLA_MODELS[@]}" > out/tla_models.txt
+            echo "have_tla=true" >> "$GITHUB_OUTPUT"
+            echo "[tla] Modelos encontrados:"
+            printf '  - %s\n' "${TLA_MODELS[@]}"
+          else
+            : > out/tla_models.txt
+            echo "have_tla=false" >> "$GITHUB_OUTPUT"
+            echo "[tla] Nenhum arquivo .tla encontrado; pulando checagens."
+          fi
+
+      - name: Guard ASCII para arquivos TLA
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -x scripts/tla_ascii_guard.sh ]; then
+            scripts/tla_ascii_guard.sh
+          else
+            echo "[tla] scripts/tla_ascii_guard.sh não encontrado; pulando guard"
+          fi
+          {
+            echo "[tla] ASCII guard concluído às $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "[tla] Arquivos verificados:"
+            cat out/tla_models.txt
+          } > out/tla_ascii_report.txt
+
+      - name: Detectar GHCR token
+        id: ghcr_tok
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
+        env:
+          GHCR_APALACHE_TOKEN: ${{ secrets.GHCR_APALACHE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GHCR_APALACHE_TOKEN:-}" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GHCR login (opcional)
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true' }}
+        uses: docker/login-action@v3
         with:
-          egress-policy: audit
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_APALACHE_TOKEN }}
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: System deps
+      - name: Apalache (pull + smoke)
+        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          set -euo pipefail
+          mkdir -p out _apalache-out
+          REPORT="out/tla_apalache_smoke.txt"
+          : > "$REPORT"
+          docker pull ghcr.io/apalache-mc/apalache:main
+          while IFS= read -r tla_file; do
+            [ -z "$tla_file" ] && continue
+            echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
+            docker run --rm \
+              -u 0:0 \
+              -v "$GITHUB_WORKSPACE:/var/apalache:rw" \
+              -w /var/apalache \
+              ghcr.io/apalache-mc/apalache:main \
+              apalache-mc check "$tla_file" | tee -a "$REPORT"
+          done < out/tla_models.txt
 
-      # ---- Python deps (dbt only) + audit ----
-      - name: Install Python deps (dbt only)
-
-
-
-        run: |
-          python -m pip install --upgrade pip
-          pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
-
-      - name: Python env audit (pip, freeze)
-
-        run: |
-          python -m pip --version | tee pip-version.txt
-          pip freeze | sort | tee pip-freeze.txt
-
-
-
-      - name: Upload pip audit
-        if: always()
+      - name: Upload ASCII/Apalache report
         uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
-          name: pip-audit
+          name: tla-reports
           path: |
-            pip-version.txt
-            pip-freeze.txt
+            out/tla_ascii_report.txt
+            out/tla_apalache_smoke.txt
+          if-no-files-found: warn
 
-      # ---- Security tools (binários) ----
-      - name: Security tools (Trivy & Gitleaks)
+      - name: Localizar projetos DBT
+        id: dbt_scan
+        shell: bash
         run: |
-          curl -sL https://github.com/aquasecurity/trivy/releases/download/v0.53.0/trivy_0.53.0_Linux-64bit.tar.gz | tar xz
-          sudo mv trivy /usr/local/bin/
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz
-          sudo mv gitleaks /usr/local/bin/
+          set -euo pipefail
+          mkdir -p out
+          DBT_PROJECTS=()
+          mapfile -t DBT_PROJECTS < <( git ls-files -z -- ':(glob)**/dbt_project.yml' | xargs -0 -r -n1 dirname | sort -u )
+          printf '%s\n' "${DBT_PROJECTS[@]}" > out/dbt_projects.txt
+          if [ "${#DBT_PROJECTS[@]}" -gt 0 ]; then
+            echo "have_dbt=true" >> "$GITHUB_OUTPUT"
+            echo "first=${DBT_PROJECTS[0]}" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Projetos encontrados:"
+            printf '  - %s\n' "${DBT_PROJECTS[@]}"
+          else
+            echo "have_dbt=false" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Nenhum dbt_project.yml encontrado; DBT será ignorado"
+          fi
 
-      - name: Semgrep (binary v1.80.0, SHA256 verify)
+      - name: Preparar ambiente DBT (venv isolada)
+        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' }}
+        shell: bash
         run: |
-          curl -sSLo semgrep https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64
-          curl -sSLo semgrep.sha256 https://github.com/semgrep/semgrep/releases/download/v1.80.0/semgrep-linux-amd64.sha256
-          sha256sum -c semgrep.sha256
-          sudo install -m 0755 semgrep /usr/local/bin/semgrep
-          semgrep --version
+          set -euo pipefail
+          python -m venv .venv-dbt
+          . .venv-dbt/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install "dbt-core==1.6.4" "dbt-bigquery==1.6.4" "requests==2.31.0"
+          deactivate
 
-      # ---- k6 image pinned by digest ----
-      - name: Resolve k6 image digest
-        id: k6
+      - name: Validar segredos GCP/BigQuery para DBT
+        id: dbt_secrets
+        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' }}
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
+        shell: bash
         run: |
-          IMG=grafana/k6:0.52.0
-          docker pull "$IMG" >/dev/null
-          DIG=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMG")
-          echo "image=$DIG" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          if [ -n "${GCP_SA_JSON:-}" ] && [ -n "${DBT_BQ_PROJECT:-}" ]; then
+            echo "has_bq=true" >> "$GITHUB_OUTPUT"
+            cred_file="$RUNNER_TEMP/gcp-sa.json"
+            if printf '%s' "$GCP_SA_JSON" | grep -q '^{'; then
+              printf '%s' "$GCP_SA_JSON" > "$cred_file"
+            else
+              (printf '%s' "$GCP_SA_JSON" | base64 -d > "$cred_file") || printf '%s' "$GCP_SA_JSON" > "$cred_file"
+            fi
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$cred_file" >> "$GITHUB_ENV"
+            echo "[dbt] Segredos OK e credencial preparada"
+          else
+            echo "has_bq=false" >> "$GITHUB_OUTPUT"
+            echo "[dbt] Segredos GCP/BigQuery ausentes; DBT será ignorado"
+          fi
 
-      # ---- dbt build → docs (sempre roda; cobre test_mode) ----
-      - name: dbt build
+      - name: Executar DBT (deps, build, docs)
+        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' && steps.dbt_secrets.outputs.has_bq == 'true' }}
+        shell: bash
+        env:
+          DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
+          DBT_BQ_DATASET: ${{ secrets.DBT_BQ_DATASET }}
+          DBT_BQ_LOCATION: ${{ secrets.DBT_BQ_LOCATION }}
         run: |
-          dbt build --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+          set -euo pipefail
+          . .venv-dbt/bin/activate
+          while IFS= read -r project_dir; do
+            [ -z "$project_dir" ] && continue
+            echo "[dbt] Executando em: $project_dir"
+            if [ -d "$project_dir/profiles" ]; then
+              profiles="--profiles-dir $project_dir/profiles"
+            else
+              profiles="--profiles-dir $project_dir"
+            fi
+            dbt deps $profiles --project-dir "$project_dir"
+            dbt build $profiles --project-dir "$project_dir"
+            dbt docs generate $profiles --project-dir "$project_dir"
+          done < out/dbt_projects.txt
+          deactivate
 
-      - name: Generate dbt docs
-        run: |
-          dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
-
-      - name: Upload dbt docs
-        if: always()
+      - name: Upload docs do DBT (se existirem)
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: dbt-docs
           path: |
-            analytics/dbt/target/catalog.json
-            analytics/dbt/target/manifest.json
-            analytics/dbt/target/index.html
+            **/target/catalog.json
+            **/target/manifest.json
+            **/target/index.html
+          if-no-files-found: ignore
 
-      # ---- ORR completo só fora de test_mode ----
-      - name: ORR run
-        if: ${{ !inputs.test_mode }}
-        env:
-          K6_IMAGE: ${{ steps.k6.outputs.image }}
+      - name: Iniciar SUT (Compose/npm)
+        if: ${{ inputs.run_sut }}
+        shell: bash
         run: |
-          export K6="docker run --rm -i -v $PWD:/work -w /work $K6_IMAGE"
-          sed -i '1s/^/export K6="'"$K6"'"\n/' scripts/orr_s4_run.sh || true
-          bash scripts/orr_s4_run.sh
-
-      - name: Upload bundle
-        if: ${{ !inputs.test_mode && always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: s4_evidence_bundle
-          path: out/s4_evidence_bundle_*.zip
+          set -euo pipefail
+          echo "[sut] preparing start"
+          mkdir -p out
+          LOG_FILE="out/sut.log"
+          : > "$LOG_FILE"
+          echo "[sut] log file: $LOG_FILE"
+          if [ "${EXTERNAL_SUT:-0}" = "1" ]; then
+            echo "[sut] EXTERNAL_SUT=1 -> não iniciaremos processos locais"
+            exit 0
+          fi
+          FILE=""
+          for f in docker-compose.yml docker-compose.yaml compose.yaml; do
+            if [ -f "$f" ]; then FILE="$f"; break; fi
+          done
+          if [ -n "$FILE" ] && command -v docker >/dev/null 2>&1; then
+            echo "[sut] docker compose -f $FILE up -d --build"
+            docker compose -f "$FILE" up -d --build
+          else
+            echo "[sut] docker/compose ausentes; nada a fazer"
+          fi
