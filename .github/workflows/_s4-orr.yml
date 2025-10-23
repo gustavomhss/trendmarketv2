@@ -22,6 +22,16 @@ on:
         required: false
         type: boolean
         default: false
+      run_security:
+        description: Enable security scanning gate
+        required: false
+        type: boolean
+        default: false
+      security_fail_on_findings:
+        description: Fail workflow when security findings are detected
+        required: false
+        type: boolean
+        default: false
     secrets:
       GCP_SA_JSON:
         required: false
