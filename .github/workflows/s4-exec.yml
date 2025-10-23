@@ -24,7 +24,7 @@ jobs:
     name: "Chamar workflow reutilizável"
     uses: ./.github/workflows/_s4-orr.yml
     with:
-      ref: ${{ inputs.ref }}
-      run_microbench: ${{ inputs.run_microbench }}
-      run_tla: ${{ inputs.run_tla }}
+      ref: ${{ github.event.inputs.ref }}
+      run_microbench: ${{ fromJSON(github.event.inputs.run_microbench || 'false') }}
+      run_tla: ${{ fromJSON(github.event.inputs.run_tla || 'false') }}
     secrets: inherit
