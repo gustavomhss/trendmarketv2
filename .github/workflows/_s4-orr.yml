@@ -120,13 +120,13 @@ jobs:
           mkdir -p out
           REPORT="out/tla_apalache_smoke.txt"
           : > "$REPORT"
-          docker pull ghcr.io/informal-systems/apalache:latest
+          docker pull ghcr.io/informalsystems/apalache:latest
           while IFS= read -r tla_file; do
             [ -z "$tla_file" ] && continue
             echo "[apalache] Checando ${tla_file}" | tee -a "$REPORT"
             docker run --rm \
               -v "$PWD":/workspace \
-              ghcr.io/informal-systems/apalache:latest \
+              ghcr.io/informalsystems/apalache:latest \
               check --init=Init --next=Next --inv=Safety "/workspace/${tla_file}" | tee -a "$REPORT"
           done < out/tla_models.txt
 
