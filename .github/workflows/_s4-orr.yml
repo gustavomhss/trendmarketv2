@@ -331,6 +331,7 @@ jobs:
 
       - name: dbt run (DuckDB)
         if: ${{ hashFiles('dbt_project.yml') != '' }}
+        if: ${{ !inputs.run_tla && hashFiles('dbt_project.yml') != '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -353,6 +354,18 @@ jobs:
                     temp_directory: "./out/dbt/tmp"
                     memory_limit: "1GB"
             YAML
+ce_profile:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
+      path: ./out/dbt/ce.duckdb
+      threads: 4
+      extensions: [httpfs]
+      settings:
+        temp_directory: "./out/dbt/tmp"
+        memory_limit: "1GB"
+YAML
           fi
           dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
           dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
