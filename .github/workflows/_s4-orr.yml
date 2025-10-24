@@ -262,7 +262,8 @@ jobs:
           WORK="out/s4_orr/apalache_work"
           REPORT="out/s4_orr/tla_report.txt"
           rm -rf "$WORK"
-          mkdir -p "$WORK"
+          mkdir -p "$WORK/tmp"
+          chmod 1777 "$WORK" "$WORK/tmp"
           : > "$REPORT"
 
           APAL_IMG="${APAL_IMG:-ghcr.io/apalache-mc/apalache:v0.50.3}"
