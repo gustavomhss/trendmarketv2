@@ -523,3 +523,89 @@ jobs:
           else
             echo "[sut] docker/compose ausentes; nada a fazer"
           fi
+
+      - name: Empacotar evidências (S4)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          TS=$(date +%Y%m%d_%H%M%S)
+          BUNDLE="out/s4_evidence_bundle_${TS}"
+
+          if [ -x scripts/orr_s4_bundle.sh ]; then
+            echo "[bundle] Executando scripts/orr_s4_bundle.sh"
+            bash scripts/orr_s4_bundle.sh
+          else
+            echo "[bundle] Script de bundle ausente; usando fallback"
+            mkdir -p "${BUNDLE}"
+            copy_if_exists() {
+              local path="$1"
+              local dest="$2"
+              if [ -e "$path" ]; then
+                echo "[bundle] Incluindo $path"
+                cp -r "$path" "$dest/" || true
+              else
+                echo "[bundle] Ausente: $path (ok)"
+              fi
+            }
+
+            echo "[bundle] Coletando diretórios alvo"
+            copy_if_exists out/s4_orr "${BUNDLE}"
+            copy_if_exists out/pip-audit "${BUNDLE}"
+
+            if TARGETS=$(find analytics -type d -name target -print -quit 2>/dev/null) && [ -n "${TARGETS:-}" ]; then
+              echo "[bundle] Incluindo analytics/**/target"
+              while IFS= read -r -d '' target; do
+                rel_path="${target#analytics/}"
+                dest_dir="${BUNDLE}/analytics/${rel_path%/target}"
+                mkdir -p "$dest_dir"
+                cp -r "$target" "$dest_dir/" || true
+              done < <(find analytics -type d -name target -print0)
+            else
+              echo "[bundle] Ausente: analytics/**/target (ok)"
+            fi
+
+            copy_if_exists docs/ADRs "${BUNDLE}"
+            copy_if_exists docs/runbooks "${BUNDLE}"
+            copy_if_exists ops/watchers.yml "${BUNDLE}"
+            copy_if_exists scripts/microbench_dec.sh "${BUNDLE}"
+            copy_if_exists benches "${BUNDLE}"
+            copy_if_exists out/sut.log "${BUNDLE}"
+
+            if command -v zip >/dev/null 2>&1; then
+              echo "[bundle] Compactando em zip"
+              (cd out && zip -r "$(basename "${BUNDLE}").zip" "$(basename "${BUNDLE}")")
+              rm -rf "${BUNDLE}"
+            else
+              echo "[bundle] zip ausente; usando tar.gz"
+              tar -C out -czf "${BUNDLE}.tar.gz" "$(basename "${BUNDLE}")"
+              rm -rf "${BUNDLE}"
+            fi
+          fi
+
+      - name: Upload bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4-bundle
+          path: |
+            out/s4_evidence_bundle_*.zip
+            out/s4_evidence_bundle_*.tar.gz
+          if-no-files-found: ignore
+
+      - name: Upload auditoria pip
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit
+          path: out/pip-audit
+          if-no-files-found: ignore
+
+      - name: Upload artefatos DBT
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-target
+          path: analytics/**/target
+          if-no-files-found: ignore
