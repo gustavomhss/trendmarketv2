@@ -15,6 +15,7 @@ Threshold == 800
 
 Init ==
   /\ dec_p95 = 0
+  /\ dec_p95 \in Nat
   /\ breach = FALSE
   /\ rollback = FALSE
   /\ recovered = FALSE
@@ -22,9 +23,9 @@ Init ==
 Next ==
   \E new_p95 \in Nat:
     /\ dec_p95' = new_p95
-    /\ breach' = new_p95 > Threshold
+    /\ breach' = (new_p95 > Threshold)
     /\ rollback' = IF breach' THEN TRUE ELSE rollback
-    /\ recovered' = IF rollback /\ new_p95 <= Threshold THEN TRUE ELSE recovered
+    /\ recovered' = IF rollback /\ (new_p95 <= Threshold) THEN TRUE ELSE recovered
 
 Spec == Init /\ [][Next]_<<dec_p95, breach, rollback, recovered>>
 
