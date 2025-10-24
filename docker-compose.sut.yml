@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  sut:
+    image: python:3.11-alpine
+    command:
+      - python
+      - /app/sut_health.py
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tools/sut_health.py:/app/sut_health.py:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health').status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
