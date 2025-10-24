@@ -11,17 +11,20 @@ VARIABLES
 \* @type: Bool;
   recovered
 
+Threshold == 800
+
 Init ==
-  /\ dec_p95 \in Int
-  /\ breach \in BOOLEAN
-  /\ rollback \in BOOLEAN
-  /\ recovered \in BOOLEAN
+  /\ dec_p95 = 0
+  /\ breach = FALSE
+  /\ rollback = FALSE
+  /\ recovered = FALSE
 
 Next ==
-  /\ dec_p95' = dec_p95
-  /\ breach' = breach
-  /\ rollback' = rollback
-  /\ recovered' = recovered
+  \E new_p95 \in Nat:
+    /\ dec_p95' = new_p95
+    /\ breach' = new_p95 > Threshold
+    /\ rollback' = IF breach' THEN TRUE ELSE rollback
+    /\ recovered' = IF rollback /\ new_p95 <= Threshold THEN TRUE ELSE recovered
 
 Spec == Init /\ [][Next]_<<dec_p95, breach, rollback, recovered>>
 
