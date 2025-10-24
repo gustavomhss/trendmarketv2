@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  sut:
+    image: mendhak/http-https-echo:31
+    container_name: s4-sut-echo
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
