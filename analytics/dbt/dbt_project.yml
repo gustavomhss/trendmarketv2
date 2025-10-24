@@ -1,15 +1,15 @@
-name: ce_mbp
+name: trendmarketv2_analytics
 version: 1.0.0
 config-version: 2
-
-profile: ce_mbp_bq
+profile: trendmarketv2_bq
 
 model-paths: ["models"]
+seed-paths: ["seeds"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
-seed-paths: ["seeds"]
 snapshot-paths: ["snapshots"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
 
 models:
-  ce_mbp:
-    +materialized: view
+  +materialized: view
