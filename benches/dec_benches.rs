@@ -70,7 +70,7 @@ fn bench_route_fast(c: &mut Criterion) {
 }
 
 fn bench_twap_update(c: &mut Criterion) {
-    let mut state = TwapState::new(std::time::Duration::from_secs(300), 100.0, 0);
+    let state = TwapState::new(std::time::Duration::from_secs(300), 100.0, 0);
     let samples: Vec<PriceSample> = (1..=600)
         .map(|i| PriceSample {
             timestamp_ms: (i * 1_000) as u64,

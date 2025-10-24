@@ -15,3 +15,19 @@ criterion = "0.5"
 [[bench]]
 name = "dec_benches"
 harness = false
+
+[[bench]]
+name = "dec_paths"
+harness = false
+
+[[bench]]
+name = "match_core"
+harness = false
+
+[[bench]]
+name = "route_fast"
+harness = false
+
+[[bench]]
+name = "twap_update"
+harness = false
