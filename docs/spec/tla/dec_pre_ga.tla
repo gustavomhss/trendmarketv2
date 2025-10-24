@@ -11,9 +11,17 @@ VARIABLES
 \* @type: Bool;
   recovered
 
-Init == TRUE
+Init ==
+  /\ dec_p95 \in Int
+  /\ breach \in BOOLEAN
+  /\ rollback \in BOOLEAN
+  /\ recovered \in BOOLEAN
 
-Next == UNCHANGED <<dec_p95, breach, rollback, recovered>>
+Next ==
+  /\ dec_p95' = dec_p95
+  /\ breach' = breach
+  /\ rollback' = rollback
+  /\ recovered' = recovered
 
 Spec == Init /\ [][Next]_<<dec_p95, breach, rollback, recovered>>
 
