@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: false
+      bq_enable:
+        description: "Habilitar rota BigQuery"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   call-orr:
@@ -27,4 +32,5 @@ jobs:
       ref: ${{ inputs.ref }}
       run_microbench: ${{ inputs.run_microbench }}
       run_tla: ${{ inputs.run_tla }}
+      bq_enable: ${{ fromJSON(github.event.inputs.bq_enable || 'false') }}
     secrets: inherit

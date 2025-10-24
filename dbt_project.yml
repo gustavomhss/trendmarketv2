@@ -1,0 +1,11 @@
+name: ce_dbt
+version: 1.0.0
+profile: ce_profile
+model-paths: ["models"]
+models:
+  ce_dbt:
+    +materialized: view
+    staging:
+      +schema: stg
+    marts:
+      +schema: marts
