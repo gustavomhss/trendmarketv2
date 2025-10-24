@@ -311,10 +311,13 @@ jobs:
 
           APAL_UID="$(id -u)"
           APAL_GID="$(id -g)"
+          APAL_USER="$(id -un)"
 
           set +e
           docker run --rm \
-            --user "${APAL_UID}:${APAL_GID}" \
+            -e "APAL_UID=${APAL_UID}" \
+            -e "APAL_GID=${APAL_GID}" \
+            -e "APAL_USER=${APAL_USER}" \
             -v "${MOUNT_PATH}:/var/apalache" \
             -w /var/apalache \
             "$APAL_IMG" \
@@ -322,7 +325,12 @@ jobs:
           RC=${PIPESTATUS[0]}
           set -e
 
-          chmod -R u+rwX,go+rX "$WORK"
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "${APAL_UID}:${APAL_GID}" "$WORK" || true
+            sudo chmod -R u+rwX,go+rX "$WORK" || true
+          else
+            chmod -R u+rwX,go+rX "$WORK" || true
+          fi
 
           echo "[tla] Exit code: ${RC}" | tee -a "$REPORT"
           exit "$RC"
