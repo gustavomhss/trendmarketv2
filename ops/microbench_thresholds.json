@@ -1,0 +1,6 @@
+{
+  "dec_paths":   { "mean_ns": 7000000 },
+  "match_core":  { "mean_ns": 7000000 },
+  "route_fast":  { "mean_ns": 7000000 },
+  "twap_update": { "mean_ns": 7000000 }
+}
