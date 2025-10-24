@@ -1,5 +1,6 @@
 ---- MODULE dec_pre_ga ----
 EXTENDS Integers, Naturals, TLC
+\* Integers provides the Int set required by the Apalache checker.
 
 VARIABLES
 \* @type: Int;
