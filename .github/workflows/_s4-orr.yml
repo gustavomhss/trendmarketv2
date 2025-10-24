@@ -340,19 +340,19 @@ jobs:
           if [ -f ops/dbt/profiles_duckdb.yml ]; then
             cp ops/dbt/profiles_duckdb.yml "$HOME/.dbt/profiles.yml"
           else
-            cat > "$HOME/.dbt/profiles.yml" <<'YAML'
-ce_profile:
-  target: ci
-  outputs:
-    ci:
-      type: duckdb
-      path: ./out/dbt/ce.duckdb
-      threads: 4
-      extensions: [httpfs]
-      settings:
-        temp_directory: "./out/dbt/tmp"
-        memory_limit: "1GB"
-YAML
+            {
+              echo "ce_profile:"
+              echo "  target: ci"
+              echo "  outputs:"
+              echo "    ci:"
+              echo "      type: duckdb"
+              echo "      path: ./out/dbt/ce.duckdb"
+              echo "      threads: 4"
+              echo "      extensions: [httpfs]"
+              echo "      settings:"
+              echo "        temp_directory: \"./out/dbt/tmp\""
+              echo "        memory_limit: \"1GB\""
+            } > "$HOME/.dbt/profiles.yml"
           fi
           dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
           dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
