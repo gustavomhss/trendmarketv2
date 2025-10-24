@@ -306,10 +306,8 @@ jobs:
 
           set +e
           docker run --rm \
-            --entrypoint "" \
             -v "${MOUNT_PATH}:/var/apalache" \
             -w /var/apalache \
-            --entrypoint "" \
             "$APAL_IMG" \
             check "$MODULE" | tee -a "$REPORT"
           RC=${PIPESTATUS[0]}
