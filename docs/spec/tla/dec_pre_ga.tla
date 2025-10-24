@@ -1,5 +1,5 @@
 ---- MODULE dec_pre_ga ----
-EXTENDS Naturals, TLC
+EXTENDS Integers, Naturals, TLC
 
 VARIABLES
 \* @type: Int;
