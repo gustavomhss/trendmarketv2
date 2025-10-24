@@ -1,0 +1,12 @@
+ce_profile:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
+      path: ./out/dbt/ce.duckdb
+      threads: 4
+      extensions:
+        - httpfs
+      settings:
+        memory_limit: "1GB"
+        temp_directory: "./out/dbt/tmp"
