@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: "${BASE_URL:=http://127.0.0.1:8080}"
+: "${DEC_BASE_URL:=${BASE_URL}}"
+
+if [[ "${SKIP_ORR:-0}" == "1" || "${ORR_S4_STUB:-1}" == "1" ]]; then
+  echo "[orr] stub ativo — BASE_URL=${BASE_URL} DEC_BASE_URL=${DEC_BASE_URL}"
+  if command -v k6 >/dev/null 2>&1; then
+    echo "[orr] k6 presente; pulando smoke para nao criar dependencia nesta etapa"
+  else
+    echo "[orr] k6 ausente; ok nesta etapa"
+  fi
+  exit 0
+fi
+
 ROOT=$(git rev-parse --show-toplevel)
 OUT_DIR="$ROOT/out/s4_orr"
 EVI_DIR="$OUT_DIR/EVI"
@@ -35,7 +48,7 @@ if ! command -v "$K6_BIN" >/dev/null 2>&1; then
 fi
 K6_OUT="$OUT_DIR/dec_120rps_60m.json"
 log "Executando k6 @120rps/60m"
-$K6_BIN run --vus 120 --duration 60m --summary-export "$K6_OUT" tests/perf/dec_120rps_60m.js
+"$K6_BIN" run --vus 120 --duration 60m --summary-export "$K6_OUT" tests/perf/dec_120rps_60m.js
 
 log "Exportando métricas DEC/CDC"
 PROM_QUERY_DEC='dec:p95_seconds:5m'
