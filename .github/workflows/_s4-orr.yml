@@ -309,7 +309,7 @@ jobs:
             -v "${MOUNT_PATH}:/var/apalache" \
             -w /var/apalache \
             "$APAL_IMG" \
-            apalache-mc check "$MODULE" | tee -a "$REPORT"
+            check "$MODULE" | tee -a "$REPORT"
           RC=${PIPESTATUS[0]}
           set -e
 
