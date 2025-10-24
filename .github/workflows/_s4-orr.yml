@@ -330,6 +330,7 @@ jobs:
           if-no-files-found: warn
 
       - name: dbt run (DuckDB)
+        if: ${{ hashFiles('dbt_project.yml') != '' }}
         if: ${{ !inputs.run_tla && hashFiles('dbt_project.yml') != '' }}
         shell: bash
         run: |
@@ -341,6 +342,18 @@ jobs:
             cp ops/dbt/profiles_duckdb.yml "$HOME/.dbt/profiles.yml"
           else
             cat > "$HOME/.dbt/profiles.yml" <<'YAML'
+            ce_profile:
+              target: ci
+              outputs:
+                ci:
+                  type: duckdb
+                  path: ./out/dbt/ce.duckdb
+                  threads: 4
+                  extensions: [httpfs]
+                  settings:
+                    temp_directory: "./out/dbt/tmp"
+                    memory_limit: "1GB"
+            YAML
 ce_profile:
   target: ci
   outputs:
