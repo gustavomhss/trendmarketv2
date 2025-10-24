@@ -2,13 +2,13 @@
 EXTENDS Integers, Naturals, TLC
 
 VARIABLES
-\* @type: Int;
+  \* @type: Int;
   dec_p95,
-\* @type: Bool;
+  \* @type: Bool;
   breach,
-\* @type: Bool;
+  \* @type: Bool;
   rollback,
-\* @type: Bool;
+  \* @type: Bool;
   recovered
 
 Threshold == 800
