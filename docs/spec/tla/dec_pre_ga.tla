@@ -3,13 +3,13 @@ EXTENDS Naturals, TLC
 
 VARIABLES
   dec_p95,
-\* @type: Int
+\* @type: Int;
   breach,
-\* @type: Bool
+\* @type: Bool;
   rollback,
-\* @type: Bool
+\* @type: Bool;
   recovered
-\* @type: Bool
+\* @type: Bool;
 
 Init == TRUE
 
