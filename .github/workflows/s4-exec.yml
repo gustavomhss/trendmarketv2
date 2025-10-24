@@ -32,5 +32,5 @@ jobs:
       ref: ${{ inputs.ref }}
       run_microbench: ${{ inputs.run_microbench }}
       run_tla: ${{ inputs.run_tla }}
-      bq_enable: ${{ fromJSON(inputs.bq_enable || 'false') }}
+      bq_enable: ${{ fromJSON(coalesce(inputs.bq_enable, 'false')) }}
     secrets: inherit
