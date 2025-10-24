@@ -303,20 +303,26 @@ jobs:
           MODULE="$(basename "$SEL")"
           MOUNT_PATH="$PWD/$WORK"
 
-          {
+          { 
             echo "[tla] Using image: ${APAL_IMG}"
             echo "[tla] Selected module: ${MODULE}"
             echo "[tla] Workspace: ${WORK}"
           } | tee -a "$REPORT"
 
+          APAL_UID="$(id -u)"
+          APAL_GID="$(id -g)"
+
           set +e
           docker run --rm \
+            --user "${APAL_UID}:${APAL_GID}" \
             -v "${MOUNT_PATH}:/var/apalache" \
             -w /var/apalache \
             "$APAL_IMG" \
             check "$MODULE" | tee -a "$REPORT"
           RC=${PIPESTATUS[0]}
           set -e
+
+          chmod -R u+rwX,go+rX "$WORK"
 
           echo "[tla] Exit code: ${RC}" | tee -a "$REPORT"
           exit "$RC"
