@@ -217,21 +217,19 @@ jobs:
             echo "[tla] Nenhum arquivo .tla encontrado; pulando checagens."
           fi
 
-      - name: Guard ASCII para arquivos TLA
+      - name: TLA ASCII guard (if exists)
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           if [ -x scripts/tla_ascii_guard.sh ]; then
-            scripts/tla_ascii_guard.sh
+            bash scripts/tla_ascii_guard.sh || {
+              echo "[tla] ASCII guard falhou" >&2
+              exit 1
+            }
           else
             echo "[tla] scripts/tla_ascii_guard.sh não encontrado; pulando guard"
           fi
-          {
-            echo "[tla] ASCII guard concluído às $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            echo "[tla] Arquivos verificados:"
-            cat out/tla_models.txt
-          } > out/tla_ascii_report.txt
 
       - name: Detectar GHCR token
         id: ghcr_tok
@@ -255,161 +253,79 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_APALACHE_TOKEN }}
 
-      - name: TLA — Preparar workspace
-        id: tla_ws_init
+      - name: TLA check (Apalache)
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p out/s4_orr
-          WORKDIR="$GITHUB_WORKSPACE"
-          SEL_BASE="$(head -n1 out/tla_models.txt || true)"
-          if [ -z "$SEL_BASE" ]; then
-            echo "[tla] Nenhum modelo TLA disponível para preparação" >&2
-            exit 1
-          fi
-          echo "workdir=${WORKDIR}" >> "$GITHUB_OUTPUT"
-          echo "sel_base=${SEL_BASE}" >> "$GITHUB_OUTPUT"
-
-      - name: TLA — Executar Apalache check
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
-        env:
-          TLA_STRICT: ${{ env.TLA_STRICT }}
-        shell: bash
-        run: |
-          set -uo pipefail
+          WORK="out/s4_orr/apalache_work"
           REPORT="out/s4_orr/tla_report.txt"
-          WORKDIR="${{ steps.tla_ws_init.outputs.workdir }}"
-          SEL_BASE="${{ steps.tla_ws_init.outputs.sel_base }}"
-          RC=0
-          mkdir -p "$(dirname "$REPORT")"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
           : > "$REPORT"
-          if [ -z "$WORKDIR" ] || [ -z "$SEL_BASE" ]; then
-            echo "[tla] Workspace ou modelo base não informado" | tee -a "$REPORT"
-            RC=1
-          else
-            APAL_IMG="${APAL_IMG:-ghcr.io/apalache-mc/apalache:v0.50.3}"
-            FALLBACK_IMG="ghcr.io/apalache-mc/apalache:main"
-            echo "[tla] Tentando usar imagem ${APAL_IMG}" | tee -a "$REPORT"
-            if ! docker pull "$APAL_IMG"; then
-              echo "[tla] Falha ao puxar ${APAL_IMG}; tentando fallback ${FALLBACK_IMG}" | tee -a "$REPORT"
-              if docker pull "$FALLBACK_IMG"; then
-                APAL_IMG="$FALLBACK_IMG"
-              else
-                echo "[tla] Falha ao puxar imagem fallback ${FALLBACK_IMG}" | tee -a "$REPORT"
-                RC=1
-              fi
-            fi
-            if [ "$RC" -eq 0 ]; then
-              echo "[tla] Executando apalache-mc check ${SEL_BASE}" | tee -a "$REPORT"
-              docker run --rm \
-                -v "$WORKDIR:/var/apalache:rw" \
-                -w /var/apalache \
-                "$APAL_IMG" \
-                apalache-mc check "$SEL_BASE" | tee -a "$REPORT"
-              RC=${PIPESTATUS[0]}
-              if [ "$RC" -ne 0 ]; then
-                echo "[tla] Execução falhou com código ${RC}; repetindo com -u 0:0" | tee -a "$REPORT"
-                docker run --rm \
-                  -u 0:0 \
-                  -v "$WORKDIR:/var/apalache:rw" \
-                  -w /var/apalache \
-                  "$APAL_IMG" \
-                  apalache-mc check "$SEL_BASE" | tee -a "$REPORT"
-                RC=${PIPESTATUS[0]}
-              fi
-            fi
-          fi
-          STRICT="${TLA_STRICT:-0}"
-          echo "[tla] Código de saída final: ${RC} (TLA_STRICT=${STRICT})" | tee -a "$REPORT"
-          if [ "${STRICT}" = "1" ] && [ "$RC" -ne 0 ]; then
-            exit "$RC"
-          fi
 
-      - name: TLA — Preparar workspace (bind-mount)
-        id: tla_ws_bind
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
+          APAL_IMG="${APAL_IMG:-ghcr.io/apalache-mc/apalache:v0.50.3}"
 
-          ensure_parent_copy() {
-            local src="$1"
-            [ -f "$src" ] || return 0
-            if [ -n "${COPIED["$src"]:-}" ]; then
-              return 0
-            fi
-            COPIED["$src"]=1
-            mkdir -p "$WORKDIR"
-            cp --parents "$src" "$WORKDIR/"
-            printf '[tla-ws] Copiado: %s\n' "$src"
+          select_tla() {
+            local base="$1"
+            [ -d "$base" ] || return 1
+            find "$base" -maxdepth 1 -type f -name '*.tla' | sort | head -n1
           }
 
-          SEL_FILE="${TLA_SELECTED:-}"
-          if [ -z "$SEL_FILE" ] && [ -f out/tla_selected.txt ]; then
-            SEL_FILE="$(head -n1 out/tla_selected.txt | tr -d '\r')"
+          SEL=""
+          if SEL=$(select_tla docs/spec/tla); then
+            :
+          else
+            SEL=""
           fi
-          if [ -z "$SEL_FILE" ] && [ -f out/tla_models.txt ]; then
-            SEL_FILE="$(head -n1 out/tla_models.txt | tr -d '\r')"
+          if [ -z "$SEL" ]; then
+            SEL=$(find . -maxdepth 1 -type f -name '*.tla' | sort | head -n1 || true)
           fi
-          if [ -z "$SEL_FILE" ]; then
-            echo "[tla-ws] Nenhum módulo selecionado para workspace" >&2
+
+          if [ -z "$SEL" ]; then
+            echo "[tla] Nenhum arquivo .tla elegível encontrado" | tee -a "$REPORT"
             exit 1
           fi
-          if [ ! -f "$SEL_FILE" ]; then
-            echo "[tla-ws] Arquivo selecionado não encontrado: $SEL_FILE" >&2
-            exit 1
-          fi
 
-          WORKDIR="$GITHUB_WORKSPACE/out/s4_orr/apalache_work"
-          rm -rf "$WORKDIR"
-          mkdir -p "$WORKDIR"
-
-          declare -A COPIED=()
-          ensure_parent_copy "$SEL_FILE"
-
-          SEL_DIR="$(dirname "$SEL_FILE")"
-          while IFS= read -r -d '' dep; do
-            ensure_parent_copy "$dep"
-          done < <(find "$SEL_DIR" -maxdepth 1 -type f -name '*.tla' -print0)
-
+          SEL_DIR="$(dirname "$SEL")"
+          find "$SEL_DIR" -maxdepth 1 -type f -name '*.tla' -exec cp -f {} "$WORK/" \;
           if [ -d docs/spec/tla ]; then
-            while IFS= read -r -d '' lib; do
-              ensure_parent_copy "$lib"
-            done < <(find docs/spec/tla -type f -name '*.tla' -print0)
+            find docs/spec/tla -type f -name '*.tla' -exec cp -f {} "$WORK/" \;
           fi
 
-          SEL_BASE_NAME="$(basename "$SEL_FILE")"
-          SEL_BASE="${SEL_BASE_NAME%.tla}"
+          MODULE="$(basename "$SEL")"
+          MOUNT_PATH="$PWD/$WORK"
 
-          printf 'workdir=%s\n' "$WORKDIR" >> "$GITHUB_OUTPUT"
-          printf 'sel_base=%s\n' "$SEL_BASE" >> "$GITHUB_OUTPUT"
+          {
+            echo "[tla] Using image: ${APAL_IMG}"
+            echo "[tla] Selected module: ${MODULE}"
+            echo "[tla] Workspace: ${WORK}"
+          } | tee -a "$REPORT"
 
-          echo "::group::[tla-ws] Conteúdo do workspace"
-          ls -la "$WORKDIR"
-          find "$WORKDIR" -maxdepth 5 -type f -print
-          echo "::endgroup::"
+          set +e
+          docker run --rm \
+            -v "${MOUNT_PATH}:/var/apalache" \
+            -w /var/apalache \
+            "$APAL_IMG" \
+            apalache-mc check "$MODULE" | tee -a "$REPORT"
+          RC=${PIPESTATUS[0]}
+          set -e
 
-      - name: Upload ASCII/Apalache report
-        uses: actions/upload-artifact@v4
-        if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
-        with:
-          name: tla-reports
-          path: |
-            out/tla_ascii_report.txt
-            out/s4_orr/tla_report.txt
-          if-no-files-found: warn
+          echo "[tla] Exit code: ${RC}" | tee -a "$REPORT"
+          exit "$RC"
 
-      - name: Upload relatório TLA (Apalache)
+      - name: Upload TLA report
         uses: actions/upload-artifact@v4
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
           name: tla-report
           path: out/s4_orr/tla_report.txt
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
       - name: Localizar projetos DBT
         id: dbt_scan
+        if: ${{ !inputs.run_tla }}
         shell: bash
         run: |
           set -euo pipefail
@@ -428,7 +344,7 @@ jobs:
           fi
 
       - name: Preparar ambiente DBT (venv isolada)
-        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' }}
+        if: ${{ !inputs.run_tla && steps.dbt_scan.outputs.have_dbt == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -440,7 +356,7 @@ jobs:
 
       - name: Validar segredos GCP/BigQuery para DBT
         id: dbt_secrets
-        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' }}
+        if: ${{ !inputs.run_tla && steps.dbt_scan.outputs.have_dbt == 'true' }}
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -465,7 +381,7 @@ jobs:
           fi
 
       - name: Executar DBT (deps, build, docs)
-        if: ${{ steps.dbt_scan.outputs.have_dbt == 'true' && steps.dbt_secrets.outputs.has_bq == 'true' }}
+        if: ${{ !inputs.run_tla && steps.dbt_scan.outputs.have_dbt == 'true' && steps.dbt_secrets.outputs.has_bq == 'true' }}
         shell: bash
         env:
           DBT_BQ_PROJECT: ${{ secrets.DBT_BQ_PROJECT }}
@@ -490,7 +406,7 @@ jobs:
 
       - name: Upload docs do DBT (se existirem)
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && !inputs.run_tla }}
         with:
           name: dbt-docs
           path: |
@@ -500,7 +416,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Iniciar SUT (Compose/npm)
-        if: ${{ inputs.run_sut }}
+        if: ${{ !inputs.run_tla && inputs.run_sut }}
         shell: bash
         run: |
           set -euo pipefail
@@ -525,7 +441,7 @@ jobs:
           fi
 
       - name: Empacotar evidências (S4)
-        if: always()
+        if: ${{ always() && !inputs.run_tla }}
         shell: bash
         run: |
           set -euo pipefail
@@ -585,7 +501,7 @@ jobs:
           fi
 
       - name: Upload bundle
-        if: always()
+        if: ${{ always() && !inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
           name: s4-bundle
@@ -595,7 +511,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload auditoria pip
-        if: always()
+        if: ${{ always() && !inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
           name: pip-audit
@@ -603,7 +519,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload artefatos DBT
-        if: always()
+        if: ${{ always() && !inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
           name: dbt-target
