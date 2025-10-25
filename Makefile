@@ -39,3 +39,20 @@ nb.perf:
 
 clean:
 rm -rf $(OUT_DIR) out/s4_evidence_bundle_*.zip out/s4_evidence_bundle_*.zip.sha256 || true
+
+.PHONY: dbt-ci sim-all orr-bundle
+
+dbt-ci:
+	pip install 'dbt-duckdb~=1.8.0'
+	dbt deps --profiles-dir ~/.dbt --profile ce_profile
+	dbt debug --profiles-dir ~/.dbt --profile ce_profile
+	dbt run   --profiles-dir ~/.dbt --profile ce_profile
+	dbt test  --profiles-dir ~/.dbt --profile ce_profile
+
+sim-all:
+	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
+	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario gap   --out out/sim/gap.report.json
+	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
+
+orr-bundle:
+	mkdir -p out && zip -r out/s4-orr-evidence.zip out/** target/** logs/** || true

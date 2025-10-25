@@ -1,0 +1,24 @@
+version: 2
+models:
+  - name: stg_oracle_quotes
+    columns:
+      - name: symbol
+        tests:
+          - not_null
+      - name: ts
+        tests:
+          - not_null
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              values: [primary, secondary, tertiary]
+      - name: price
+        tests:
+          - not_null
+      - name: staleness_ms
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 500, 800, 1200]
+

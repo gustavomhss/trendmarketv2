@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: MBP Scale APIs
+  version: 1.0.0
+servers:
+  - url: https://api.trendmarketv2.local
+paths:
+  /oracle/quote:
+    get:
+      summary: Retrieve aggregated oracle quote with TWAP insight
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Oracle quote payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OracleQuote'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Upstream unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /moderation/pause:
+    post:
+      summary: Pause market interactions for a symbol
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationAction'
+      responses:
+        '200':
+          description: Moderation pause accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationAction'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /resolve/apply:
+    post:
+      summary: Apply auto-resolution decision for disputes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - schema_version
+                - event_id
+                - truth
+                - quorum
+              properties:
+                schema_version:
+                  type: integer
+                  enum: [1]
+                event_id:
+                  type: string
+                  description: Unique identifier of the dispute event being resolved
+                symbol:
+                  type: string
+                  description: Market symbol associated with the dispute
+                truth:
+                  type: object
+                  required:
+                    - value
+                    - source
+                    - ts
+                  properties:
+                    value:
+                      type: number
+                    source:
+                      type: string
+                    ts:
+                      type: string
+                      format: date-time
+                quorum:
+                  type: object
+                  required:
+                    - value
+                    - quorum_ok
+                  properties:
+                    value:
+                      type: number
+                    quorum_ok:
+                      type: boolean
+                    diverg_pct:
+                      type: number
+                    staleness_ms:
+                      type: integer
+                manual_decision:
+                  type: string
+                  description: Manual override decision when quorum+truth do not align
+                reason:
+                  type: string
+                  description: Evidence summary supporting the manual override
+                idempotency_key:
+                  type: string
+                  description: Key used to deduplicate retries of the same decision
+                resource_version:
+                  type: string
+                  description: Version token to guard against write-write conflicts
+      responses:
+        '200':
+          description: Resolution outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - decision_id
+                  - outcome
+                  - rule
+                  - trace_id
+                  - resource_version
+                properties:
+                  decision_id:
+                    type: string
+                  outcome:
+                    type: string
+                  rule:
+                    type: string
+                  trace_id:
+                    type: string
+                  resource_version:
+                    type: string
+        '409':
+          description: Conflict with existing decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Decision rejected due to rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - trace_id
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        trace_id:
+          type: string
+    OracleQuote:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - ts
+        - symbol
+        - price
+        - staleness_ms
+        - quorum_ok
+      properties:
+        schema_version:
+          type: integer
+          enum: [1]
+        ts:
+          type: string
+          format: date-time
+        symbol:
+          type: string
+        price:
+          type: number
+        staleness_ms:
+          type: integer
+        quorum_ok:
+          type: boolean
+        divergence_pct:
+          type: number
+        twap_60s:
+          type: number
+        failover_source:
+          type: string
+        trace_id:
+          type: string
+    ModerationAction:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - ts
+        - symbol
+        - action
+        - actor
+        - role
+        - trace_id
+        - status
+      properties:
+        schema_version:
+          type: integer
+          enum: [1]
+        ts:
+          type: string
+          format: date-time
+        symbol:
+          type: string
+        action:
+          type: string
+          enum: [pause, resume, appeal]
+        reason:
+          type: string
+        evidence_uri:
+          type: string
+        actor:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        trace_id:
+          type: string
+
