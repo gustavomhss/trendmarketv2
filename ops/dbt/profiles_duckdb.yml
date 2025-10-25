@@ -1,7 +1,7 @@
 ce_profile:
-  target: ci
+  target: duckdb
   outputs:
-    ci:
+    duckdb: &duckdb_output
       type: duckdb
       path: ./out/dbt/ce.duckdb
       threads: 4
@@ -10,3 +10,5 @@ ce_profile:
       settings:
         memory_limit: "1GB"
         temp_directory: "./out/dbt/tmp"
+    ci:
+      <<: *duckdb_output
