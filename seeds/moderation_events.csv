@@ -1,0 +1,4 @@
+id,ts,symbol,action,reason,evidence_uri,actor
+MOD-20240101-0001,2024-01-01 00:10:00,BRLUSD,pause,divergence>1%,s3://moderation/events/MOD-20240101-0001.json,auto_moderator
+MOD-20240101-0002,2024-01-01 00:25:00,BRLUSD,escalate,manual_review_requested,s3://moderation/events/MOD-20240101-0002.json,human_reviewer
+MOD-20240101-0003,2024-01-01 00:45:00,BRLUSD,resume,conditions_restored,s3://moderation/events/MOD-20240101-0003.json,auto_moderator
