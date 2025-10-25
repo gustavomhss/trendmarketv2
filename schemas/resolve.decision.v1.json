@@ -1,8 +1,141 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Resolve Decision Event v1",
+  "$id": "https://trendmarketv2/schemas/resolve.decision.v1.json",
+  "title": "Resolve Decision Event",
+  "description": "Canonical event emitted whenever the auto-resolution service publishes a decision.",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "truth_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Snapshot of the authoritative truth source signal considered during resolution.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier for the upstream truth source."
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["accepted", "rejected"],
+          "description": "Outcome suggested by the truth source."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Confidence reported by the truth source."
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the truth signal was observed (ISO 8601)."
+        },
+        "evidence_uri": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "Optional URI linking to supporting evidence."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Supplementary notes supplied with the truth signal."
+        }
+      },
+      "required": ["source", "verdict", "confidence", "observed_at"]
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Schema version for resolve.decision events."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the decision was recorded."
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the market or dispute being resolved."
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identifier for the decision instance."
+    },
+    "rule": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.:-]+$",
+      "description": "Resolution rule that produced the decision (e.g. auto.quorum)."
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["accepted", "rejected"],
+      "description": "Final outcome published by the resolver."
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Actor or service issuing the decision."
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1,
+      "description": "RBAC role of the actor applying the decision."
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 8,
+      "description": "Trace identifier for correlating telemetry."
+    },
+    "manual_override": {
+      "type": "boolean",
+      "description": "Indicates whether the outcome resulted from a manual override."
+    },
+    "truth_source_used": {
+      "type": "boolean",
+      "description": "True when the truth source determined the outcome."
+    },
+    "quorum_ok": {
+      "type": "boolean",
+      "description": "True when the quorum requirement was satisfied."
+    },
+    "quorum_votes": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Normalized quorum votes that participated in the decision."
+        }
+      ]
+    },
+    "truth_source": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/truth_source"}
+      ],
+      "description": "Truth source snapshot captured during evaluation."
+    },
+    "evidence_uri": {
+      "type": ["string", "null"],
+      "format": "uri",
+      "description": "Optional URI pointing to supporting evidence reviewed."
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1}
+      ],
+      "description": "Idempotency key supplied by the caller."
+    },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Human-readable reason for manual overrides."
+    }
+  },
   "required": [
     "schema_version",
     "ts",
@@ -12,187 +145,10 @@
     "decision",
     "actor",
     "role",
-    "outcome",
-    "trace_id"
-  ],
-  "properties": {
-    "schema_version": {
-      "type": "integer",
-      "enum": [1]
-  "$id": "https://trendmarketv2/schemas/resolve.decision.v1.json",
-  "title": "Resolve Decision Event",
-  "description": "Canonical event emitted whenever the resolver issues a decision for a market event.",
-  "type": "object",
-  "additionalProperties": false,
-  "$defs": {
-    "truth_source": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Snapshot of the truth source signal considered during resolution.",
-      "properties": {
-        "source": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Identifier for the upstream truth source." 
-        },
-        "verdict": {
-          "type": "string",
-          "enum": ["accepted", "rejected"],
-          "description": "Outcome suggested by the truth source." 
-        },
-        "confidence": {
-          "type": "number",
-          "minimum": 0.0,
-          "maximum": 1.0,
-          "description": "Confidence score reported by the truth source (0–1)."
-        },
-        "observed_at": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when the truth source observation was recorded (ISO 8601)."
-        },
-        "evidence_uri": {
-          "type": ["string", "null"],
-          "format": "uri",
-          "description": "Optional URI referencing supporting evidence for the truth signal."
-        },
-        "notes": {
-          "type": ["string", "null"],
-          "description": "Additional notes supplied with the truth signal."
-        }
-      },
-      "required": ["source", "verdict", "confidence", "observed_at"]
-    }
-  },
-  "properties": {
-    "schema_version": {
-      "const": 1,
-      "description": "Schema version for `resolve.decision` events."
-    },
-    "ts": {
-      "type": "string",
-      "format": "date-time",
-      "description": "UTC timestamp when the decision was recorded"
-    },
-    "event_id": {
-      "type": "string",
-      "description": "Identifier of the dispute or resolution event"
-    },
-    "decision_id": {
-      "type": "string",
-      "description": "Deterministic identifier for the decision instance"
-    },
-    "rule": {
-      "type": "string",
-      "description": "Rule applied to reach the decision (e.g., AUTO_TRUTH_MATCH)"
-    },
-    "decision": {
-      "type": ["string", "null"],
-      "description": "Resolved outcome value or null when manual follow-up is required"
-    },
-    "actor": {
-      "type": "string",
-      "description": "Originating actor or service applying the decision"
-    },
-    "role": {
-      "type": "string",
-      "description": "RBAC role of the actor when the decision was applied"
-    },
-    "outcome": {
-      "type": "string",
-      "enum": ["applied", "applied_manual", "manual_required"],
-      "description": "Outcome of the resolution attempt"
-    },
-    "trace_id": {
-      "type": "string",
-      "description": "Trace identifier for correlating downstream logs and telemetry"
-    },
-    "metadata": {
-      "type": "object",
-      "description": "Structured metadata with quorum, truth, and evaluation context",
-      "additionalProperties": true
-    }
-  }
-      "description": "UTC timestamp when the decision was emitted (ISO 8601)."
-    },
-    "event_id": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Identifier of the event/market being resolved."
-    },
-    "rule": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-z0-9_.:-]+$",
-      "description": "Resolution rule or pathway applied (e.g. `auto.quorum`, `truth_source.provider`)."
-    },
-    "decision": {
-      "type": "string",
-      "enum": ["accepted", "rejected"],
-      "description": "Final decision outcome published by the resolver."
-    },
-    "actor": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Identifier for the actor (service or human) issuing the decision."
-    },
-    "role": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Role assigned to the actor when issuing the decision."
-    },
-    "trace_id": {
-      "type": "string",
-      "minLength": 8,
-      "description": "Trace or decision identifier used for correlation and audit."
-    },
-    "reason": {
-      "type": ["string", "null"],
-      "description": "Machine-readable reason or tag explaining why the decision was reached."
-    },
-    "manual_override": {
-      "type": "boolean",
-      "description": "Whether the decision was produced via manual override."
-    },
-    "truth_source_used": {
-      "type": "boolean",
-      "description": "Indicates if the truth source signal determined the decision."
-    },
-    "quorum_ok": {
-      "type": "boolean",
-      "description": "True when the configured quorum requirement was satisfied."
-    },
-    "quorum_votes": {
-      "type": "array",
-      "items": {"type": "string"},
-      "description": "List of normalized quorum votes considered for the decision."
-    },
-    "truth_source": {
-      "anyOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/truth_source"}
-      ],
-      "description": "Truth source payload captured during evaluation, when available."
-    },
-    "evidence_uri": {
-      "type": ["string", "null"],
-      "format": "uri",
-      "description": "Optional URI pointing to supporting evidence reviewed for the decision."
-    },
-    "idempotency_key": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Idempotency key supplied by the caller for deduplication."
-    }
-  },
-  "required": [
-    "schema_version",
-    "ts",
-    "event_id",
-    "rule",
-    "decision",
-    "actor",
-    "role",
-    "trace_id"
+    "trace_id",
+    "manual_override",
+    "truth_source_used",
+    "quorum_ok",
+    "idempotency_key"
   ]
 }

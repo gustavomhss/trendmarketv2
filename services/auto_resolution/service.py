@@ -1,934 +1,665 @@
-"""Auto-resolution service combining truth-source inputs and quorum outcomes."""
+"""Auto-resolution service with RBAC, audit logging, and metrics."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from hashlib import sha256
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Any, List
-"""Auto-resolution service combining quorum evaluation and truth-source overrides."""
-from __future__ import annotations
-
-from dataclasses import dataclass, asdict
-from hashlib import sha256
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
-from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 import json
 import time
 import uuid
 
-MANUAL_ROLES = {"operator", "admin"}
 
-
-class ResolutionConflictError(RuntimeError):
-    """Raised when attempting to apply a decision with a stale resource version."""
-
-
-@dataclass
-class ResolutionDecision:
-    event_id: str
-    decision_id: str
-    rule: str
-    decision: Optional[str]
-    outcome: str
-    actor: str
-    role: str
-    trace_id: str
-    decided_at: float
-    resource_version: str
-    manual: bool
-    metadata: Dict[str, Any]
-
-    def to_response(self) -> Dict[str, str]:
-        return {
-            "decision_id": self.decision_id,
-            "outcome": self.outcome,
-            "rule": self.rule,
-            "trace_id": self.trace_id,
-            "resource_version": self.resource_version,
-        }
-
-
-class AutoResolutionService:
-    """Evaluates quorum decisions against a truth source with auditability."""
-from .telemetry import telemetry as auto_resolution_telemetry
-
-if TYPE_CHECKING:  # pragma: no cover - import used for typing only
-    from .telemetry import AutoResolutionTelemetry
-
-ALLOWED_AUTO_ROLES = {"resolver", "admin", "resolver_lead"}
+ALLOWED_AUTO_ROLES = {"operator", "resolver", "admin", "system"}
 ALLOWED_MANUAL_ROLES = {"admin", "resolver_lead"}
-ALLOWED_AUTO_ROLES = {"operator", "admin"}
-ALLOWED_MANUAL_ROLES = {"admin"}
-
-DIVERGENCE_THRESHOLD = 0.01
-AGREEMENT_THRESHOLD = 0.5
-
-_AUTO_FAILURE_REASON = "no_resolution_path"
-
-
+AGREEMENT_THRESHOLD = 0.6
 RESOLVE_DECISION_SCHEMA_VERSION = 1
+_DIVERGENCE_THRESHOLD = 0.01
 
 
 class ResolutionError(RuntimeError):
-    """Raised when a resolution cannot be applied automatically."""
+    """Raised when a resolution cannot be completed automatically."""
 
 
-class ResolutionConflict(ResolutionError):
-    """Raised when `resource_version` semantics detect a conflict."""
+class ResolutionConflictError(ResolutionError):
+    """Raised when resource-version semantics detect a conflict."""
 
-    def __init__(self, message: str, *, resource_version: int) -> None:
+    def __init__(self, event_id: str, expected: int, provided: Optional[int]) -> None:
+        message = (
+            f"Conflict applying resolution for '{event_id}': expected resource_version {expected}, "
+            f"got {provided}"
+        )
         super().__init__(message)
-        self.resource_version = resource_version
+        self.event_id = event_id
+        self.expected = expected
+        self.provided = provided
 
 
-@dataclass
+# Backwards compatibility alias expected by some tests.
+ResolutionConflict = ResolutionConflictError
+
+
+class IdempotencyKeyConflict(RuntimeError):
+    """Raised when an idempotency key is reused with mismatched payloads."""
+
+    def __init__(self, key: str) -> None:
+        super().__init__(f"Idempotency key '{key}' conflict")
+        self.key = key
+
+
+class DecisionRule:
+    """Canonical decision rules returned by the auto-resolution service."""
+
+    TRUTH_SOURCE_FINAL = "truth_source_final"
+    TRUTH_SOURCE_OVERRIDE = "truth_source_override"
+    QUORUM_CONSENSUS = "quorum_consensus"
+    MANUAL_OVERRIDE = "manual_override"
+    MANUAL_REVIEW = "manual_review_required"
+
+
+_FINAL_TRUTH_STATUSES = {"final", "confirmed", "resolved"}
+
+
+@dataclass(frozen=True)
 class TruthSourceSignal:
-    """Signal reported by the configured truth source."""
+    """Structured payload emitted by a truth source."""
 
     source: str
-    verdict: str
+    verdict: Optional[str]
     confidence: float
     observed_at: str
     evidence_uri: Optional[str] = None
     notes: Optional[str] = None
 
-    def __post_init__(self) -> None:
-        self.verdict = self.verdict.lower()
-        if self.verdict not in {"accepted", "rejected"}:
-            raise ValueError("Truth source verdict must be 'accepted' or 'rejected'")
+    def __post_init__(self) -> None:  # pragma: no cover - defensive validation
+        object.__setattr__(self, "source", self.source.strip())
+        if not self.source:
+            raise ValueError("Truth source requires a non-empty source identifier")
+        if self.verdict is not None:
+            verdict = self.verdict.strip().lower()
+            object.__setattr__(self, "verdict", verdict)
         if not (0.0 <= self.confidence <= 1.0):
-            raise ValueError("Truth source confidence must be between 0.0 and 1.0")
+            raise ValueError("Truth source confidence must be within [0.0, 1.0]")
+        object.__setattr__(self, "observed_at", self.observed_at.strip())
+        if not self.observed_at:
+            raise ValueError("Truth source observed_at must be an ISO 8601 string")
+
+    def is_final(self) -> bool:
+        return (self.verdict is not None) and (self.status in _FINAL_TRUTH_STATUSES)
+
+    @property
+    def status(self) -> str:
+        # ``observed_at`` already validated; allow callers to attach arbitrary status metadata
+        return getattr(self, "_status", "final")
+
+    def with_status(self, status: str) -> "TruthSourceSignal":
+        clone = TruthSourceSignal(
+            source=self.source,
+            verdict=self.verdict,
+            confidence=self.confidence,
+            observed_at=self.observed_at,
+            evidence_uri=self.evidence_uri,
+            notes=self.notes,
+        )
+        object.__setattr__(clone, "_status", status.lower())
+        return clone
+
+    def to_event_payload(self) -> Dict[str, Any]:
+        verdict = None if self.verdict is None else _as_event_decision(self.verdict)
+        return {
+            "source": self.source,
+            "verdict": verdict,
+            "confidence": self.confidence,
+            "observed_at": self.observed_at,
+            "evidence_uri": self.evidence_uri,
+            "notes": self.notes,
+        }
 
 
 @dataclass
 class ResolutionRecord:
-    """Outcome of an auto-resolution attempt."""
+    """Resolved decision returned by :class:`AutoResolutionService`."""
 
     event_id: str
-    outcome: str
-    reason: str
+    decision_id: str
+    outcome: Optional[str]
+    rule: str
+    actor: str
+    role: str
     trace_id: str
     decided_at: float
-    idempotency_key: str
-    quorum_ok: bool
+    idempotency_key: Optional[str]
+    resource_version: int
     truth_source_used: bool
     manual_override: bool
-    resource_version: int
+    quorum_ok: bool
     agreement_score: float
+    truth_verdict: Optional[str]
+    manual_reason: Optional[str]
+    evidence_uri: Optional[str]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    status: str = "applied"
+
+    def as_dict(self) -> Dict[str, Any]:
+        data = {
+            "decision_id": self.decision_id,
+            "outcome": self.status,
+            "decision": self.outcome,
+            "rule": self.rule,
+            "trace_id": self.trace_id,
+            "resource_version": self.resource_version,
+            "idempotency_key": self.idempotency_key,
+            "truth_source_used": self.truth_source_used,
+            "manual_override": self.manual_override,
+            "quorum_ok": self.quorum_ok,
+            "agreement_score": self.agreement_score,
+        }
+        if self.manual_reason is not None:
+            data["reason"] = self.manual_reason
+        return data
+
+    def __getitem__(self, key: str) -> Any:
+        return self.as_dict()[key]
 
 
 class AutoResolutionMetrics:
-    """Persist metrics/traces for auto-resolution evaluations."""
+    """Helper persisting metrics about auto-resolution evaluations."""
 
     def __init__(self, metrics_log: Path) -> None:
         self.metrics_log = metrics_log
         self.metrics_log.parent.mkdir(parents=True, exist_ok=True)
 
-    def emit(
-        self,
-        *,
-        status: str,
-        event_id: str,
-        trace_id: str,
-        duration_s: float,
-        outcome: Optional[str] = None,
-        reason: Optional[str] = None,
-        truth_source_used: Optional[bool] = None,
-        manual_override: Optional[bool] = None,
-        agreement_score: Optional[float] = None,
-        error: Optional[str] = None,
-    ) -> None:
-        payload = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "span": "auto_resolve.eval",
-            "status": status,
-            "event_id": event_id,
-            "trace_id": trace_id,
-            "duration_ms": round(duration_s * 1000, 3),
-            "outcome": outcome,
-            "reason": reason,
-            "truth_source_used": truth_source_used,
-            "manual_override": manual_override,
-            "agreement_score": agreement_score,
-            "error": error,
-        }
-        with self.metrics_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(payload) + "\n")
+    def emit(self, payload: Mapping[str, Any]) -> None:
+        with self.metrics_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(dict(payload)) + "\n")
 
 
 class AutoResolutionService:
-    """Evaluate quorum decisions with truth-source overrides and audit logging."""
+    """Resolve events using quorum votes, truth signals, and manual overrides."""
 
     def __init__(
         self,
         *,
         audit_log: Path,
-        event_log: Path,
-        metrics_log: Path,
-        tolerance_pct: float = 0.01,
-    ) -> None:
-        self.audit_log = audit_log
-        self.event_log = event_log
-        self.metrics_log = metrics_log
-        for log in (self.audit_log, self.event_log, self.metrics_log):
-            log.parent.mkdir(parents=True, exist_ok=True)
-        self.tolerance_pct = tolerance_pct
-        self.decisions: Dict[str, ResolutionDecision] = {}
-        self.idempotency: Dict[str, str] = {}
-        self._version_counter = 0
+        event_log: Optional[Path] = None,
         metrics_log: Optional[Path] = None,
-        quorum_threshold: float = 2 / 3,
-        truth_confidence_threshold: float = 0.7,
-        telemetry: "AutoResolutionTelemetry" | None = None,
-        divergence_threshold: float = DIVERGENCE_THRESHOLD,
+        divergence_threshold: float = _DIVERGENCE_THRESHOLD,
     ) -> None:
         self.audit_log = audit_log
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
-        self.decision_log = self.audit_log.parent / "resolve_decisions.jsonl"
-        metrics_path = metrics_log or audit_log.parent / "metrics.jsonl"
-        self.metrics = AutoResolutionMetrics(metrics_path)
-        self.quorum_threshold = quorum_threshold
-        self.truth_confidence_threshold = truth_confidence_threshold
+        self.event_log = event_log or self.audit_log.parent / "resolve_events.jsonl"
+        self.event_log.parent.mkdir(parents=True, exist_ok=True)
+        self.metrics = AutoResolutionMetrics(metrics_log or self.audit_log.parent / "metrics.jsonl")
         self.divergence_threshold = divergence_threshold
+
+        self._records: Dict[str, ResolutionRecord] = {}
         self._idempotency: Dict[str, ResolutionRecord] = {}
-        self._telemetry = telemetry or auto_resolution_telemetry
-        self._backlog_events: Dict[str, str] = {}
         self._versions: Dict[str, int] = {}
 
-    def apply(
-        self,
-        *,
-        event_id: str,
-        symbol: str,
-        truth: Dict[str, Any],
-        quorum: Dict[str, Any],
-        actor: str,
-        role: str,
-        idempotency_key: Optional[str] = None,
-        manual_decision: Optional[str] = None,
-        reason: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        resource_version: Optional[str] = None,
-        now: Optional[float] = None,
-    ) -> Dict[str, str]:
-        """Apply an auto-resolution decision ensuring RBAC, idempotency, and auditing."""
+    # ---------------------------------------------------------------------
+    # Public API
+    # ---------------------------------------------------------------------
+    def apply(self, **payload: Any) -> ResolutionRecord:
+        """Apply a resolution using the unified Sprint 5 interface."""
 
-        if idempotency_key and idempotency_key in self.idempotency:
-            stored_event_id = self.idempotency[idempotency_key]
-            return self.decisions[stored_event_id].to_response()
+        context = self._prepare_context(payload)
 
-        existing = self.decisions.get(event_id)
-        if existing:
-            if resource_version and resource_version != existing.resource_version:
-                raise ResolutionConflictError(
-                    f"Event {event_id} already decided with version {existing.resource_version}"
-                )
-            return existing.to_response()
-
-        decided_at = now if now is not None else time.time()
-        trace = trace_id or uuid.uuid4().hex
-        outcome = "applied"
-        manual = False
-        decision_value: Optional[str] = None
-        metadata: Dict[str, Any] = {
-            "symbol": symbol,
-            "truth": truth,
-            "quorum": quorum,
-        }
-
-        if manual_decision is not None:
-            self._enforce_manual_role(role)
-            decision_value = manual_decision
-            rule = "MANUAL_OVERRIDE"
-            outcome = "applied_manual"
-            manual = True
-            if reason:
-                metadata["reason"] = reason
-        else:
-            evaluation = self._evaluate_truth(truth, quorum)
-            metadata["evaluation"] = evaluation
-            rule = evaluation["rule"]
-            if not evaluation["quorum_ok"] or not evaluation["truth_rule_ok"]:
-                outcome = "manual_required"
-                decision_value = evaluation.get("proposed_decision")
-            else:
-                decision_value = evaluation["proposed_decision"]
-
-        decision_id = uuid.uuid4().hex
-        self._version_counter += 1
-        resource_ver = resource_version or f"v{self._version_counter:04d}"
-        record = ResolutionDecision(
-            event_id=event_id,
-            decision_id=decision_id,
-            rule=rule,
-            decision=decision_value,
-            outcome=outcome,
-            actor=actor,
-            role=role,
-            trace_id=trace,
-            decided_at=decided_at,
-            resource_version=resource_ver,
-            manual=manual,
-            metadata=metadata,
-        )
-        self.decisions[event_id] = record
+        idempotency_key = context["idempotency_key"]
         if idempotency_key:
-            self.idempotency[idempotency_key] = event_id
+            record = self._idempotency.get(idempotency_key)
+            if record is not None:
+                if record.event_id != context["event_id"]:
+                    raise ResolutionError("Idempotency key reuse for different event")
+                return record
 
-        payload = {
-            "event_id": event_id,
-            "decision": decision_value,
-            "rule": rule,
-            "outcome": outcome,
-            "reason": reason,
-            "manual": manual,
-        }
-        self._append_audit(actor, role, payload, trace, decided_at)
-        self._append_event(record)
-        self._append_metrics(record)
-        return record.to_response()
+        event_id = context["event_id"]
+        provided_version = context["resource_version"]
+        current_version = self._versions.get(event_id, 0)
+        if provided_version != current_version:
+            raise ResolutionConflictError(event_id, current_version, provided_version)
 
-    def get_decision(self, event_id: str) -> Optional[ResolutionDecision]:
-        return self.decisions.get(event_id)
+        record = (
+            self._apply_legacy(context)
+            if context["legacy_truth"] is not None
+            else self._apply_modern(context)
+        )
+
+        self._records[event_id] = record
+        self._versions[event_id] = current_version + 1
+        if idempotency_key:
+            self._idempotency[idempotency_key] = record
+
+        self._write_audit(record, context)
+        self._write_event(record, context)
+        self._write_metrics(record, context)
+        return record
 
     def load_audit_entries(self) -> List[Dict[str, Any]]:
         if not self.audit_log.exists():
             return []
-        with self.audit_log.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
-
-    def load_event_entries(self) -> List[Dict[str, Any]]:
-        if not self.event_log.exists():
-            return []
-        with self.event_log.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
+        with self.audit_log.open("r", encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
 
     def load_metrics_entries(self) -> List[Dict[str, Any]]:
-        if not self.metrics_log.exists():
+        if not self.metrics.metrics_log.exists():
             return []
-        with self.metrics_log.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
+        with self.metrics.metrics_log.open("r", encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
 
-    def _evaluate_truth(self, truth: Dict[str, Any], quorum: Dict[str, Any]) -> Dict[str, Any]:
-        truth_value = truth.get("value")
-        truth_source = truth.get("source")
-        truth_ts = truth.get("ts")
-        quorum_ok = bool(quorum.get("quorum_ok"))
-        quorum_value = quorum.get("value")
-        staleness_ms = quorum.get("staleness_ms", 0)
-        divergence = quorum.get("diverg_pct")
-        proposed_decision = None
-        rule = "AUTO_TRUTH_MATCH"
-        truth_rule_ok = False
+    def load_event_entries(self) -> List[Dict[str, Any]]:
+        return self.load_decision_events()
 
-        if truth_value is not None and quorum_value is not None:
-            baseline = abs(truth_value) if abs(truth_value) > 1e-9 else 1.0
-            delta_pct = abs(quorum_value - truth_value) / baseline
-            truth_rule_ok = delta_pct <= self.tolerance_pct
-            proposed_decision = str(truth_value)
-        else:
-            delta_pct = None
-            rule = "TRUTH_SOURCE_MISSING"
+    def load_decision_events(self) -> List[Dict[str, Any]]:
+        if not self.event_log.exists():
+            return []
+        with self.event_log.open("r", encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
 
-        if divergence is not None and divergence > self.tolerance_pct:
-            truth_rule_ok = False
-            rule = "DIVERGENCE_THRESHOLD"
-        elif staleness_ms and staleness_ms > 30000:
-            truth_rule_ok = False
-            rule = "STALENESS_THRESHOLD"
-        elif not quorum_ok:
-            rule = "QUORUM_INSUFFICIENT"
-        elif truth_rule_ok:
-            rule = "AUTO_TRUTH_MATCH"
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _prepare_context(self, payload: Mapping[str, Any]) -> Dict[str, Any]:
+        event_id = str(payload.get("event_id"))
+        if not event_id:
+            raise ValueError("event_id is required")
 
-        return {
-            "truth_source": truth_source,
-            "truth_ts": truth_ts,
-            "quorum_ok": quorum_ok,
-            "truth_rule_ok": truth_rule_ok,
-            "delta_pct": delta_pct,
-            "rule": rule,
-            "proposed_decision": proposed_decision,
-        }
+        actor = str(payload.get("actor", "").strip())
+        role = str(payload.get("role", "").strip())
+        if not actor:
+            raise ValueError("actor is required")
+        if not role:
+            raise ValueError("role is required")
+        if role not in ALLOWED_AUTO_ROLES:
+            raise PermissionError(f"Role '{role}' not permitted to apply auto-resolution")
 
-    def _enforce_manual_role(self, role: str) -> None:
-        if role not in MANUAL_ROLES:
-            raise PermissionError(f"Role '{role}' cannot perform manual override")
-
-    def _append_audit(
-        self,
-        actor: str,
-        role: str,
-        payload: Dict[str, Any],
-        trace_id: str,
-        decided_at: float,
-    ) -> None:
-        ts_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(decided_at))
-        payload_hash = sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
-        quorum_votes: Sequence[Mapping[str, object]] | Mapping[str, object] | Sequence[str],
-        actor: str,
-        role: str,
-        idempotency_key: str,
-        trace_id: Optional[str] = None,
-        truth_source: Optional[TruthSourceSignal] = None,
-        manual_override: Optional[str] = None,
-        manual_reason: Optional[str] = None,
-        evidence_uri: Optional[str] = None,
-        resource_version: Optional[int] = None,
-    ) -> ResolutionRecord:
-        start = time.perf_counter()
-        resolved_trace = trace_id or uuid.uuid4().hex
-        self._require_idempotency_key(idempotency_key)
-        existing = self._idempotency.get(idempotency_key)
-        if existing is not None:
-            if existing.event_id != event_id:
-                raise ResolutionError("Idempotency key reuse for different event is not allowed")
-            return existing
-
-        current_version = self._versions.get(event_id, 0)
-        if event_id in self._versions:
-            if resource_version is None:
-                raise ResolutionConflict(
-                    "resource_version required for existing events",
-                    resource_version=current_version,
-                )
-            if resource_version != current_version:
-                raise ResolutionConflict(
-                    "resource_version mismatch",
-                    resource_version=current_version,
-                )
-        else:
-            if resource_version not in (None, 0):
-                raise ResolutionConflict(
-                    "resource_version must be 0 for new events",
-                    resource_version=0,
-                )
-
-        self._enforce_role(role, ALLOWED_AUTO_ROLES, action="apply resolution")
-
-        start = time.perf_counter()
-        mode = "manual" if manual_override is not None else "auto"
-        span_attributes = {
-            "auto_resolve.event_id": event_id,
-            "auto_resolve.mode": mode,
-            "auto_resolve.actor": actor,
-            "auto_resolve.role": role,
-        }
-        if truth_source is not None:
-            span_attributes["auto_resolve.truth_source"] = truth_source.source
-
-        with self._telemetry.span("auto_resolve.apply", attributes=span_attributes) as span:
-            try:
-                if manual_override is not None:
-                    self._enforce_role(role, ALLOWED_MANUAL_ROLES, action="perform manual override")
-                    outcome, truth_used, reason = self._apply_manual_override(
-                        manual_override, manual_reason
-                    )
-                    manual_flag = True
-                    quorum_ok = self._quorum_reached(normalized_votes)
-                else:
-                    manual_flag = False
-                    outcome, truth_used, reason, quorum_ok = self._apply_auto_logic(
-                        normalized_votes, truth_source
-                    )
-
-                decided_at = time.time()
-                resolved_trace = trace_id or uuid.uuid4().hex
-                record = ResolutionRecord(
-                    event_id=event_id,
-                    outcome=outcome,
-                    reason=reason,
-                    trace_id=resolved_trace,
-                    decided_at=decided_at,
-                    idempotency_key=idempotency_key,
-                    quorum_ok=quorum_ok,
-                    truth_source_used=truth_used,
-                    manual_override=manual_flag,
-                )
-                self._idempotency[idempotency_key] = record
-                self._clear_backlog(event_id)
-
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                self._telemetry.record_success(
-                    mode="manual" if manual_flag else "auto",
-                    duration_ms=duration_ms,
-                    outcome=record.outcome,
-                    truth_source_used=record.truth_source_used,
-                )
-
-                if span is not None:
-                    span.set_attribute("auto_resolve.outcome", record.outcome)
-                    span.set_attribute("auto_resolve.truth_source_used", record.truth_source_used)
-                    span.set_attribute("auto_resolve.quorum_ok", record.quorum_ok)
-                    span.set_attribute("auto_resolve.manual_override", record.manual_override)
-
-                self._append_audit(
-                    actor=actor,
-                    role=role,
-                    record=record,
-                    quorum_votes=normalized_votes,
-                    truth_source=truth_source,
-                    manual_reason=manual_reason,
-                    evidence_uri=evidence_uri,
-                )
-                return record
-            except ResolutionError as exc:
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                self._mark_backlog(event_id, _AUTO_FAILURE_REASON)
-                self._telemetry.record_failure(
-                    mode="auto",
-                    duration_ms=duration_ms,
-                    reason=_AUTO_FAILURE_REASON,
-                )
-                if span is not None:
-                    self._telemetry.span_record_error(span, exc)
-                raise
-        votes, divergence = self._normalize_votes(quorum_votes)
-
+        resource_version = payload.get("resource_version")
+        if resource_version is None:
+            resource_version = self._versions.get(event_id, 0)
         try:
-            if manual_override is not None:
-                record = self._apply_manual_override(
-                    event_id=event_id,
-                    votes=votes,
-                    manual_override=manual_override,
-                    manual_reason=manual_reason,
-                    evidence_uri=evidence_uri,
-                    resolved_trace=resolved_trace,
-                    idempotency_key=idempotency_key,
-                    role=role,
-                    duration_start=start,
-                    current_version=current_version,
-                )
-            else:
-                record = self._apply_auto_logic(
-                    event_id=event_id,
-                    votes=votes,
-                    divergence=divergence,
-                    truth_source=truth_source,
-                    resolved_trace=resolved_trace,
-                    idempotency_key=idempotency_key,
-                    duration_start=start,
-                    current_version=current_version,
-                )
-        except Exception as exc:  # noqa: BLE001 - propagate after logging metrics
-            duration = time.perf_counter() - start
-            self.metrics.emit(
-                status="error",
-                event_id=event_id,
-                trace_id=resolved_trace,
-                duration_s=duration,
-                error=str(exc),
-            )
-            raise
+            resource_version = int(resource_version)
+        except (TypeError, ValueError) as exc:
+            expected = self._versions.get(event_id, 0)
+            raise ResolutionConflictError(event_id, expected, resource_version) from exc
 
-        self._idempotency[idempotency_key] = record
-        self._versions[event_id] = record.resource_version
-        self._append_audit(
-            actor=actor,
-            role=role,
-            record=record,
-            votes=votes,
-            truth_source=truth_source,
+        idempotency_key = payload.get("idempotency_key")
+        if idempotency_key is not None:
+            idempotency_key = str(idempotency_key)
+            if not idempotency_key:
+                raise ValueError("idempotency_key cannot be empty")
+
+        truth_source = payload.get("truth_source")
+        if truth_source is not None and isinstance(truth_source, TruthSourceSignal):
+            source_status = getattr(truth_source, "status", "pending")
+            truth_source = truth_source.with_status(source_status)
+
+        context = {
+            "event_id": event_id,
+            "actor": actor,
+            "role": role,
+            "resource_version": resource_version,
+            "idempotency_key": idempotency_key,
+            "trace_id": str(payload.get("trace_id") or uuid.uuid4().hex),
+            "timestamp": payload.get("now") or time.time(),
+            "quorum_votes": payload.get("quorum_votes"),
+            "quorum": payload.get("quorum"),
+            "truth_source": truth_source,
+            "manual_override": payload.get("manual_override"),
+            "manual_reason": payload.get("manual_reason"),
+            "evidence_uri": payload.get("evidence_uri"),
+            "manual_decision": payload.get("manual_decision"),
+            "reason": payload.get("reason"),
+            "legacy_truth": payload.get("truth"),
+            "legacy_symbol": payload.get("symbol"),
+            "metadata": payload.get("metadata"),
+        }
+        return context
+
+    # ------------------------------------------------------------------
+    # Legacy Sprint 4 interface
+    # ------------------------------------------------------------------
+    def _apply_legacy(self, ctx: Mapping[str, Any]) -> ResolutionRecord:
+        truth: Mapping[str, Any] = ctx["legacy_truth"]
+        quorum: Mapping[str, Any] = ctx["quorum"]
+        if truth is None or quorum is None:
+            raise ValueError("truth and quorum payloads are required for legacy apply")
+
+        manual_decision = ctx["manual_decision"]
+        result_reason = ctx["reason"]
+
+        quorum_ok = bool(quorum.get("quorum_ok"))
+        truth_value = truth.get("value")
+        quorum_value = quorum.get("value")
+        divergence = float(quorum.get("diverg_pct", 0.0))
+        truth_rule_ok = False
+        if truth_value is not None and quorum_value is not None:
+            baseline = abs(truth_value) or 1.0
+            delta = abs(quorum_value - truth_value) / baseline
+            truth_rule_ok = delta <= self.divergence_threshold
+
+        if manual_decision is not None:
+            outcome_status = "applied_manual"
+            manual_override = True
+            final_decision = manual_decision
+            rule = DecisionRule.MANUAL_OVERRIDE
+            audit_action = "resolve.manual"
+        elif quorum_ok and truth_rule_ok:
+            outcome_status = "applied"
+            manual_override = False
+            final_decision = truth_value
+            rule = DecisionRule.QUORUM_CONSENSUS
+            audit_action = "resolve.auto"
+        else:
+            outcome_status = "manual_required"
+            manual_override = False
+            final_decision = None
+            rule = DecisionRule.MANUAL_REVIEW
+            audit_action = "resolve.manual_required"
+
+        agreement_score = 1.0 if quorum_ok else 0.0
+        decision_id = uuid.uuid4().hex
+        record = ResolutionRecord(
+            event_id=ctx["event_id"],
+            decision_id=decision_id,
+            outcome=_stringify_decision(final_decision),
+            rule=rule,
+            actor=ctx["actor"],
+            role=ctx["role"],
+            trace_id=ctx["trace_id"],
+            decided_at=ctx["timestamp"],
+            idempotency_key=ctx["idempotency_key"],
+            resource_version=ctx["resource_version"] + 1,
+            truth_source_used=False,
+            manual_override=manual_override,
+            quorum_ok=quorum_ok,
+            agreement_score=agreement_score,
+            truth_verdict=None,
+            manual_reason=result_reason,
+            evidence_uri=None,
+            metadata={
+                "symbol": ctx["legacy_symbol"],
+                "truth": truth,
+                "quorum": quorum,
+                "truth_rule_ok": truth_rule_ok,
+                "divergence_pct": divergence,
+            },
+            status=outcome_status,
+        )
+        record.metadata["audit_action"] = audit_action
+        return record
+
+    # ------------------------------------------------------------------
+    # Modern Sprint 5 interface
+    # ------------------------------------------------------------------
+    def _apply_modern(self, ctx: Mapping[str, Any]) -> ResolutionRecord:
+        quorum_votes = ctx["quorum_votes"]
+        if quorum_votes is None:
+            raise ValueError("quorum_votes is required")
+
+        normalized_votes, agreement_score, majority_vote, quorum_ok, divergence = self._summarize_votes(
+            quorum_votes
+        )
+        if not normalized_votes:
+            raise ResolutionError("Quorum votes required to resolve event")
+
+        manual_override = ctx["manual_override"]
+        manual_reason = ctx["manual_reason"]
+        evidence_uri = ctx["evidence_uri"]
+        if manual_override is not None:
+            if ctx["role"] not in ALLOWED_MANUAL_ROLES:
+                raise PermissionError("Role not permitted to issue manual override")
+            if not evidence_uri:
+                raise ValueError("Manual override requires evidence_uri")
+
+        truth_source: Optional[TruthSourceSignal] = ctx["truth_source"]
+        if manual_override is not None:
+            outcome = _stringify_decision(manual_override)
+            rule = DecisionRule.MANUAL_OVERRIDE
+            status = "applied_manual"
+            truth_used = False
+        elif truth_source is not None:
+            truth_used, outcome, rule = self._resolve_with_truth(truth_source, majority_vote, quorum_ok)
+            status = "applied"
+        elif quorum_ok:
+            outcome = _stringify_decision(majority_vote)
+            rule = DecisionRule.QUORUM_CONSENSUS
+            status = "applied"
+            truth_used = False
+        else:
+            raise ResolutionError("Unable to resolve automatically; quorum requirement failed")
+
+        decision_id = uuid.uuid4().hex
+        extra_metadata: Dict[str, Any] = {}
+        raw_metadata = ctx.get("metadata")
+        if isinstance(raw_metadata, Mapping):
+            extra_metadata = dict(raw_metadata)
+
+        record = ResolutionRecord(
+            event_id=ctx["event_id"],
+            decision_id=decision_id,
+            outcome=outcome,
+            rule=rule,
+            actor=ctx["actor"],
+            role=ctx["role"],
+            trace_id=ctx["trace_id"],
+            decided_at=ctx["timestamp"],
+            idempotency_key=ctx["idempotency_key"],
+            resource_version=ctx["resource_version"] + 1,
+            truth_source_used=truth_used,
+            manual_override=manual_override is not None,
+            quorum_ok=quorum_ok,
+            agreement_score=agreement_score,
+            truth_verdict=truth_source.verdict if truth_source else None,
             manual_reason=manual_reason,
             evidence_uri=evidence_uri,
+            metadata={
+                "quorum_votes": normalized_votes,
+                "divergence_pct": divergence,
+                "truth_source": truth_source.to_event_payload() if truth_source else None,
+                "truth_rule_ok": truth_used or quorum_ok,
+                "metadata": extra_metadata if extra_metadata else None,
+            },
+            status=status,
         )
         return record
 
-    def _apply_manual_override(
+    # ------------------------------------------------------------------
+    def _resolve_with_truth(
         self,
-        *,
-        event_id: str,
-        votes: Sequence[Mapping[str, object]],
-        manual_override: str,
-        manual_reason: Optional[str],
-        evidence_uri: Optional[str],
-        resolved_trace: str,
-        idempotency_key: str,
-        role: str,
-        duration_start: float,
-        current_version: int,
-    ) -> ResolutionRecord:
-        self._enforce_role(role, ALLOWED_MANUAL_ROLES, action="perform manual override")
-        if not evidence_uri:
-            raise ValueError("Manual override requires evidence_uri")
-
-        normalized = manual_override.lower()
-        if normalized not in {"accepted", "rejected"}:
-            raise ValueError("Manual override must be 'accepted' or 'rejected'")
-
-        reason = manual_reason or "manual_override"
-        record = self._finalize_record(
-            event_id=event_id,
-            outcome=normalized,
-            reason=reason,
-            resolved_trace=resolved_trace,
-            idempotency_key=idempotency_key,
-            quorum_ok=self._quorum_reached(votes),
-            truth_source_used=False,
-            manual_override=True,
-            agreement_score=self._agreement_score(votes, normalized),
-            current_version=current_version,
-        )
-        duration = time.perf_counter() - duration_start
-        self.metrics.emit(
-            status="success",
-            event_id=event_id,
-            trace_id=resolved_trace,
-            duration_s=duration,
-            outcome=record.outcome,
-            reason=record.reason,
-            truth_source_used=record.truth_source_used,
-            manual_override=True,
-            agreement_score=record.agreement_score,
-        )
-        return record
-
-    def _apply_auto_logic(
-        self,
-        *,
-        event_id: str,
-        votes: Sequence[Mapping[str, object]],
-        divergence: Optional[float],
-        truth_source: Optional[TruthSourceSignal],
-        resolved_trace: str,
-        idempotency_key: str,
-        duration_start: float,
-        current_version: int,
-    ) -> ResolutionRecord:
-        if not votes:
-            raise ResolutionError("Quorum votes required for auto resolution")
-
-        quorum_ok = self._quorum_reached(votes)
-        divergence_ok = divergence is None or divergence <= self.divergence_threshold
-        majority_outcome = self._majority_outcome(votes)
-
-        truth_used = False
-        reason = "quorum"
-        agreement = 0.0
-
-        if truth_source and truth_source.confidence >= self.truth_confidence_threshold:
-            agreement = self._agreement_score(votes, truth_source.verdict)
-            truth_rule_ok = agreement >= AGREEMENT_THRESHOLD
-            if truth_rule_ok or not quorum_ok or not divergence_ok:
-                truth_used = True
-                reason = f"truth_source:{truth_source.source}"
-                outcome = truth_source.verdict
-            else:
-                raise ResolutionError(
-                    "Truth source disagrees with quorum; manual review required",
-                )
-        else:
-            if not quorum_ok or not divergence_ok:
-                raise ResolutionError(
-                    "Quorum or divergence conditions not satisfied",
-                )
-            outcome = majority_outcome
-            agreement = self._agreement_score(votes, outcome)
-
-        record = self._finalize_record(
-            event_id=event_id,
-            outcome=outcome,
-            reason=reason,
-            resolved_trace=resolved_trace,
-            idempotency_key=idempotency_key,
-            quorum_ok=quorum_ok and divergence_ok,
-            truth_source_used=truth_used,
-            manual_override=False,
-            agreement_score=agreement,
-            current_version=current_version,
-        )
-        duration = time.perf_counter() - duration_start
-        self.metrics.emit(
-            status="success",
-            event_id=event_id,
-            trace_id=resolved_trace,
-            duration_s=duration,
-            outcome=record.outcome,
-            reason=record.reason,
-            truth_source_used=record.truth_source_used,
-            manual_override=False,
-            agreement_score=record.agreement_score,
-        )
-        return record
-
-    def _finalize_record(
-        self,
-        *,
-        event_id: str,
-        outcome: str,
-        reason: str,
-        resolved_trace: str,
-        idempotency_key: str,
+        truth: TruthSourceSignal,
+        majority_vote: Optional[str],
         quorum_ok: bool,
-        truth_source_used: bool,
-        manual_override: bool,
-        agreement_score: float,
-        current_version: int,
-    ) -> ResolutionRecord:
-        decided_at = time.time()
-        record = ResolutionRecord(
-            event_id=event_id,
-            outcome=outcome,
-            reason=reason,
-            trace_id=resolved_trace,
-            decided_at=decided_at,
-            idempotency_key=idempotency_key,
-            quorum_ok=quorum_ok,
-            truth_source_used=truth_source_used,
-            manual_override=manual_override,
-            resource_version=current_version + 1,
-            agreement_score=round(agreement_score, 4),
-        )
-        return record
+    ) -> Tuple[bool, str, str]:
+        status = getattr(truth, "status", "pending").lower()
+        if truth.verdict is None:
+            if quorum_ok and majority_vote is not None:
+                return False, _stringify_decision(majority_vote), DecisionRule.QUORUM_CONSENSUS
+            raise ResolutionError("Truth source verdict missing and quorum not decisive")
 
-    def _append_audit(
-        self,
-        *,
-        actor: str,
-        role: str,
-        record: ResolutionRecord,
-        votes: Sequence[Mapping[str, object]],
-        truth_source: Optional[TruthSourceSignal],
-        manual_reason: Optional[str],
-        evidence_uri: Optional[str],
-    ) -> None:
-        ts_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.decided_at))
-        event = self._build_decision_event(
-            ts_iso=ts_iso,
-            actor=actor,
-            role=role,
-            record=record,
-            quorum_votes=quorum_votes,
-            truth_source=truth_source,
-            evidence_uri=evidence_uri,
-        )
-        self._write_decision_event(event)
+        truth_decision = _stringify_decision(truth.verdict)
+        truth_norm = _as_event_decision(truth_decision)
+        truth_is_final = status in _FINAL_TRUTH_STATUSES
+        if truth_is_final:
+            majority_norm = None if majority_vote is None else _as_event_decision(_stringify_decision(majority_vote))
+            if quorum_ok and majority_norm is not None and majority_norm != truth_norm:
+                return True, truth_decision, DecisionRule.TRUTH_SOURCE_OVERRIDE
+            return True, truth_decision, DecisionRule.TRUTH_SOURCE_FINAL
+
+        if quorum_ok and majority_vote is not None:
+            return False, _stringify_decision(majority_vote), DecisionRule.QUORUM_CONSENSUS
+        raise ResolutionError("Truth source not final and quorum requirement failed")
+
+    # ------------------------------------------------------------------
+    def _summarize_votes(
+        self, votes_payload: Any
+    ) -> Tuple[List[str], float, Optional[str], bool, float]:
+        if isinstance(votes_payload, Mapping):
+            votes = votes_payload.get("votes", [])
+            divergence = float(votes_payload.get("divergence_pct", 0.0))
+        else:
+            votes = votes_payload
+            divergence = 0.0
+
+        normalized: List[str] = []
+        tally: Dict[str, float] = {}
+        total_weight = 0.0
+        if isinstance(votes, Mapping):
+            iterator = votes.values()
+        else:
+            iterator = votes
+        for vote in iterator or []:
+            outcome, weight = _parse_vote(vote)
+            normalized.append(outcome)
+            tally[outcome] = tally.get(outcome, 0.0) + weight
+            total_weight += weight
+
+        if total_weight == 0:
+            return normalized, 0.0, None, False, divergence
+
+        majority_outcome = max(tally.items(), key=lambda item: item[1])[0]
+        agreement_score = tally[majority_outcome] / total_weight
+        quorum_ok = bool(normalized) and divergence <= self.divergence_threshold
+        return normalized, agreement_score, majority_outcome, quorum_ok, divergence
+
+    # ------------------------------------------------------------------
+    def _write_audit(self, record: ResolutionRecord, ctx: Mapping[str, Any]) -> None:
         payload = {
-        payload: MutableMapping[str, object] = {
-            "event_id": record.event_id,
-            "quorum_votes": [dict(vote) for vote in votes],
-            "truth_source": asdict(truth_source) if truth_source else None,
-            "outcome": record.outcome,
-            "reason": record.reason,
-            "manual_reason": manual_reason,
-            "evidence_uri": evidence_uri,
-            "idempotency_key": record.idempotency_key,
-            "resource_version": record.resource_version,
-        }
-        payload_hash = sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-        entry = {
-            "ts": ts_iso,
-            "actor": actor,
-            "role": role,
-            "action": "resolve.manual" if payload.get("manual") else "resolve.auto",
-            "target": payload.get("event_id"),
-            "payload_hash": payload_hash,
-            "trace_id": trace_id,
-            "outcome": payload.get("outcome"),
-            "action": "auto_resolve.apply",
-            "target": record.event_id,
-            "payload_hash": payload_hash,
-            "trace_id": record.trace_id,
-            "outcome": record.outcome,
-            "idempotency_key": record.idempotency_key,
-            "manual_override": record.manual_override,
-            "truth_source_used": record.truth_source_used,
-            "quorum_ok": record.quorum_ok,
-            "resource_version": record.resource_version,
-        }
-        with self.audit_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry) + "\n")
-
-    def _append_event(self, record: ResolutionDecision) -> None:
-        event_entry = {
-            "schema_version": 1,
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.decided_at)),
+            "ts": _isoformat(record.decided_at),
             "event_id": record.event_id,
             "decision_id": record.decision_id,
-            "rule": record.rule,
-            "decision": record.decision,
             "actor": record.actor,
             "role": record.role,
-            "outcome": record.outcome,
             "trace_id": record.trace_id,
-            "metadata": record.metadata,
+            "outcome": record.status,
+            "decision": record.outcome,
+            "rule": record.rule,
+            "quorum_ok": record.quorum_ok,
+            "truth_source_used": record.truth_source_used,
+            "manual_override": record.manual_reason if record.manual_override and record.manual_reason else record.manual_override,
+            "agreement_score": record.agreement_score,
+            "resource_version": record.resource_version,
+            "idempotency_key": record.idempotency_key,
+            "quorum_votes": record.metadata.get("quorum_votes"),
+            "truth_verdict": record.truth_verdict,
+            "evidence_uri": record.evidence_uri,
         }
-        with self.event_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(event_entry) + "\n")
+        if record.manual_reason is not None:
+            payload["manual_override_reason"] = record.manual_reason
+        if record.metadata.get("truth_source"):
+            payload["truth_source"] = record.metadata["truth_source"]
+        if record.metadata.get("metadata"):
+            payload["metadata"] = record.metadata["metadata"]
+        audit_action = record.metadata.get("audit_action")
+        if not audit_action:
+            if record.manual_override:
+                audit_action = "resolve.manual"
+            elif record.truth_source_used:
+                audit_action = "resolve.truth"
+            elif record.quorum_ok:
+                audit_action = "resolve.auto"
+            else:
+                audit_action = "resolve.manual_required"
+        payload["action"] = audit_action
+        with self.audit_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload) + "\n")
 
-    def _append_metrics(self, record: ResolutionDecision) -> None:
-        evaluation = record.metadata.get("evaluation", {})
-        truth_ts = record.metadata.get("truth", {}).get("ts")
-        latency_ms: Optional[float]
-        if isinstance(truth_ts, (int, float)):
-            latency_ms = max(0.0, (record.decided_at - float(truth_ts)) * 1000)
-        else:
-            latency_ms = None
-        metric_entry = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.decided_at)),
+    def _write_event(self, record: ResolutionRecord, ctx: Mapping[str, Any]) -> None:
+        truth_source: Optional[TruthSourceSignal] = ctx["truth_source"]
+        rule = _event_rule(record, truth_source)
+        event = {
+            "schema_version": RESOLVE_DECISION_SCHEMA_VERSION,
+            "ts": _isoformat(record.decided_at),
             "event_id": record.event_id,
             "decision_id": record.decision_id,
-            "outcome": record.outcome,
-            "rule": record.rule,
-            "quorum_ok": bool(record.metadata.get("quorum", {}).get("quorum_ok")),
-            "truth_rule_ok": evaluation.get("truth_rule_ok") if evaluation else None,
-            "latency_ms": latency_ms,
-            "manual": record.manual,
-        }
-        with self.metrics_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(metric_entry) + "\n")
-
-
-__all__ = [
-    "AutoResolutionService",
-    "ResolutionConflictError",
-    "ResolutionDecision",
-    def _normalize_votes(
-        self, quorum_votes: Sequence[Mapping[str, object]] | Mapping[str, object] | Sequence[str]
-    ) -> Tuple[List[Mapping[str, object]], Optional[float]]:
-        divergence: Optional[float] = None
-        votes_list: Sequence[object]
-
-        if isinstance(quorum_votes, Mapping):
-            divergence_raw = quorum_votes.get("divergence_pct")
-            divergence = float(divergence_raw) if divergence_raw is not None else None
-            votes_list = quorum_votes.get("votes", [])  # type: ignore[assignment]
-        else:
-            votes_list = quorum_votes
-
-        normalized: List[Mapping[str, object]] = []
-        for vote in votes_list:
-            if isinstance(vote, str):
-                normalized.append({"source": "unknown", "verdict": vote.lower(), "weight": 1.0})
-            elif isinstance(vote, Mapping):
-                verdict = str(vote.get("verdict", "")).lower()
-                if verdict not in {"accepted", "rejected"}:
-                    raise ValueError("Vote verdict must be 'accepted' or 'rejected'")
-                weight_raw = vote.get("weight", 1.0)
-                try:
-                    weight = float(weight_raw)
-                except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
-                    raise ValueError("Vote weight must be numeric") from exc
-                normalized.append(
-                    {
-                        "source": vote.get("source", "unknown"),
-                        "verdict": verdict,
-                        "weight": weight if weight > 0 else 0.0,
-                    }
-                )
-            else:
-                raise ValueError("Unsupported vote entry type")
-
-        return normalized, divergence
-
-    def _quorum_reached(self, votes: Sequence[Mapping[str, object]]) -> bool:
-        total_weight = sum(float(vote.get("weight", 0.0)) for vote in votes)
-        if total_weight <= 0:
-            return False
-        support = sum(float(vote.get("weight", 0.0)) for vote in votes if vote.get("verdict") == "accepted")
-        ratio = support / total_weight
-        return ratio >= self.quorum_threshold
-
-    def _build_decision_event(
-        self,
-        *,
-        ts_iso: str,
-        actor: str,
-        role: str,
-        record: ResolutionRecord,
-        quorum_votes: Sequence[str],
-        truth_source: Optional[TruthSourceSignal],
-        evidence_uri: Optional[str],
-    ) -> Dict[str, object]:
-        rule = "auto.quorum"
-        if record.manual_override:
-            rule = "manual.override"
-        elif record.truth_source_used:
-            source = truth_source.source if truth_source else "unknown"
-            normalized_source = source.replace(" ", "_").lower()
-            rule = f"truth_source.{normalized_source}"
-
-        truth_payload = asdict(truth_source) if truth_source else None
-        event: Dict[str, object] = {
-            "schema_version": RESOLVE_DECISION_SCHEMA_VERSION,
-            "ts": ts_iso,
-            "event_id": record.event_id,
             "rule": rule,
-            "decision": record.outcome,
-            "actor": actor,
-            "role": role,
+            "decision": _as_event_decision(record.outcome),
+            "actor": record.actor,
+            "role": record.role,
             "trace_id": record.trace_id,
-            "reason": record.reason,
             "manual_override": record.manual_override,
             "truth_source_used": record.truth_source_used,
             "quorum_ok": record.quorum_ok,
-            "quorum_votes": list(quorum_votes),
-            "truth_source": truth_payload,
-            "evidence_uri": evidence_uri,
+            "quorum_votes": record.metadata.get("quorum_votes"),
+            "evidence_uri": record.evidence_uri,
             "idempotency_key": record.idempotency_key,
         }
-        return event
+        if record.manual_reason is not None:
+            event["reason"] = record.manual_reason
+        if truth_source:
+            event["truth_source"] = truth_source.to_event_payload()
+        with self.event_log.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event) + "\n")
 
-    def _write_decision_event(self, event: Dict[str, object]) -> None:
-        self.decision_log.parent.mkdir(parents=True, exist_ok=True)
-        with self.decision_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(event) + "\n")
+    def _write_metrics(self, record: ResolutionRecord, ctx: Mapping[str, Any]) -> None:
+        duration = 0.0  # The service is synchronous; keep for compatibility.
+        metrics_payload = {
+            "ts": _isoformat(record.decided_at),
+            "span": "auto_resolve.eval",
+            "status": "success" if record.status != "manual_required" else "manual_required",
+            "event_id": record.event_id,
+            "trace_id": record.trace_id,
+            "duration_ms": round(duration * 1000, 3),
+            "outcome": record.outcome,
+            "rule": record.rule,
+            "truth_source_used": record.truth_source_used,
+            "manual_override": record.manual_override,
+            "quorum_ok": record.quorum_ok,
+            "agreement_score": record.agreement_score,
+            "truth_rule_ok": record.metadata.get("truth_rule_ok", record.truth_source_used or record.quorum_ok),
+        }
+        self.metrics.emit(metrics_payload)
 
-    def load_decision_events(self) -> List[Dict[str, object]]:
-        if not self.decision_log.exists():
-            return []
-        with self.decision_log.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
 
-    def _majority_accepts(self, votes: Sequence[str]) -> bool:
-        support = sum(1 for vote in votes if vote == "accepted")
-        return support >= (len(votes) - support)
-    def _majority_outcome(self, votes: Sequence[Mapping[str, object]]) -> str:
-        support = sum(float(vote.get("weight", 0.0)) for vote in votes if vote.get("verdict") == "accepted")
-        total = sum(float(vote.get("weight", 0.0)) for vote in votes)
-        reject_support = total - support
-        return "accepted" if support >= reject_support else "rejected"
+def _parse_vote(vote: Any) -> Tuple[str, float]:
+    if isinstance(vote, Mapping):
+        outcome = _normalize_vote(vote.get("verdict"))
+        weight = float(vote.get("weight", 1.0))
+    else:
+        outcome = _normalize_vote(vote)
+        weight = 1.0
+    return outcome, max(weight, 0.0)
 
-    def _agreement_score(self, votes: Sequence[Mapping[str, object]], verdict: str) -> float:
-        total_weight = sum(float(vote.get("weight", 0.0)) for vote in votes)
-        if total_weight <= 0:
-            return 0.0
-        aligned = sum(
-            float(vote.get("weight", 0.0)) for vote in votes if vote.get("verdict") == verdict
-        )
-        return aligned / total_weight
 
-    def _enforce_role(self, role: str, allowed: Iterable[str], *, action: str) -> None:
-        if role not in allowed:
-            raise PermissionError(f"Role '{role}' not permitted to {action}")
+def _normalize_vote(value: Any) -> str:
+    if value is None:
+        return "rejected"
+    lowered = str(value).strip().lower()
+    if lowered in {"accepted", "accept", "yes", "y", "resolve_yes"}:
+        return "accepted"
+    if lowered in {"rejected", "reject", "no", "n", "resolve_no", "refund"}:
+        return "rejected"
+    return lowered or "rejected"
 
-    def _require_idempotency_key(self, key: str) -> None:
-        if not key or len(key) < 8:
-            raise ValueError("idempotency_key must be at least 8 characters long")
 
-    def _mark_backlog(self, event_id: str, reason: str) -> None:
-        if event_id not in self._backlog_events:
-            self._backlog_events[event_id] = reason
-            self._telemetry.adjust_backlog(delta=1, reason=reason)
+def _stringify_decision(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text
 
-    def _clear_backlog(self, event_id: str) -> None:
-        reason = self._backlog_events.pop(event_id, None)
-        if reason is not None:
-            self._telemetry.adjust_backlog(delta=-1, reason=reason)
 
-    def load_audit_entries(self) -> List[Dict[str, object]]:
-        if not self.audit_log.exists():
-            return []
-        with self.audit_log.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
+def _as_event_decision(outcome: Optional[str]) -> str:
+    if outcome is None:
+        return "rejected"
+    lowered = outcome.lower()
+    if lowered in {"accepted", "accept", "yes", "resolve_yes"}:
+        return "accepted"
+    if lowered in {"rejected", "reject", "no", "resolve_no", "refund"}:
+        return "rejected"
+    return "accepted"
 
-    def load_metrics_entries(self) -> List[Dict[str, object]]:
-        metrics_path = self.metrics.metrics_log
-        if not metrics_path.exists():
-            return []
-        with metrics_path.open("r", encoding="utf-8") as fh:
-            return [json.loads(line) for line in fh if line.strip()]
+
+def _event_rule(record: ResolutionRecord, truth: Optional[TruthSourceSignal]) -> str:
+    if record.manual_override:
+        return "manual.override"
+    if truth and record.truth_source_used:
+        safe_source = truth.source.lower().replace(" ", "_")
+        return f"truth_source.{safe_source}"
+    if record.quorum_ok:
+        return "auto.quorum"
+    return "manual.review"
+
+
+def _isoformat(timestamp: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp))
 
 
 __all__ = [
@@ -937,7 +668,11 @@ __all__ = [
     "ALLOWED_MANUAL_ROLES",
     "AutoResolutionMetrics",
     "AutoResolutionService",
+    "DecisionRule",
+    "IdempotencyKeyConflict",
+    "RESOLVE_DECISION_SCHEMA_VERSION",
     "ResolutionConflict",
+    "ResolutionConflictError",
     "ResolutionError",
     "ResolutionRecord",
     "TruthSourceSignal",
