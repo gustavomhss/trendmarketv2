@@ -38,6 +38,43 @@ groups:
       - record: mbp:simulation:success_ratio
         expr: sum(increase(mbp_simulation_runs_success_total{env="prod"}[1h])) / sum(increase(mbp_simulation_runs_total{env="prod"}[1h]))
   - name: mbp_s5_auto_resolution
+    interval: 1m
+    rules:
+      - record: mbp:auto_resolve:latency_p50_ms
+        expr: histogram_quantile(0.5, sum(rate(mbp_auto_resolve_latency_ms_bucket{env="prod"}[15m])) by (le))
+      - record: mbp:auto_resolve:latency_p95_ms
+        expr: histogram_quantile(0.95, sum(rate(mbp_auto_resolve_latency_ms_bucket{env="prod"}[15m])) by (le))
+      - record: mbp:auto_resolve:success_ratio
+        expr: sum(increase(mbp_auto_resolve_attempts_total{env="prod",mode="auto",status="success"}[1h])) / sum(increase(mbp_auto_resolve_attempts_total{env="prod",mode="auto"}[1h]))
+      - record: mbp:auto_resolve:backlog
+        expr: max_over_time(mbp_auto_resolve_backlog{env="prod"}[15m])
+      - alert: AutoResolveLatencyP95High
+        expr: mbp:auto_resolve:latency_p95_ms > 7200000
+        for: 30m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Auto-resolution p95 latency exceeded 2h"
+          runbook: docs/runbooks/dec_slo.md
+      - alert: AutoResolveSuccessLow
+        expr: mbp:auto_resolve:success_ratio < 0.9
+        for: 30m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Auto-resolution success ratio below 90%"
+          runbook: docs/runbooks/dec_slo.md
+      - alert: AutoResolveBacklogGrowing
+        expr: mbp:auto_resolve:backlog > 10
+        for: 30m
+        labels:
+          severity: warning
+          team: plat
+        annotations:
+          summary: "Auto-resolution backlog above 10 pending items"
+          runbook: docs/runbooks/dec_slo.md
     interval: 30s
     rules:
       - record: mbp:auto_resolve:latency_p95_ms

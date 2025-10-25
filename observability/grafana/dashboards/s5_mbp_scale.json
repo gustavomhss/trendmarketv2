@@ -89,6 +89,14 @@
     {
       "id": 8,
       "type": "timeseries",
+      "title": "Auto-Resolve SLA (p50/p95)",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:auto_resolve:latency_p50_ms"
+        },
+        {
+          "refId": "B",
       "title": "Auto-Resolve Latency p95 (ms)",
       "targets": [
         {
@@ -100,6 +108,11 @@
     {
       "id": 9,
       "type": "timeseries",
+      "title": "Auto-Resolve Decision Throughput",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"auto\"}[5m]))"
       "title": "Auto-Resolve Success Ratio",
       "targets": [
         {
@@ -111,6 +124,11 @@
     {
       "id": 10,
       "type": "timeseries",
+      "title": "Manual Fallback Rate",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"manual\"}[5m])) / sum(rate(mbp_auto_resolve_attempts_total[5m]))"
       "title": "Auto-Resolve Backlog (max 15m)",
       "targets": [
         {

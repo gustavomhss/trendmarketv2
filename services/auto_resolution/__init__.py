@@ -37,6 +37,7 @@ from .service import (
     TruthSourceSignal,
 )
 from .api import apply_resolution
+from .telemetry import AutoResolutionTelemetry
 
 __all__ = [
     "AGREEMENT_THRESHOLD",
@@ -44,6 +45,7 @@ __all__ = [
     "ALLOWED_MANUAL_ROLES",
     "AutoResolutionMetrics",
     "AutoResolutionService",
+    "AutoResolutionTelemetry",
     "ResolutionConflict",
     "ResolutionError",
     "ResolutionRecord",
