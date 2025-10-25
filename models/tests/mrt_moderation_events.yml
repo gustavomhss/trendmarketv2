@@ -12,3 +12,46 @@ models:
       - name: appeals
         tests:
           - not_null
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: ts
+        tests:
+          - not_null
+      - name: symbol
+        tests:
+          - not_null
+      - name: action
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pause, resume, review]
+      - name: reason
+        tests:
+          - not_null
+      - name: evidence_uri
+        tests:
+          - not_null
+      - name: actor
+        tests:
+          - not_null
+      - name: event_rank
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3]
+      - name: minutes_since_previous_event
+        tests:
+          - not_null
+      - name: minutes_until_next_event
+        tests:
+          - not_null
+      - name: pause_count_to_date
+        tests:
+          - not_null
+      - name: moderation_state
+        tests:
+          - not_null
+          - accepted_values:
+              values: [paused, active, under_review, historical]

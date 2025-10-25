@@ -3,6 +3,7 @@ version: 1.0.0
 profile: ce_profile
 model-paths: ["models"]
 tests-paths: ['tests', 'models/tests']
+seed-paths: ["seeds"]
 models:
   ce_dbt:
     +materialized: view
@@ -10,3 +11,6 @@ models:
       +schema: stg
     marts:
       +schema: marts
+seeds:
+  ce_dbt:
+    +schema: seed_data
