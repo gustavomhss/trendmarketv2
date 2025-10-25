@@ -1,268 +1,237 @@
-# Q1 • Sprint 6 — **Especificação Completa** (GA Interno • 30 dias verdes) — **vFinal+ (gap‑free)**
+# Sprint 6 (Q1) — Especificação vMasterpiece‑Final (Bertrand‑led, 100/10)
 
-**Marcador:** #201293 · **Trimestre:** Q1 (Sprint **final** S1–S6)
-**Status:** **vFinal+** (revisão tripla + deep‑dive de gaps, conflitos e lacunas **feita**; correções **aplicadas**)
-**Liderança executiva:** Steve Jobs (foco)
-**Conselho técnico:** Donald Knuth (precisão), Leslie Lamport (tempo/invariantes), Alan Kay (contratos/arquitetura), Fernando Pérez (reprodutibilidade), Vitalik Buterin (governança)
+## 1. Sumário Executivo
 
-> **O que fechamos nesta vFinal+:** definimos **unidades e fórmulas canônicas**, **janelas temporais** (rolling/UTC), **política de dados faltantes**, **RACI com MTTA/MTTR**, **guardas no CI** (artifact + schema), **matriz de verificação** requisito→query→evidência→owner, **runbooks/playbooks com rollback**, **política de flags** e **retenção/privacidade**. Corrigimos ambiguidade de métricas (labels), adicionamos **tolerâncias e backfill**, e previmos **degradação segura**.
+Esta especificação define, sem ambiguidade, a Sprint 6 (Q1) do projeto CE. O objetivo é entregar scorecards operacionais determinísticos com guard de CI que bloqueia PRs fora do alvo e, adicionalmente, o pipeline "Boss Final Q1" (validação integral S1→S6). O documento adota **Design by Contract (DbC)**, aritmética **Decimal + epsilon**, schemas JSON versionados e práticas de reprodutibilidade que garantem que **funcione no primeiro teste**.
 
----
+* **Líder técnico:** Vitalik Buterin (simplicidade, correção, economia de design).
+* **Stakeholder com veto/decisão final:** Bertrand Meyer (DbC). Este documento foi escrito “à maneira dele”: contratos explícitos, pré/pós‑condições, invariantes e testes cobrindo casos normais e de erro.
 
-## 0) Objetivo (imutável)
+## 2. Escopo e Não‑Objetivos
 
-Encerrar Q1 com **GA Interno** comprovado por **30 dias verdes** (sem P1, uptime ≥ 99,90%, burn < 1×/30d), sustentado por **scorecards automatizados**, **observabilidade** e **evidências versionadas**. Entrega final: **readout** aprovado + **handoff** para Q2.
+**Escopo:**
 
----
+1. Scorecards S6 com guard em CI, bundle estático versionado, watcher/hook mínimo, painel Grafana exportável e documentação curta.
+2. UX de PR: badge e comentário automatizado com fallback para summary do job.
+3. Reprodutibilidade forte: determinismo byte‑a‑byte (exceto timestamp), hash canônico do bundle, UTF‑8 + newline, ordenação estável.
+4. **Boss Final Q1**: workflow único que consolida S1…S6 (100% offline/determinístico) e aplica gate global.
+5. **Schemas formais** para todos os reports (S6 e Boss) e política de migração de schema.
+6. **Governança de actions** via `actions.lock` com SHAs pinados e política de rotação.
 
-## 1) Escopo e entregáveis (executivo)
+**Não‑objetivos:** integrações com nuvem/segredos, consultas externas em rede, ou métricas ao vivo. Esta sprint usa **bundle estático** como golden‑source para S6; o Boss valida S1…S6 em modo estático/determinístico.
 
-1. **Operação (30d)**: `P1=0`, `uptime ≥ 99.90%`, `error_budget_burn < 1×/30d`.
-2. **Preço & Oráculos**: `staleness_p95_ms ≤ 30000`, `twap_divergence_pct ≤ 1.0` (5m), `failover_time_s < 60`.
-3. **Auto‑resolução & Fees**: `cooldown_s == 300`, `|Δfee|_5m_pct ≤ 20`, `bounds_ok = true`, trilha auditável.
-4. **Moderação**: `MTTD ≤ 300 s`, `MTTM ≤ 900 s`, `audit_coverage ≥ 99%`.
-5. **Dados & CDC/DQ**: `dbt_tests_pass_rate = 100%`, `cdc_lag_p95_s ≤ 120`, `schema_drift = 0`.
-6. **Observabilidade & Scorecards**: rules Prometheus + Grafana; **scorecards diários/semanais** versionados (artifact).
-7. **Segurança & LGPD**: SAST/Secrets/SBOM verdes; amostra **sem PII**.
-8. **Readout & Handoff**: `s6_validation/` completo + CAPAs/ADRs + assinaturas multi‑área.
+## 3. Métricas, Unidades e Metas (DNA)
 
----
+* `quorum_ratio` ∈ [0,1] → **alvo:** `≥ 0.6667` (formatação de saída: 4 casas decimais)
+* `failover_time_p95_s` ∈ [0,+∞) s → **alvo:** `≤ 60.0` (saída: 3 casas decimais)
+* `staleness_p95_s` ∈ [0,+∞) s → **alvo:** `≤ 30.0` (saída: 3 casas decimais)
+* `cdc_lag_p95_s` ∈ [0,+∞) s → **alvo:** `≤ 120.0` (saída: 3 casas decimais)
+* `divergence_pct` ∈ [0,+∞) % → **alvo:** `≤ 1.0` (saída: 1 casa decimal, com sufixo `%` apenas em `report.md`)
 
-## 2) Critérios de aceite (Definition of Awesome)
+## 4. Contratos (DbC por Bertrand)
 
-**Janelas temporais & base de tempo**
+**Pré‑condições (inputs válidos):**
 
-* **Rolling**: 24h, 7d, 30d, ancoradas em **UTC** (sem TZ locais).
-* **Buckets**: 1m (coleta), 5m (agregação de p95), 1h/24h/30d (scorecards).
-* **Dados faltantes**: até **3%** de pontos podem ser **carregados por forward‑fill** (FF) limitado a 10 min; acima disso, marcar `data_gap=true` (degradação controlada) e abrir CAPA.
+* Existem `s6_validation/thresholds.json` e `s6_validation/metrics_static.json`, em **UTF‑8** com **newline** final.
+* Ambos os JSONs são válidos contra seus **schemas Draft‑07** e respeitam os domínios (sem chaves extras; números finitos; percentuais em %).
 
-**Aceites formais**
+**Pós‑condições (saídas S6):**
 
-* **Confiabilidade**: `incidents.P1 == 0`; `uptime_ratio ≥ 0.9990`; `error_budget_burn_30d < 1.0`.
-* **Preço/Oráculos**: `p95(staleness_ms) ≤ 30000`; `p95(twap_divergence_pct) ≤ 1.0`; `p95(failover_time_s) < 60`.
-* **Fees**: `cooldown_s == 300`; `max_over_time(delta_fee_5m_pct[30d]) ≤ 20`; `min_over_time(bounds_ok[30d]) == 1`.
-* **Moderação**: `p95(MTTD) ≤ 300s`; `p95(MTTM) ≤ 900s`; `audit_coverage ≥ 99%`.
-* **Dados**: `dbt_pass_rate == 100%`; `p95(cdc_lag_s) ≤ 120`; `schema_drift == 0`.
-* **Observabilidade**: dashboards exportados (JSON) versionados; watchers/hooks ativos.
-* **Segurança**: segredos=0; amostra de logs=0 PII (evidência).
-* **Readout**: publicado e assinado (PO/Eng/Data/SRE/Sec/PM).
+* Gerar, em `out/s6_scorecards/`: `report.json` (`schema_version=1`, conforme `schemas/report.schema.json`), `report.md` (tabela ordenada, formatos fixos), `guard_status.txt` (`PASS`/`FAIL`), `bundle.sha256`, `scorecard.svg`, `badge.svg`, `pr_comment.md`.
+* Reexecução 2× com mesma entrada ⇒ `bundle.sha256` e `report.md` **idênticos** (exceto `timestamp` em `report.json`).
 
----
+**Invariantes:**
 
-## 3) Dicionário KPI (fonte → query → evidência)
+* `PASS` sse todas as 5 metas são satisfeitas (após normalização Decimal+epsilon).
+* Ausência/invalidade de inputs ⇒ `FAIL` **determinístico** com mensagem objetiva apontando arquivo/campo.
 
-| KPI               | Série/Métrica                     | Query/Regra (canônica)                            | Unidade | Limite  | **Evidência**               | Owner    |
-| ----------------- | --------------------------------- | ------------------------------------------------- | ------- | ------- | --------------------------- | -------- |
-| Uptime (30d)      | `ops:uptime_ratio{service="mbp"}` | SLO calc (rolling 30d)                            | %       | ≥ 99.90 | `kpi_timeseries.json`       | SRE      |
-| Burn (30d)        | `ops:error_budget_burn_30d`       | **burn = max(0,1−uptime_ratio)×(30d/SLO_window)** | ×       | < 1.0   | scorecard + `findings.json` | SRE      |
-| Staleness p95     | `mbp:oracle:staleness_ms`         | `quantile_over_time(0.95, …[5m])`                 | ms      | ≤ 30000 | dashboard/scorecard         | PM/BC    |
-| TWAP diverg p95   | `mbp:twap:diverg_pct`             | p95 5m                                            | %       | ≤ 1.0   | dashboard/scorecard         | PM       |
-| Failover time p95 | `mbp:oracle:failover_time_s`      | drill timer                                       | s       | < 60    | `out/drills/*.md`           | PM/BC    |
-| Δ fee 5m (max)    | `mbp:fees:delta_fee_5m_pct`       | `max_over_time(…[30d])`                           | %       | ≤ 20    | scorecard                   | PM/Eng   |
-| Cooldown viol     | `mbp:fees:cooldown_s_violation`   | count                                             | flag    | 0       | scorecard                   | Eng      |
-| DBT pass          | `dbt:tests:pass_rate`             | `sum(passed)/sum(total)`                          | %       | 100     | `target/run_results.json`   | Data     |
-| CDC lag p95       | `cdc:lag_p95_s`                   | p95                                               | s       | ≤ 120   | scorecard                   | Data/SRE |
-| Schema drift      | `cdc:schema_drift`                | count                                             | #       | 0       | scorecard                   | Data     |
-| MTTD p95          | `mbp:mod:mttd_s`                  | p95                                               | s       | ≤ 300   | scorecard/logs              | PM/SRE   |
-| MTTM p95          | `mbp:mod:mttm_s`                  | p95                                               | s       | ≤ 900   | scorecard/logs              | PM/SRE   |
-| Audit coverage    | `mbp:mod:audit_coverage`          | `% eventos com JSONL`                             | %       | ≥ 99    | scorecard                   | Sec/PM   |
+**Pós‑condições (Boss Final Q1):**
 
-**Notas canônicas**: Unidades fixas; nomes/labels **imexíveis**; timezone **UTC**.
+* Gerar, em `out/q1_boss_final/`: `report.json` (`schema_version=1`, conforme `schemas/q1_boss_report.schema.json`), `report.md`, `guard_status.txt`, `bundle.sha256`, `badge.svg`, `pr_comment.md`, `dag.svg`.
+* `PASS` global sse `s1..s6` estão `PASS` e artefatos válidos.
 
----
+**Liveness:**
 
-## 4) Governança (RACI, MTTA/MTTR, flags)
+* Inputs válidos ⇒ cada job decide em tempo finito. Definir `timeout-minutes` no workflow: `s6-scorecards` (20) e `q1-boss-final` (60). Nenhum step sem limite.
 
-**RACI por domínio**
-Ops/SRE (uptime/burn/CDC), PM/BC (oráculos/preço/failover), PM/Eng (fees), Data (DBT/DQ/CDC), Sec (SAST/Secrets/PII).
-**Severidade (P1/P2)**: P1 = unavailability/violação de red line por >5 min; P2 = risco alto/violação transitória <5 min.
-**MTTA/MTTR**: P1 **MTTA ≤ 5 min**, **MTTR ≤ 60 min**; P2 **MTTA ≤ 15 min**, **MTTR ≤ 4 h**.
-**Escalonamento:** NOC → SRE (5m) → Eng/PM (15m) → Leadership (30m).
-**Política de flags (freeze):** alterações de comportamento somente via Change Control (PR + aprovação dupla); **auto‑rollback** quando red line cruzada.
+## 5. Manifests e Estrutura de Arquivos
 
----
+```
+.github/workflows/s6-scorecards.yml
+.github/workflows/q1-boss-final.yml
+actions.lock
+scripts/scorecards/s6_scorecards.py
+scripts/watchers/s6_scorecard_guard.sh
+scripts/boss_final/sprint_guard.py
+scripts/boss_final/aggregate_q1.py
+schemas/thresholds.schema.json
+schemas/metrics.schema.json
+schemas/report.schema.json
+schemas/q1_boss_report.schema.json
+s6_validation/thresholds.json
+s6_validation/metrics_static.json
+s6_validation/README.md
+dashboards/grafana/scorecards_quorum_failover_staleness.json
+docs/scorecards/S6_SCORECARDS.md
+Makefile (alvos: s6-scorecards, q1-boss-final)
+out/s6_scorecards/ (gerado)
+out/q1_boss_final/ (gerado)
+```
 
-## 5) Workflows & Guards (CI/CD)
+## 6. Aritmética e Avaliação
 
-### 5.1 `s6-scorecards.yml` (cron diário, read‑only)
+* **Decimal** com precisão 28 e modo `ROUND_HALF_EVEN`.
+* **Epsilon**: `EPS = 1e-12` aplicado às comparações (≥ e ≤).
+* Predicados:
 
-* Gera `out/scorecards/**` (MD/JSON) e publica artifact **`s6-scorecards`**.
-* **Timeouts:** fonte ≤ 30s, total ≤ 5m; **sem executáveis externos**.
+  * `ok_q: quorum_ratio + EPS ≥ quorum_ratio_min`
+  * `ok_f: failover_time_p95_s ≤ failover_time_p95_s_max + EPS`
+  * `ok_s: staleness_p95_s ≤ staleness_p95_s_max + EPS`
+  * `ok_c: cdc_lag_p95_s ≤ cdc_lag_p95_s_max + EPS`
+  * `ok_d: divergence_pct ≤ divergence_pct_max + EPS`
+* `status = PASS` iff `ok_q ∧ ok_f ∧ ok_s ∧ ok_c ∧ ok_d`.
+* Ordenação fixa das métricas em todos os artefatos: `[quorum_ratio, failover_time_p95_s, staleness_p95_s, cdc_lag_p95_s, divergence_pct]`.
+* Formatação estável: ratio 4d; tempos 3d; percentuais 1d (md com `%`).
 
-### 5.2 Guard de Scorecards (PR‑release)
+## 7. Schemas JSON (Draft‑07)
 
-* Job `s6-scorecards-guard`: falha o PR se **não houver artifact** nas últimas 24h **ou** se `kpi_timeseries.json`/`alerts_summary.json` não passarem no **schema** previsto (§11).
-* Verifica que os KPIs obrigatórios estão presentes e **dentro das unidades** corretas.
-
-### 5.3 `s4_orr_exec` (auxiliar)
-
-* Mantido para checks técnicos S4+S5; **não gateia** S6; agrega evidências sob demanda.
-
----
-
-## 6) Observabilidade (métricas & painéis)
-
-**Registro de métricas (naming):** `namespace:domain:metric{service="mbp",…}`.
-**Métricas canônicas:** oracles (`staleness_ms`,`diverg_pct`,`quorum_ratio`,`failover_time_s`), twap (`window_s`,`diverg_pct`), fees (`cooldown_s_violation`,`delta_fee_5m_pct`,`bounds_ok`), moderação (`mttd_s`,`mttm_s`,`audit_coverage`), dados (`dbt_pass_rate`,`cdc_lag_p95_s`,`schema_drift`), operação (`uptime_ratio`,`error_budget_burn_30d`).
-**Painéis Grafana (export JSON no repo):** cards p95/p99, tendência 30d, limites SLO; garantir **`quorum_ratio`** e **`failover_time_p95_s`**.
-
-**Tolerância & backfill:** dados atrasados até 10 min entram no ciclo; acima disso, marcar `data_gap=true` e sinalizar no card.
-
----
-
-## 7) Watchers → Hooks (contratos executáveis)
-
-**Regras exemplo (código):**
-
-* `pm.oracle_staleness`: se `staleness_ms > 30000` por 2 janelas, aciona **`twap_failover`** (troca fonte em < 60 s) e grava **audit JSON**.
-* `mbp_price_spike_divergence`: se `diverg_pct > 1.0`, aciona **`freeze_fees`** (trava Δ; mantém clamp; notifica).
-* `cdc_lag_guard`: se `cdc_lag_p95_s > 120`, aciona **`scale_ingest`** (mais paralelismo) + alerta Data/SRE.
-
-**Contrato de hook (JSON):**
+**`schemas/thresholds.schema.json`**
 
 ```json
-{
-  "hook": "twap_failover",
-  "reason": "staleness_ms>60000",
-  "ts_utc": "2025-03-10T09:00:01Z",
-  "actor": "watcher:pm.oracle_staleness",
-  "action": {"from": "source_primary", "to": "source_backup"},
-  "result": "ok",
-  "evidence": "out/drills/twap_failover_2025-03-10.md"
-}
+{"$id":"https://ce.local/schemas/thresholds.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Thresholds","type":"object","additionalProperties":false,"required":["version","quorum_ratio_min","failover_time_p95_s_max","staleness_p95_s_max","cdc_lag_p95_s_max","divergence_pct_max"],"properties":{"version":{"type":"integer","minimum":1},"quorum_ratio_min":{"type":"number","minimum":0.0,"maximum":1.0},"failover_time_p95_s_max":{"type":"number","minimum":0.0},"staleness_p95_s_max":{"type":"number","minimum":0.0},"cdc_lag_p95_s_max":{"type":"number","minimum":0.0},"divergence_pct_max":{"type":"number","minimum":0.0}}}
 ```
 
----
+**`schemas/metrics.schema.json`**
 
-## 8) Playbooks & Drills (com rollback)
-
-* **TWAP failover**: simular primária com `staleness>60000ms`; comprovar `failover_time_s<60`; rollback para primária quando `staleness<30000ms`.
-* **CDC delay**: induzir atraso; comprovar `cdc_lag_p95_s≤120`; rollback com replay.
-* **Fee guard**: forçar spikes; comprovar `Δ≤20%/5m` + cooldown; rollback para `baseline_fee`.
-* **Moderation burst**: 50–100 eventos; comprovar `MTTD/MTTM`; rollback drena fila.
-
-**Template de relatório (MD):** objetivo, setup, passos, métricas medidas, evidências (links/prints), **assinatura** (owner) e timestamp UTC.
-
----
-
-## 9) Dados, Privacidade & Retenção
-
-* **DBT**: `dbt_pass_rate == 100%` (versionar `run_results.json`).
-* **CDC**: painel `cdc_lag_p95_s`; alarme `cdc_lag_guard`.
-* **PII**: amostra de logs (>10k linhas) com detector; **0 matches**; se houver, mascarar + **CAPA** com prazo e owner.
-* **Retenção de evidências**: `s6-scorecards` (artifacts) por **90 dias**; `s6_validation/` no repo (permanente).
-* **Minimização**: logs e artifacts **somente texto**; sem dumps binários.
-
----
-
-## 10) Validação, Rubrica & Red lines
-
-**Rubrica**
-
-* **GO**: Coverage ≥ 85; red_lines=0; KPIs centrais OK em 7d+30d.
-* **CONDITIONAL**: 70–84.9 ou 1 gap não‑crítico com CAPA aberta.
-* **NO‑GO**: qualquer red line.
-
-**Red lines**
-
-1. `P1>0` ou `error_budget_burn_30d ≥ 1×`.
-2. `uptime_ratio < 0.9990`.
-3. `staleness_p95_ms > 30000` ou `twap_divergence_pct > 1.0` ou `failover_time_s ≥ 60`.
-4. `cooldown_s != 300` ou `delta_fee_5m_pct > 20` ou `bounds_ok == false`.
-5. `dbt_pass_rate < 100%` ou `cdc_lag_p95_s > 120` ou `schema_drift > 0`.
-6. `hook_coverage < 98%` ou `audit_coverage < 99%`.
-7. Segredos vazando ou PII detectada.
-
-**Decisão final**: exige **assinaturas** (PO/Eng/Data/SRE/Sec/PM) e publicação de readout.
-
----
-
-## 11) Estrutura de artefatos & Schemas
-
-```
-artifacts/
-  s6-scorecards/
-    out/scorecards/scorecards_daily.md
-    out/scorecards/scorecards_weekly.md
-    out/scorecards/kpi_timeseries.json
-    out/scorecards/alerts_summary.json
-
-repo/
-  s6_validation/
-    decision.txt
-    summary.md
-    checks_table.md
-    findings.json
-    scorecards_findings.json
-    drills_findings.json
-    obs_findings.json
-    governance_findings.json
-    security_findings.json
-    manifest.json
+```json
+{"$id":"https://ce.local/schemas/metrics.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Metrics Static","type":"object","additionalProperties":false,"required":["version","quorum_ratio","failover_time_p95_s","staleness_p95_s","cdc_lag_p95_s","divergence_pct"],"properties":{"version":{"type":"integer","minimum":1},"quorum_ratio":{"type":"number","minimum":0.0,"maximum":1.0},"failover_time_p95_s":{"type":"number","minimum":0.0},"staleness_p95_s":{"type":"number","minimum":0.0},"cdc_lag_p95_s":{"type":"number","minimum":0.0},"divergence_pct":{"type":"number","minimum":0.0}}}
 ```
 
-**Schemas (resumo)**
+**`schemas/report.schema.json`** (S6)
 
-* `kpi_timeseries.json`: `{ kpi, unit, window:"24h|7d|30d", points:[{ts_utc, value}] }[]`
-* `alerts_summary.json`: `{ kpi, total, p1, p2, last_24h }[]`
-* `findings.json`: `{ coverage:{…}, red_lines:[], risks:[], gaps:[], recommendations:[], data_gap: boolean }`
+```json
+{"$id":"https://ce.local/schemas/report.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Report","type":"object","additionalProperties":false,"required":["schema_version","timestamp_utc","metrics","status"],"properties":{"schema_version":{"type":"integer","const":1},"timestamp_utc":{"type":"string","format":"date-time"},"metrics":{"type":"object","additionalProperties":false,"required":["quorum_ratio","failover_time_p95_s","staleness_p95_s","cdc_lag_p95_s","divergence_pct"],"properties":{"quorum_ratio":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"failover_time_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"staleness_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"cdc_lag_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"divergence_pct":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}}}},"status":{"type":"string","enum":["PASS","FAIL"]}}}
+```
 
-**Reprodutibilidade**: UTF‑8, LF, newline final; ordenação estável; `manifest.json` com **SHA‑256** de tudo.
+**`schemas/q1_boss_report.schema.json`**
+
+```json
+{"$id":"https://ce.local/schemas/q1_boss_report.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"Q1 Boss Final Report","type":"object","additionalProperties":false,"required":["schema_version","timestamp_utc","sprints","status"],"properties":{"schema_version":{"type":"integer","const":1},"timestamp_utc":{"type":"string","format":"date-time"},"sprints":{"type":"object","additionalProperties":false,"required":["s1","s2","s3","s4","s5","s6"],"properties":{"s1":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s2":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s3":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s4":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s5":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s6":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}}}},"status":{"type":"string","enum":["PASS","FAIL"]}}}
+```
+
+## 8. Conteúdos dos Bundles (S6)
+
+**`s6_validation/thresholds.json`** (exemplo inicial — editável sob controle de versão)
+
+```json
+{"version":1,"quorum_ratio_min":0.6667,"failover_time_p95_s_max":60.0,"staleness_p95_s_max":30.0,"cdc_lag_p95_s_max":120.0,"divergence_pct_max":1.0}
+```
+
+**`s6_validation/metrics_static.json`** (exemplo inicial — editável)
+
+```json
+{"version":1,"quorum_ratio":0.92,"failover_time_p95_s":7.8,"staleness_p95_s":12.0,"cdc_lag_p95_s":45.0,"divergence_pct":0.4}
+```
+
+## 9. Regras de Reprodutibilidade
+
+* **UTF‑8** e newline em todos os arquivos de entrada/saída.
+* `bundle.sha256`: SHA‑256 sobre concatenação canônica de `thresholds.json` (primeiro) e `metrics_static.json` (depois), ambos serializados com `sort_keys=true`, `separators=(",",":")`, `ensure_ascii=false` e newline final.
+* `report.md` com ordenação e formatação estáveis (sem timestamps e sem valores dependentes de locale).
+
+## 10. Workflows de CI (política)
+
+### 10.1 `s6-scorecards.yml`
+
+* **Triggers:** `schedule` 06:00 UTC, `workflow_dispatch`, `pull_request` filtrando `s6_validation/**`, `scripts/scorecards/**`, `dashboards/grafana/**`, o próprio workflow.
+* **Concurrency:** `s6-scorecards-${{ github.ref }}`, `cancel-in-progress: true`.
+* **Ambiente:** `LC_ALL=C.UTF-8`, `LANG=C.UTF-8`.
+* **Actions:** usar `actions/checkout`, `actions/setup-python`, `actions/github-script`, `actions/upload-artifact` **pinadas por SHA** e registradas em `actions.lock` (com data/autor/justificativa). Política de rotação: revisão mensal e bump controlado via PR dedicado.
+* **Steps (ordem):** checkout → setup‑python 3.11 (cache pip) → instalar `ruff==0.6.8`, `yamllint==1.35.1`, `pytest==8.3.3`, `hypothesis==6.103.0` → instalar `jq` → `yamllint .` → `ruff scripts/` → `pytest -q` → validar painel Grafana via `jq` → validar higiene UTF‑8/EOL dos JSONs → `python scripts/scorecards/s6_scorecards.py` → upload artefatos `out/s6_scorecards/` → ler `guard_status.txt` e `exit 1` em `FAIL` → se PR, comentar via `github-script`; **fallback** para `GITHUB_STEP_SUMMARY` com badge e resumo 1‑linha.
+* **Timeouts:** `timeout-minutes: 20` no job; nenhum step sem limite.
+
+### 10.2 `q1-boss-final.yml`
+
+* **Triggers:** `workflow_dispatch` (input opcional `release_tag`), `pull_request` (filtros amplos `.github/workflows/**`, `scripts/**`, `s*/**`, `docs/**`, `dashboards/**`), opcional `schedule` 07:00 UTC.
+* **DAG:** jobs paralelos `s1..s6` + agregador `boss` com `needs` em todos.
+* **Sprints (escopo mínimo determinístico):**
+
+  * S1: lint/format + teste base + healthcheck SUT fake/offline.
+  * S2: build estático + testes de módulo + microbench determinístico.
+  * S3: observabilidade “smoke” offline (regras/labels, evidências em `out/obs_gatecheck/*`).
+  * S4: ORR “lite” offline (validar YAMLs/workflows; TLA só se presente; nunca falhar por ausência do `.tla`).
+  * S5: validação de dashboards (estrutura/labels via `jq`).
+  * S6: executar scorecards desta sprint.
+* **Agregação (`boss`):** ler `guard_status.txt` de cada sprint → compor `report.json/md` global conforme schema → gerar badge e `dag.svg` → comentar no PR (fallback para summary) → gate final por `guard_status.txt` global.
+* **Timeouts:** `timeout-minutes: 60` no job agregador; `s1..s6`: 15 cada.
+
+## 11. Painel Grafana (S6)
+
+* Arquivo: `dashboards/grafana/scorecards_quorum_failover_staleness.json`.
+* Conteúdo: 5 cards `stat` (quorum_ratio, failover_time_p95_s, staleness_p95_s, cdc_lag_p95_s, divergence_pct), `schemaVersion` recente, time range `now-24h`→`now`, templating vazio.
+
+## 12. Documentação
+
+* `docs/scorecards/S6_SCORECARDS.md`: objetivo, execução local, leitura do report, semântica do guard, troubleshooting (schema/UTF‑8/EOL), política de migração (`schema_version` e `version`), governança de `actions.lock` e rotação.
+
+## 13. Testes (matriz)
+
+**Unidade e property‑based:**
+
+* Avaliação PASS/FAIL por métrica individual e combinações.
+* Fronteiras (igual ao limite; ±epsilon). Formatação numérica (casas por métrica).
+* Metamórfico: relaxar thresholds não cria regressão; piorar métricas além do limite ⇒ FAIL.
+* Idempotência: 2× execuções com mesmo input ⇒ `bundle.sha256` e `report.md` idênticos (byte a byte).
+* Erros: arquivo ausente; JSON inválido; chaves extras; domínio violado; encoding incorreto; métrica ausente ⇒ FAIL.
+* Liveness: jobs encerram antes dos timeouts definidos.
+
+**Boss Final:**
+
+* Combinações de `s1..s6` PASS/FAIL; prova de que qualquer FAIL ⇒ FAIL global.
+* Geração válida de `badge.svg` e `dag.svg`.
+* Fallback de PR comment (summary) ao simular falha controlada do `github-script`.
+* Reprodutibilidade em runner limpo adicional (job matrix `clean_runner: [true,false]`).
+
+## 14. Critérios de Aceite (DoD)
+
+* Workflows `s6-scorecards` e `q1-boss-final` executam localmente (smoke) e no CI Ubuntu 22.04 sem segredos.
+* `guard_status.txt` contém apenas `PASS`/`FAIL` com newline final; gates falham PRs corretamente.
+* Artefatos completos nas pastas `out/` especificadas; hashes determinísticos; reports válidos contra schemas.
+* Painel Grafana importável; docs presentes.
+* Testes cobrindo todos os itens da matriz; idempotência e liveness comprovadas; matrix com runner limpo passa.
+* `actions.lock` presente e citado no workflow; rotação documentada.
+
+## 15. Riscos e Mitigações
+
+* Falha na instalação de deps: fixar versões; retry leve; logs claros.
+* Variação de locale: fixar `LC_ALL/LANG`.
+* Não determinismo de filesystem: ordenar listas/keys explicitamente.
+* Falha de comentário em PR: fallback para `GITHUB_STEP_SUMMARY` com badge e links.
+* Divergência de schema: validar contra schemas versionados e documentar migração.
+
+## 16. Versão, Migração e Manutenção
+
+* `schema_version` dos reports inicia em 1; evolução por bump semântico e migrações no doc.
+* `version` em `thresholds.json` e `metrics_static.json` inicia em 1; alterações compatíveis exigem doc de migração.
+* `actions.lock`: mapa `{action → sha, date, author, rationale}`; revisões mensais.
+
+## 17. Procedimento de Entrega
+
+1. Abrir branch `wave-1/s6-scorecards`.
+2. Adicionar arquivos conforme manifest desta spec.
+3. Executar smoke local: `make s6-scorecards || true` e `make q1-boss-final || true`.
+4. Abrir PR “S6: scorecards + Boss Final Q1 (determinístico)”.
+5. Merge após CI verde e checklist DoD atendido.
+
+## 18. Checklist de Veto (Bertrand)
+
+* [ ] Schemas presentes e aplicados (incl. reports); mensagens contratuais objetivas.
+* [ ] Decimal + epsilon aplicado; ordenação estável; UTF‑8 + newline; formatos numéricos exigidos.
+* [ ] Actions pinadas por SHA; `LC_ALL=C.UTF-8`; concurrency e timeouts configurados; `actions.lock` incluído.
+* [ ] Artefatos S6 completos; `bundle.sha256` e `report.md` determinísticos.
+* [ ] Workflow Boss: DAG, agregação, badge e dag SVGs; PR comment com fallback; gate global.
+* [ ] Testes de fronteira, metamórficos, idempotência, liveness e erros de schema/higiene; matrix com runner limpo.
 
 ---
 
-## 12) Matriz de verificação (requisito → query → evidência → owner)
-
-| Requisito           | Query/Escala         | Evidência                          | Owner    |
-| ------------------- | -------------------- | ---------------------------------- | -------- |
-| Uptime ≥ 99.90%     | `uptime_ratio` (30d) | scorecards + `kpi_timeseries.json` | SRE      |
-| Burn < 1×/30d       | fórmula burn         | `scorecards_weekly.md`             | SRE      |
-| Staleness p95 ≤ 30s | p95 5m               | dashboard + scorecard              | PM/BC    |
-| TWAP diverg ≤ 1%    | p95 5m               | dashboard                          | PM       |
-| Failover < 60s      | drill                | `out/drills/*.md`                  | PM/BC    |
-| Δ fee ≤ 20%/5m      | max 30d              | scorecard                          | PM/Eng   |
-| Cooldown = 300s     | violações=0          | scorecard                          | Eng      |
-| DBT 100%            | run_results          | `target/run_results.json`          | Data     |
-| CDC p95 ≤ 120s      | p95                  | scorecard                          | Data/SRE |
-| Schema drift = 0    | contador             | scorecard                          | Data     |
-| MTTD/MTTM           | p95                  | scorecard/logs                     | PM/SRE   |
-| Audit ≥ 99%         | % eventos com JSONL  | scorecard                          | Sec/PM   |
-
----
-
-## 13) Riscos & mitigação
-
-* **Alert fatigue** → deduplicação por janela; limiares com histerese; revisão semanal.
-* **Relógio/TZ** → NTP forçado; tudo em **UTC**; tolerância ±5%.
-* **Dados faltantes** → FF limitado (≤10 min) + `data_gap=true`; CAPA se >3%.
-* **Dependência de dashboard** → export JSON versionado + print semanal no repo.
-* **CDC instável** → autoscale/backpressure + `cdc_lag_guard`.
-* **Regressões de labels** → linter/guard no CI para nomes de métricas e steps.
-
----
-
-## 14) Readout & Handoff (Q1 → Q2)
-
-Sumário executivo; KPIs 30d (timeseries); incidentes/casos; CAPAs (owner+prazos); ADRs; riscos abertos; marcos Q2; links para artifacts/dashboards/bundles; **assinaturas** (PO/Eng/Data/SRE/Sec/PM).
-
----
-
-## 15) Check‑list de encerramento S6 (GO)
-
-* 30d de **scorecards** publicados + `s6_validation/` atualizado.
-* Rubrica aplicada (§10) e **red lines = 0**.
-* Readout publicado e assinado.
-* Release criada com links + **SHA‑256**.
-
----
-
-## 16) Changelog (v3 → vFinal+)
-
-* **Unidades/tempo** padronizados (UTC, p95 5m, FF≤10m, data_gap).
-* **RACI + MTTA/MTTR** e severidades P1/P2 formalizadas.
-* **Guarda no CI** para artifact e schema (scorecards).
-* **Matriz de verificação** completa.
-* **Retenção/privacidade** e política de minimização de dados.
-* **Backfill/tolerâncias** e modo de degradação segura.
-
-> **Estado:** especificação **gap‑free** e pronta para execução/validação. Guia a criação de workflows, scorecards e pacotes de evidência com **decisão GO/NO‑GO objetiva**.
+> Esta é a **especificação oficial e final** da Sprint 6 (Q1). Qualquer implementação deve obedecer integralmente a este documento. Em caso de conflito, prevalecem os contratos e limites definidos aqui.
