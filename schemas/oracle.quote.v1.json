@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trendmarketv2/schemas/oracle.quote.v1.json",
+  "title": "Oracle Quote Event",
+  "type": "object",
+  "properties": {
+    "schema_version": {"const": 1},
+    "ts": {"type": "string", "format": "date-time"},
+    "source": {"type": "string", "minLength": 1},
+    "symbol": {"type": "string", "minLength": 1},
+    "price": {"type": "number", "exclusiveMinimum": 0},
+    "staleness_ms": {"type": "integer", "minimum": 0},
+    "quorum_ok": {"type": "boolean"},
+    "divergence_pct": {"type": "number", "minimum": 0},
+    "twap_60s": {"type": "number", "minimum": 0},
+    "failover_source": {"type": ["string", "null"]},
+    "trace_id": {"type": "string", "minLength": 8}
+  },
+  "required": [
+    "schema_version",
+    "ts",
+    "source",
+    "symbol",
+    "price",
+    "staleness_ms",
+    "quorum_ok"
+  ],
+  "additionalProperties": false
+}
+

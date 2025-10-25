@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trendmarketv2/schemas/moderation.action.v1.json",
+  "title": "Moderation Action Event",
+  "type": "object",
+  "properties": {
+    "schema_version": {"const": 1},
+    "ts": {"type": "string", "format": "date-time"},
+    "symbol": {"type": "string", "minLength": 1},
+    "action": {
+      "type": "string",
+      "enum": ["pause", "resume", "appeal"]
+    },
+    "reason": {"type": ["string", "null"]},
+    "evidence_uri": {"type": ["string", "null"]},
+    "actor": {"type": "string", "minLength": 1},
+    "role": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 8},
+    "status": {"type": "string", "minLength": 1}
+  },
+  "required": [
+    "schema_version",
+    "ts",
+    "symbol",
+    "action",
+    "actor",
+    "role",
+    "trace_id",
+    "status"
+  ],
+  "additionalProperties": false
+}
+
