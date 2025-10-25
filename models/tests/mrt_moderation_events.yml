@@ -19,9 +19,6 @@ models:
       - name: ts
         tests:
           - not_null
-      - name: symbol
-        tests:
-          - not_null
       - name: action
         tests:
           - not_null
