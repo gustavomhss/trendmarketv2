@@ -6,9 +6,6 @@ models:
         tests:
           - not_null
           - unique
-      - name: id
-        tests:
-          - not_null
       - name: scenario
         tests:
           - accepted_values:

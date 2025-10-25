@@ -4,5 +4,5 @@ with latest_quote as (
 select twap.*
 from {{ ref('mrt_twap_5m') }} twap
 cross join latest_quote
-where datediff('second', twap.ts, latest_quote.max_ts) > 300;
+where datediff('second', twap.ts, latest_quote.max_ts) > 300
 
