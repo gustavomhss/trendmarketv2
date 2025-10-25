@@ -1,0 +1,72 @@
+[
+  {
+    "path": "s5_validation/checks_table.md",
+    "size_bytes": 3469,
+    "sha256": "b1725e747cb971d13073755546bb42a0b4a24a849b39a5d8f14918cbbebdb041"
+  },
+  {
+    "path": "s5_validation/code_ast_findings.json",
+    "size_bytes": 1470,
+    "sha256": "636615f2834bda230de6b7439d8b806ed72e05a9acb79d6b5032c719336966cb"
+  },
+  {
+    "path": "s5_validation/dbt_findings.json",
+    "size_bytes": 689,
+    "sha256": "62a4d0973ac5a972b22ad77084d8e068e1ed267874de15173b0e1685e58c7c31"
+  },
+  {
+    "path": "s5_validation/decision.txt",
+    "size_bytes": 34,
+    "sha256": "f34c3f501c8bb0bea98c05b077254cf4ba279ad48163b34d27a0a23b8327c14c"
+  },
+  {
+    "path": "s5_validation/findings.json",
+    "size_bytes": 5768,
+    "sha256": "d448e5b487900cb08e32b8570a56f382d44bb948445f4ac775bb291ca27156d3"
+  },
+  {
+    "path": "s5_validation/hygiene_report.txt",
+    "size_bytes": 509,
+    "sha256": "2ad8c3fd087d526bbaebd5d9757475c7ae159aa5c77c08294581f9c8d5cfe55c"
+  },
+  {
+    "path": "s5_validation/labels_fix_report.md",
+    "size_bytes": 912,
+    "sha256": "c27115f913910df24d1ffcd3233f820cba793ac8e3c6e3b104c4c4d8a58ec6d8"
+  },
+  {
+    "path": "s5_validation/manifest.json",
+    "size_bytes": 1913,
+    "sha256": "7e8c7d8ecf56aae481bf8e2d34d885f2d533822eb0bf65fcb32ddb87e7577e76"
+  },
+  {
+    "path": "s5_validation/obs_findings.json",
+    "size_bytes": 1259,
+    "sha256": "7feaff7205c91df25d4b540bf507858b95fe38e310148be86de88cbc7ed80dff"
+  },
+  {
+    "path": "s5_validation/openapi_findings.json",
+    "size_bytes": 306,
+    "sha256": "2d7f37ce1405cbae3797c434060b793a866f5df4797c058ca8ff49eb23630db5"
+  },
+  {
+    "path": "s5_validation/placeholder_audit.md",
+    "size_bytes": 227,
+    "sha256": "8c275a5cab1a260a0edaf5fbe1f7ce28abdc2a4398871a3534bc3c3ce1e982ff"
+  },
+  {
+    "path": "s5_validation/schemas_findings.json",
+    "size_bytes": 949,
+    "sha256": "ee2d036bc3d22cf3c09f1aa9bc9ae10d83a848898c4b31ab7e3ec933ebf23fd6"
+  },
+  {
+    "path": "s5_validation/summary.md",
+    "size_bytes": 1358,
+    "sha256": "b67fdac0ca6b0adf8c55a031e3a4930845e875777a1df53886578d306d825711"
+  },
+  {
+    "path": "s5_validation/workflow_findings.json",
+    "size_bytes": 2626,
+    "sha256": "3d25b72be3405e171fff391f1bd2c1e89ef7b2873ba09f5a0c08b32a9a58355c"
+  }
+]

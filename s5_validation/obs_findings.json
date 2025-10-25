@@ -1,0 +1,43 @@
+{
+  "prometheus": {
+    "rules_file": "observability/prometheus/slo.rules.yml",
+    "metrics": [
+      "mbp:oracle:staleness_p95_ms",
+      "mbp:oracle:divergence_p95",
+      "mbp:oracle:quorum_ratio",
+      "mbp:oracle:failover_time_p95_s",
+      "mbp:fee:delta_pct_5m",
+      "mbp:auto_resolve:latency_p95_ms",
+      "mbp:auto_resolve:success_ratio",
+      "mbp:moderation:appeals_open",
+      "mbp:simulation:ttpv_p95_ms"
+    ],
+    "alerts": [
+      "AutoResolveLatencyP95High",
+      "AutoResolveSuccessLow",
+      "AutoResolveBacklogGrowing"
+    ]
+  },
+  "grafana": {
+    "dashboard": "observability/grafana/dashboards/s5_mbp_scale.json",
+    "panels": [
+      "Oracle Staleness p95 (ms)",
+      "Oracle Divergence p95",
+      "Fee Δ5m",
+      "Fee Cooldown Hits",
+      "Moderation Appeals Open",
+      "Simulation TTPV p95",
+      "Simulation Success Ratio",
+      "Auto-Resolve SLA (p50/p95)",
+      "Auto-Resolve Decision Throughput",
+      "Auto-Resolve Success Ratio",
+      "Auto-Resolve Manual Fallback Rate",
+      "Manual Fallback Rate",
+      "Auto-Resolve Backlog (max 15m)"
+    ],
+    "gaps": [
+      "Nenhum painel cobre explicitamente mbp:oracle:quorum_ratio",
+      "Nenhum painel referencia mbp:oracle:failover_time_p95_s"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "file": "api/openapi.yaml",
+  "endpoints": {
+    "/oracle/quote": "present",
+    "/moderation/pause": "present",
+    "/resolve/apply": "present"
+  },
+  "components": {
+    "OracleQuote": "schema_version=1",
+    "ModerationAction": "schema_version=1",
+    "ErrorResponse": "code/message/trace_id"
+  }
+}

@@ -1,0 +1,7 @@
+Higiene & Determinismo — Sprint 5
+
+- Codificação UTF-8/LF confirmada nos YAML de workflow (`rg '\r$'` e `rg '\t'` sem ocorrências).
+- Sem arquivos com CRLF ou TAB nas pastas avaliadas (.github/workflows, services, tools).
+- `tools/sim_harness.py` utiliza `SEED=42` (env) e `random.Random(seed)` para execuções determinísticas.
+- `src/amm_obs/telemetry.py` inicializa `random.Random(seed)` com semente default 202402 para telemetria.
+- Manifesto será emitido com SHA-256 para cada artefato do bundle.

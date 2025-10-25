@@ -1,0 +1,32 @@
+{
+  "schemas": [
+    {
+      "path": "schemas/oracle.quote.v1.json",
+      "schema_version": 1,
+      "required": ["schema_version", "ts", "source", "symbol", "price", "staleness_ms", "quorum_ok"],
+      "type_summary": {
+        "price": "number>0",
+        "staleness_ms": "integer>=0",
+        "quorum_ok": "boolean"
+      }
+    },
+    {
+      "path": "schemas/moderation.action.v1.json",
+      "schema_version": 1,
+      "required": ["schema_version", "ts", "symbol", "action", "actor", "role", "trace_id", "status"],
+      "type_summary": {
+        "action": "enum[pause,resume,appeal]",
+        "trace_id": "string>=8"
+      }
+    },
+    {
+      "path": "schemas/fee.update.v1.json",
+      "schema_version": 1,
+      "required": ["schema_version", "ts", "symbol", "fee", "components", "bounds", "cooldown"],
+      "type_summary": {
+        "components": "{base,alpha_vol,beta_depth}",
+        "bounds": "{minimum,maximum}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+# Sumário Sprint 5
+- Cobertura global: 97.5/100 (sem red lines) com pesos aplicados a oráculos, TWAP, fees, moderação, DBT, workflows, observabilidade e documentação.
+- O que mudou com o FIX: labels dos steps já estavam corretos; nenhuma alteração aplicada no YAML.
+- Oráculos: mediana com quórum ≥2/3, staleness ≤30s e divergência ≤1% assegurados pelo agregador de quotes.
+- TWAP: janela deslizante de 60s via deque com failover automático para a fonte secundária quando staleness >60s.
+- Fees: motor aplica clamp, cooldown de 300s e limita variação absoluta a ±20% por janela.
+- Auto-resolução: serviço calcula decisão automática, gera trilha JSONL e persiste métricas/auditoria determinísticas.
+- DBT: projeto DuckDB executa deps/debug/run/test com `dbt-duckdb~=1.8.0` e `run_results.json` registra 50 sucessos (100%).
+- Workflows: wrapper usa `fromJSON` para inputs booleanos e upload final publica `s4-orr-evidence` com `out/**`, `target/**` e `logs/**`.
+- Observabilidade: regras Prometheus cobrem `staleness`, `diverg_pct`, `quorum_ratio`, `failover_time` e métricas de fees/moderação/simulações.
+- Top 3 gaps: dashboard Grafana não expõe painéis para `quorum_ratio`/`failover_time`, limiar `AGREEMENT_THRESHOLD=0.6` não é aplicado na decisão, artefatos `out/sim/*.report.json` ausentes na árvore versionada.
