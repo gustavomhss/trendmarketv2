@@ -1,65 +1,40 @@
 {{ config(materialized='table') }}
 
-with source as (
-    select * from {{ ref('stg_moderation_events') }}
-)
-
-select
-    symbol,
-    sum(case when action = 'pause' then 1 else 0 end) as pauses,
-    sum(case when action = 'resume' then 1 else 0 end) as resumes,
-    sum(case when action = 'appeal' then 1 else 0 end) as appeals,
-    avg(case when resolved_ts is not null then datediff('second', action_ts, resolved_ts) end) as avg_resolution_seconds
-from source
-group by symbol;
 with events as (
-    select * from {{ ref('stg_moderation_events') }}
+    select *
+    from {{ ref('stg_moderation_events') }}
 ),
-ranked as (
+aggregated as (
+    select
+        symbol,
+        sum(case when action = 'pause' then 1 else 0 end) as pauses,
+        sum(case when action = 'appeal' then 1 else 0 end) as appeals
+    from events
+    group by symbol
+),
+ranked_events as (
     select
         *,
-        row_number() over (partition by symbol order by ts desc) as symbol_event_rank
-    from events
-)
-
-select
-    id,
-    ts,
-    symbol,
-    action,
-    reason,
-    evidence_uri,
-    actor,
-    (symbol_event_rank = 1) as is_latest_event
-from ranked;
-with ranked_events as (
-    select
-        id,
-        ts,
-        symbol,
-        action,
-        reason,
-        evidence_uri,
-        actor,
-        minutes_since_previous_event,
         row_number() over (partition by symbol order by ts desc) as event_rank,
         lead(ts) over (partition by symbol order by ts desc) as next_event_ts,
         sum(case when action = 'pause' then 1 else 0 end) over (
-            partition by symbol order by ts rows between unbounded preceding and current row
+            partition by symbol
+            order by ts desc
+            rows between unbounded preceding and current row
         ) as pause_count_to_date
-    from {{ ref('stg_moderation_events') }}
+    from events
 ),
-recent_events as (
+latest_events as (
     select
+        symbol,
         id,
         ts,
-        symbol,
         action,
         reason,
         evidence_uri,
         actor,
-        minutes_since_previous_event,
         event_rank,
+        minutes_since_previous_event,
         case when next_event_ts is null then 0 else datediff('minutes', next_event_ts, ts) end as minutes_until_next_event,
         pause_count_to_date,
         case
@@ -68,9 +43,28 @@ recent_events as (
             when event_rank = 1 then 'under_review'
             else 'historical'
         end as moderation_state
-    from events
-    where event_rank <= 3
+    from ranked_events
+    where event_rank = 1
+),
+final as (
+    select
+        a.symbol,
+        a.pauses,
+        a.appeals,
+        l.id,
+        l.ts,
+        l.action,
+        l.reason,
+        l.evidence_uri,
+        l.actor,
+        l.event_rank,
+        l.minutes_since_previous_event,
+        l.minutes_until_next_event,
+        l.pause_count_to_date,
+        l.moderation_state
+    from aggregated a
+    join latest_events l using (symbol)
 )
 
 select *
-from recent_events;
+from final
