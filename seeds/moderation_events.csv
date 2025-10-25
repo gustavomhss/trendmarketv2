@@ -6,3 +6,6 @@ evt_1004,2024-03-03T12:05:00Z,EURUSD,pause,latency_spike_detected,s3://moderatio
 evt_1005,2024-03-03T12:25:00Z,EURUSD,review,manual_confirmation_needed,s3://moderation/EURUSD/evt_1005.json,risk_specialist
 evt_1006,2024-03-03T12:55:00Z,EURUSD,resume,latency_normalized,s3://moderation/EURUSD/evt_1006.json,auto_guardian
 evt_1007,2024-03-04T10:15:00Z,BRLUSD,pause,market_depth_drop,s3://moderation/BRLUSD/evt_1007.json,auto_guardian
+MOD-20240101-0001,2024-01-01 00:10:00,BRLUSD,pause,divergence>1%,s3://moderation/events/MOD-20240101-0001.json,auto_moderator
+MOD-20240101-0002,2024-01-01 00:25:00,BRLUSD,escalate,manual_review_requested,s3://moderation/events/MOD-20240101-0002.json,human_reviewer
+MOD-20240101-0003,2024-01-01 00:45:00,BRLUSD,resume,conditions_restored,s3://moderation/events/MOD-20240101-0003.json,auto_moderator
