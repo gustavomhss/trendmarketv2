@@ -1,0 +1,4 @@
+id,scenario,started_at,finished_at,p95_latency_ms,result_path
+run_20240101_spike,spike,2024-01-01T00:00:00Z,2024-01-01T00:03:10Z,620,s3://simulations/reports/spike.json
+run_20240101_gap,gap,2024-01-01T00:05:00Z,2024-01-01T00:07:45Z,710,s3://simulations/reports/gap.json
+run_20240101_burst,burst,2024-01-01T00:10:00Z,2024-01-01T00:16:30Z,780,s3://simulations/reports/burst.json
