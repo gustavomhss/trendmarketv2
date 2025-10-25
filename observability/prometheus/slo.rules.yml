@@ -19,6 +19,17 @@ groups:
         expr: avg_over_time(mbp_fee_in_bounds{env="prod"}[5m])
       - record: mbp:fee:cooldown_hits
         expr: increase(mbp_fee_cooldown_trigger_total{env="prod"}[5m])
+  - name: mbp_s5_auto_resolution
+    interval: 30s
+    rules:
+      - record: mbp:auto_resolve:latency_p95_ms
+        expr: quantile_over_time(0.95, mbp_auto_resolve_latency_ms{env="prod"}[1h])
+      - record: mbp:auto_resolve:success_ratio
+        expr: sum(increase(mbp_auto_resolve_success_total{env="prod"}[1h])) / clamp_min(sum(increase(mbp_auto_resolve_attempt_total{env="prod"}[1h])), 1)
+      - record: mbp:auto_resolve:manual_fallback_rate
+        expr: sum(increase(mbp_auto_resolve_manual_fallback_total{env="prod"}[1h])) / clamp_min(sum(increase(mbp_auto_resolve_attempt_total{env="prod"}[1h])), 1)
+      - record: mbp:auto_resolve:backlog
+        expr: avg_over_time(mbp_auto_resolve_backlog{env="prod"}[5m])
   - name: mbp_s5_moderation
     interval: 30s
     rules:

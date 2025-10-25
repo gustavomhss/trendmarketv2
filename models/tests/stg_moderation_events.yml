@@ -2,6 +2,21 @@ version: 2
 models:
   - name: stg_moderation_events
     columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: action
+        tests:
+          - accepted_values:
+              values: ['pause', 'resume', 'appeal']
+      - name: role
+        tests:
+          - accepted_values:
+              values: ['moderator', 'operator', 'admin']
+      - name: action_ts
+        tests:
+          - not_null
       - name: id
         tests:
           - not_null

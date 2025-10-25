@@ -64,6 +64,11 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
+              required:
+                - schema_version
+                - event_id
+                - truth
               required:
                 - schema_version
                 - decision_id
@@ -73,6 +78,52 @@ paths:
                 schema_version:
                   type: integer
                   enum: [1]
+                event_id:
+                  type: string
+                  description: Unique identifier of the dispute event being resolved
+                symbol:
+                  type: string
+                  description: Market symbol associated with the dispute
+                truth:
+                  type: object
+                  required:
+                    - value
+                    - source
+                    - ts
+                  properties:
+                    value:
+                      type: number
+                    source:
+                      type: string
+                    ts:
+                      type: string
+                      format: date-time
+                quorum:
+                  type: object
+                  required:
+                    - value
+                    - quorum_ok
+                  properties:
+                    value:
+                      type: number
+                    quorum_ok:
+                      type: boolean
+                    diverg_pct:
+                      type: number
+                    staleness_ms:
+                      type: integer
+                manual_decision:
+                  type: string
+                  description: Manual override decision when quorum+truth do not align
+                reason:
+                  type: string
+                  description: Evidence summary supporting the manual override
+                idempotency_key:
+                  type: string
+                  description: Key used to deduplicate retries of the same decision
+                resource_version:
+                  type: string
+                  description: Version token to guard against write-write conflicts
                 decision_id:
                   type: string
                 truth_source:
@@ -92,15 +143,30 @@ paths:
                 required:
                   - decision_id
                   - outcome
+                  - rule
+                  - trace_id
+                  - resource_version
                 properties:
                   decision_id:
                     type: string
                   outcome:
                     type: string
+                  rule:
+                    type: string
+                  trace_id:
+                    type: string
+                  resource_version:
+                    type: string
                   trace_id:
                     type: string
         '409':
           description: Conflict with existing decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Decision rejected due to rule violation
           content:
             application/json:
               schema:

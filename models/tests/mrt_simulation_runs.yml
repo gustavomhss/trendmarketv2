@@ -6,6 +6,10 @@ models:
         tests:
           - not_null
           - unique
+      - name: run_count
+        tests:
+          - not_null
+      - name: success_count
           - accepted_values:
               values: [spike, gap, burst]
       - name: latest_run_id

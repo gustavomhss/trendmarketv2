@@ -2,6 +2,7 @@
   "title": "S5 MBP Scale",
   "uid": "s5-mbp-scale",
   "schemaVersion": 39,
+  "version": 1,
   "version": 2,
   "timezone": "utc",
   "time": {
@@ -123,6 +124,12 @@
     },
     {
       "id": 10,
+      "type": "stat",
+      "title": "Auto-Resolve Manual Fallback Rate",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:auto_resolve:manual_fallback_rate"
       "type": "timeseries",
       "title": "Manual Fallback Rate",
       "targets": [

@@ -2,12 +2,22 @@ version: 2
 models:
   - name: stg_simulation_runs
     columns:
+      - name: run_id
       - name: id
         tests:
           - not_null
           - unique
       - name: scenario
         tests:
+          - accepted_values:
+              values: ['spike', 'gap', 'burst']
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['success', 'failed']
+      - name: started_at
+        tests:
+          - not_null
           - not_null
           - accepted_values:
               values: [spike, gap, burst]

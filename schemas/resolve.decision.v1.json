@@ -1,5 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Resolve Decision Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ts",
+    "event_id",
+    "decision_id",
+    "rule",
+    "decision",
+    "actor",
+    "role",
+    "outcome",
+    "trace_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1]
   "$id": "https://trendmarketv2/schemas/resolve.decision.v1.json",
   "title": "Resolve Decision Event",
   "description": "Canonical event emitted whenever the resolver issues a decision for a market event.",
@@ -53,6 +72,47 @@
     "ts": {
       "type": "string",
       "format": "date-time",
+      "description": "UTC timestamp when the decision was recorded"
+    },
+    "event_id": {
+      "type": "string",
+      "description": "Identifier of the dispute or resolution event"
+    },
+    "decision_id": {
+      "type": "string",
+      "description": "Deterministic identifier for the decision instance"
+    },
+    "rule": {
+      "type": "string",
+      "description": "Rule applied to reach the decision (e.g., AUTO_TRUTH_MATCH)"
+    },
+    "decision": {
+      "type": ["string", "null"],
+      "description": "Resolved outcome value or null when manual follow-up is required"
+    },
+    "actor": {
+      "type": "string",
+      "description": "Originating actor or service applying the decision"
+    },
+    "role": {
+      "type": "string",
+      "description": "RBAC role of the actor when the decision was applied"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["applied", "applied_manual", "manual_required"],
+      "description": "Outcome of the resolution attempt"
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "Trace identifier for correlating downstream logs and telemetry"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Structured metadata with quorum, truth, and evaluation context",
+      "additionalProperties": true
+    }
+  }
       "description": "UTC timestamp when the decision was emitted (ISO 8601)."
     },
     "event_id": {
