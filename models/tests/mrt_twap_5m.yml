@@ -1,0 +1,19 @@
+version: 2
+models:
+  - name: mrt_twap_5m
+    columns:
+      - name: symbol
+        tests:
+          - not_null
+      - name: ts
+        tests:
+          - not_null
+      - name: twap
+        tests:
+          - not_null
+      - name: quorum_ok
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
