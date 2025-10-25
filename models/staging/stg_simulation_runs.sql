@@ -1,5 +1,8 @@
 {{ config(materialized='table') }}
 
+with raw_runs as (
+    select *
+    from read_csv_auto('seeds/simulation_runs.csv', header=True)
 with source_data as (
     select *
     from {{ ref('simulation_runs') }}
@@ -12,6 +15,9 @@ typed_runs as (
         cast(finished_at as timestamp) as finished_at,
         cast(p95_latency_ms as integer) as p95_latency_ms,
         trim(result_path) as result_path
+    from raw_runs
+),
+enriched_runs as (
     from source_data
 ),
 finalized_runs as (
@@ -19,6 +25,10 @@ finalized_runs as (
         id as run_id,
         id,
         scenario,
+        case
+            when p95_latency_ms <= 750 then 'success'
+            else 'failed'
+        end as status,
         case when p95_latency_ms <= 750 then 'success' else 'failed' end as status,
         started_at,
         finished_at,
@@ -29,4 +39,5 @@ finalized_runs as (
 )
 
 select *
+from enriched_runs
 from finalized_runs
