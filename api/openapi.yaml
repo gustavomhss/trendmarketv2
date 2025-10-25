@@ -69,6 +69,10 @@ paths:
                 - schema_version
                 - event_id
                 - truth
+              required:
+                - schema_version
+                - decision_id
+                - truth_source
                 - quorum
               properties:
                 schema_version:
@@ -120,6 +124,15 @@ paths:
                 resource_version:
                   type: string
                   description: Version token to guard against write-write conflicts
+                decision_id:
+                  type: string
+                truth_source:
+                  type: string
+                quorum:
+                  type: boolean
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
         '200':
           description: Resolution outcome
@@ -143,6 +156,8 @@ paths:
                   trace_id:
                     type: string
                   resource_version:
+                    type: string
+                  trace_id:
                     type: string
         '409':
           description: Conflict with existing decision

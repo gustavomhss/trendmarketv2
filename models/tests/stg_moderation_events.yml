@@ -17,3 +17,33 @@ models:
       - name: action_ts
         tests:
           - not_null
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: ts
+        tests:
+          - not_null
+      - name: symbol
+        tests:
+          - not_null
+      - name: action
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pause, escalate, resume]
+              values: [pause, resume, review]
+      - name: reason
+        tests:
+          - not_null
+      - name: evidence_uri
+        tests:
+          - not_null
+      - name: actor
+        tests:
+          - not_null
+      - name: minutes_since_previous_event
+        tests:
+          - not_null
+          - accepted_values:
+              values: [auto_moderator, human_reviewer]

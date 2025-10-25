@@ -10,5 +10,34 @@ models:
         tests:
           - not_null
       - name: success_count
+          - accepted_values:
+              values: [spike, gap, burst]
+      - name: latest_run_id
+        tests:
+          - not_null
+      - name: started_at
+        tests:
+          - not_null
+      - name: finished_at
+        tests:
+          - not_null
+      - name: p95_latency_ms
+        tests:
+          - not_null
+      - name: result_path
+        tests:
+          - not_null
+      - name: run_duration_seconds
+        tests:
+          - not_null
+      - name: run_duration_minutes
+        tests:
+          - not_null
+      - name: ttpv_slo_status
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pass, breach]
+      - name: hours_since_last_run
         tests:
           - not_null
