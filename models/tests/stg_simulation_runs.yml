@@ -1,0 +1,25 @@
+version: 2
+models:
+  - name: stg_simulation_runs
+    columns:
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: scenario
+        tests:
+          - not_null
+          - accepted_values:
+              values: [spike, gap, burst]
+      - name: started_at
+        tests:
+          - not_null
+      - name: finished_at
+        tests:
+          - not_null
+      - name: p95_latency_ms
+        tests:
+          - not_null
+      - name: result_path
+        tests:
+          - not_null

@@ -1,0 +1,28 @@
+version: 2
+models:
+  - name: mrt_moderation_events
+    columns:
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: ts
+        tests:
+          - not_null
+      - name: symbol
+        tests:
+          - not_null
+      - name: action
+        tests:
+          - not_null
+          - accepted_values:
+              values: [pause, resume, review]
+      - name: reason
+        tests:
+          - not_null
+      - name: evidence_uri
+        tests:
+          - not_null
+      - name: actor
+        tests:
+          - not_null
