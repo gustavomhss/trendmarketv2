@@ -2,6 +2,25 @@
 
 select *
 from (
+with raw_runs as (
+    select *
+    from read_csv_auto('seeds/simulation_runs.csv', header=True)
+with source_data as (
+    select *
+    from {{ ref('simulation_runs') }}
+),
+typed_runs as (
+    select
+        cast(id as varchar) as run_id,
+        lower(trim(scenario)) as scenario,
+        cast(started_at as timestamp) as started_at,
+        cast(finished_at as timestamp) as finished_at,
+        cast(p95_latency_ms as integer) as p95_latency_ms,
+        trim(result_path) as result_path
+    from raw_runs
+    from source_data
+),
+finalized_runs as (
     select
         run_id,
         scenario,
@@ -25,3 +44,8 @@ from (
         ) as raw_runs
     ) as typed_runs
 ) as finalized_runs
+    from typed_runs
+)
+
+select *
+from finalized_runs
