@@ -3,6 +3,9 @@
 with raw_events as (
     select *
     from read_csv_auto('seeds/moderation_events.csv', header=True)
+with source_data as (
+    select *
+    from {{ ref('moderation_events') }}
 ),
 typed_events as (
     select
@@ -14,6 +17,7 @@ typed_events as (
         trim(evidence_uri) as evidence_uri,
         lower(trim(actor)) as actor
     from raw_events
+    from source_data
 ),
 ranked_events as (
     select
