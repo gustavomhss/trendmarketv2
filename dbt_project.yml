@@ -2,7 +2,7 @@ name: ce_dbt
 version: 1.0.0
 profile: ce_profile
 model-paths: ["models"]
-test-paths: ['tests', 'models/tests']
+test-paths: ['tests']
 seed-paths: ["seeds"]
 models:
   ce_dbt:
