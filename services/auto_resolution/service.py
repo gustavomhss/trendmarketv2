@@ -26,6 +26,9 @@ AGREEMENT_THRESHOLD = 0.5
 _AUTO_FAILURE_REASON = "no_resolution_path"
 
 
+RESOLVE_DECISION_SCHEMA_VERSION = 1
+
+
 class ResolutionError(RuntimeError):
     """Raised when a resolution cannot be applied automatically."""
 
@@ -128,6 +131,7 @@ class AutoResolutionService:
     ) -> None:
         self.audit_log = audit_log
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
+        self.decision_log = self.audit_log.parent / "resolve_decisions.jsonl"
         metrics_path = metrics_log or audit_log.parent / "metrics.jsonl"
         self.metrics = AutoResolutionMetrics(metrics_path)
         self.quorum_threshold = quorum_threshold
@@ -469,6 +473,18 @@ class AutoResolutionService:
         manual_reason: Optional[str],
         evidence_uri: Optional[str],
     ) -> None:
+        ts_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.decided_at))
+        event = self._build_decision_event(
+            ts_iso=ts_iso,
+            actor=actor,
+            role=role,
+            record=record,
+            quorum_votes=quorum_votes,
+            truth_source=truth_source,
+            evidence_uri=evidence_uri,
+        )
+        self._write_decision_event(event)
+        payload = {
         payload: MutableMapping[str, object] = {
             "event_id": record.event_id,
             "quorum_votes": [dict(vote) for vote in votes],
@@ -482,7 +498,7 @@ class AutoResolutionService:
         }
         payload_hash = sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
         entry = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.decided_at)),
+            "ts": ts_iso,
             "actor": actor,
             "role": role,
             "action": "auto_resolve.apply",
@@ -545,6 +561,60 @@ class AutoResolutionService:
         ratio = support / total_weight
         return ratio >= self.quorum_threshold
 
+    def _build_decision_event(
+        self,
+        *,
+        ts_iso: str,
+        actor: str,
+        role: str,
+        record: ResolutionRecord,
+        quorum_votes: Sequence[str],
+        truth_source: Optional[TruthSourceSignal],
+        evidence_uri: Optional[str],
+    ) -> Dict[str, object]:
+        rule = "auto.quorum"
+        if record.manual_override:
+            rule = "manual.override"
+        elif record.truth_source_used:
+            source = truth_source.source if truth_source else "unknown"
+            normalized_source = source.replace(" ", "_").lower()
+            rule = f"truth_source.{normalized_source}"
+
+        truth_payload = asdict(truth_source) if truth_source else None
+        event: Dict[str, object] = {
+            "schema_version": RESOLVE_DECISION_SCHEMA_VERSION,
+            "ts": ts_iso,
+            "event_id": record.event_id,
+            "rule": rule,
+            "decision": record.outcome,
+            "actor": actor,
+            "role": role,
+            "trace_id": record.trace_id,
+            "reason": record.reason,
+            "manual_override": record.manual_override,
+            "truth_source_used": record.truth_source_used,
+            "quorum_ok": record.quorum_ok,
+            "quorum_votes": list(quorum_votes),
+            "truth_source": truth_payload,
+            "evidence_uri": evidence_uri,
+            "idempotency_key": record.idempotency_key,
+        }
+        return event
+
+    def _write_decision_event(self, event: Dict[str, object]) -> None:
+        self.decision_log.parent.mkdir(parents=True, exist_ok=True)
+        with self.decision_log.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event) + "\n")
+
+    def load_decision_events(self) -> List[Dict[str, object]]:
+        if not self.decision_log.exists():
+            return []
+        with self.decision_log.open("r", encoding="utf-8") as fh:
+            return [json.loads(line) for line in fh if line.strip()]
+
+    def _majority_accepts(self, votes: Sequence[str]) -> bool:
+        support = sum(1 for vote in votes if vote == "accepted")
+        return support >= (len(votes) - support)
     def _majority_outcome(self, votes: Sequence[Mapping[str, object]]) -> str:
         support = sum(float(vote.get("weight", 0.0)) for vote in votes if vote.get("verdict") == "accepted")
         total = sum(float(vote.get("weight", 0.0)) for vote in votes)

@@ -58,6 +58,12 @@ def test_quorum_resolution_success(tmp_path: Path) -> None:
     assert metrics_entries[0]["span"] == "auto_resolve.eval"
     assert metrics_entries[0]["status"] == "success"
 
+    events = service.load_decision_events()
+    assert len(events) == 1
+    assert events[0]["schema_version"] == 1
+    assert events[0]["rule"] == "auto.quorum"
+    assert events[0]["decision"] == "accepted"
+
 
 def test_truth_source_override(tmp_path: Path) -> None:
     service = _service(tmp_path)
@@ -87,6 +93,12 @@ def test_truth_source_override(tmp_path: Path) -> None:
     assert record.outcome == "rejected"
     assert record.truth_source_used is True
     assert record.quorum_ok is False  # divergence exceeded threshold
+
+    events = service.load_decision_events()
+    assert len(events) == 1
+    assert events[0]["truth_source_used"] is True
+    assert events[0]["rule"] == "truth_source.trusted_feed"
+    assert events[0]["truth_source"]["source"] == "trusted_feed"
 
 
 def test_quorum_failure_requires_manual_or_truth_source(tmp_path: Path) -> None:
@@ -144,6 +156,11 @@ def test_manual_override_requires_role_and_evidence(tmp_path: Path) -> None:
     assert record.outcome == "accepted"
     assert record.manual_override is True
     assert record.truth_source_used is False
+
+    events = service.load_decision_events()
+    assert len(events) == 1
+    assert events[0]["manual_override"] is True
+    assert events[0]["rule"] == "manual.override"
 
 
 def test_conflict_on_stale_resource_version(tmp_path: Path) -> None:
@@ -205,3 +222,6 @@ def test_idempotency_returns_same_record(tmp_path: Path) -> None:
             idempotency_key="idem-unique",
             resource_version=0,
         )
+
+    events = service.load_decision_events()
+    assert len(events) == 1

@@ -157,6 +157,11 @@ def test_apply_resolution_handler_idempotency(tmp_path: Path) -> None:
     assert len(entries) == 1
     assert entries[0]["idempotency_key"] == "idem-api-1234"
 
+    events = service.load_decision_events()
+    assert len(events) == 1
+    assert events[0]["event_id"] == "evt-api-1"
+    assert events[0]["schema_version"] == 1
+
 
 def test_apply_resolution_manual_fallback(tmp_path: Path) -> None:
     service = _service(tmp_path)
@@ -175,6 +180,10 @@ def test_apply_resolution_manual_fallback(tmp_path: Path) -> None:
     assert result["outcome"] == "rejected"
     assert result["manual_override"] is True
     assert result["truth_source_used"] is False
+
+    events = service.load_decision_events()
+    assert len(events) == 1
+    assert events[0]["manual_override"] is True
 
 
 def test_apply_resolution_requires_fields(tmp_path: Path) -> None:
