@@ -1,0 +1,93 @@
+{
+  "spec_link": "https://github.com/gustavamhss/trendmarketv2/blob/main/docs/DNA/quarters/Q1/Sprint%205%20(Q1).md",
+  "timestamp_utc": "2025-10-25T19:17:14Z",
+  "checks": [
+    {"id": "ORCL-001", "status": "pass", "evidence": "services/oracles/aggregator.py:L15-L125", "detail": "Mediana, quórum ≥2/3, staleness ≤30s e divergência ≤1%"},
+    {"id": "TWAP-001", "status": "pass", "evidence": "services/oracles/twap.py:L9-L138", "detail": "Deque 60s, failover ≤60s"},
+    {"id": "FEES-001", "status": "pass", "evidence": "services/fees/engine.py:L9-L105", "detail": "Cooldown 300s, clamp, |Δfee|≤20%"},
+    {"id": "MOD-001", "status": "pass", "evidence": "services/moderation/service.py:L12-L143", "detail": "pause/resume/appeal + JSONL"},
+    {"id": "AUTO-001", "status": "pass", "evidence": "services/auto_resolution/service.py:L220-L561", "detail": "Auto decisão com auditoria e métricas"},
+    {"id": "AUTO-002", "status": "mismatch", "evidence": "services/auto_resolution/service.py:L14-L520", "detail": "AGREEMENT_THRESHOLD=0.6 definido sem uso ao avaliar quorum"},
+    {"id": "SIM-001", "status": "pass", "evidence": "tools/sim_harness.py:L47-L143", "detail": "SEED=42 e relatórios determinísticos"},
+    {"id": "DBT-001", "status": "pass", "evidence": ".github/workflows/_s4-orr.yml:L420-L443", "detail": "deps/debug/run/test executados"},
+    {"id": "DBT-002", "status": "pass", "evidence": "target/run_results.json", "detail": "50/50 sucessos (100%)"},
+    {"id": "WORK-001", "status": "pass", "evidence": ".github/workflows/s4-exec.yml:L43-L54", "detail": "inputs booleanos via fromJSON"},
+    {"id": "WORK-002", "status": "pass", "evidence": ".github/workflows/_s4-orr.yml:L410-L534", "detail": "labels corretos e artifact s4-orr-evidence"},
+    {"id": "OBS-001", "status": "pass", "evidence": "observability/prometheus/slo.rules.yml:L1-L96", "detail": "Regras cobrem métricas canônicas"},
+    {"id": "OBS-002", "status": "fail", "evidence": "observability/grafana/dashboards/s5_mbp_scale.json:L1-L220", "detail": "Dashboard sem painéis para quorum_ratio/failover"},
+    {"id": "DOC-001", "status": "pass", "evidence": "api/openapi.yaml:L8-L158", "detail": "Endpoints mínimos publicados"},
+    {"id": "SCHEMA-001", "status": "pass", "evidence": "schemas/*.json", "detail": "schema_version=1 e campos obrigatórios"},
+    {"id": "SEC-001", "status": "pass", "evidence": "d08d67†L1-L2", "detail": "Sem segredos conhecidos"},
+    {"id": "HYGIENE-001", "status": "pass", "evidence": "17b934†L1-L2", "detail": "YAML sem CRLF/TAB"}
+  ],
+  "workflows": {
+    "s4_exec": {
+      "inputs": {
+        "run_sut": "fromJSON(github.event.inputs.run_sut || 'false')",
+        "run_sim": "fromJSON(github.event.inputs.run_sim || 'false')",
+        "run_dbt_ci": "fromJSON(github.event.inputs.run_dbt_ci || 'false')"
+      }
+    },
+    "s4_orr": {
+      "labels": {
+        "expected": ["S5 Simulation — run deterministic scenarios", "S5 DBT (DuckDB) — deps/debug/run/test"],
+        "found": ["S5 Simulation — run deterministic scenarios", "S5 DBT (DuckDB) — deps/debug/run/test"],
+        "order_preserved": true
+      },
+      "detected_steps": {
+        "simulation": "python -m tools.sim_harness → out/sim/*.report.json (SEED=42)",
+        "dbt": "pip install dbt-duckdb~=1.8.0 + dbt deps/debug/run/test"
+      },
+      "artifact_upload": {
+        "name": "s4-orr-evidence",
+        "globs": ["out/**", "out/dbt/**", "out/apalache/**", "target/**", "logs/**"],
+        "if_no_files_found": "warn"
+      }
+    }
+  },
+  "placeholders": [],
+  "literals": {
+    "staleness_threshold_ms": {"expected": 30000, "found": 30000},
+    "divergence_threshold": {"expected": 0.01, "found": 0.01},
+    "twap_window_seconds": {"expected": 60, "found": 60},
+    "failover_threshold_ms": {"expected": 60000, "found": 60000},
+    "cooldown_seconds": {"expected": 300, "found": 300},
+    "delta_limit": {"expected": 0.20, "found": 0.20},
+    "agreement_threshold": {"expected": ">=0.6667", "found": {"defined": 0.6, "enforced": false}}
+  },
+  "coverage": {
+    "oracles": {"weight": 0.20, "score": 0.20},
+    "twap": {"weight": 0.15, "score": 0.15},
+    "fees": {"weight": 0.20, "score": 0.20},
+    "moderation": {"weight": 0.10, "score": 0.10},
+    "dbt": {"weight": 0.10, "score": 0.10},
+    "workflows": {"weight": 0.15, "score": 0.15},
+    "observability": {"weight": 0.05, "score": 0.025, "notes": "Dashboard Grafana sem quorum/failover"},
+    "docs": {"weight": 0.05, "score": 0.05},
+    "total": 0.975
+  },
+  "red_lines": [],
+  "risks": [
+    "Falta de visibilidade em Grafana para quorum_ratio e failover_time pode atrasar detecção de desvios" ,
+    "Limiar AGREEMENT_THRESHOLD não aplicado reduz rigor da auto-resolução"
+  ],
+  "gaps": [
+    "Dashboard Grafana não exibe métricas mbp:oracle:quorum_ratio nem mbp:oracle:failover_time_p95_s",
+    "Constante AGREEMENT_THRESHOLD=0.6 não influencia quorum_ok no serviço de auto-resolução",
+    "Relatórios de simulação `out/sim/*.report.json` não estão versionados junto ao bundle"
+  ],
+  "recommendations": [
+    "Adicionar painéis para quorum_ratio e failover_time_s na dashboard `s5_mbp_scale`",
+    "Aplicar AGREEMENT_THRESHOLD como condição adicional no cálculo de quorum_ok",
+    "Publicar amostras de relatórios determinísticos em `out/sim/` ou artefato equivalente para auditoria"
+  ],
+  "labels_fix": {
+    "applied": false,
+    "reason": "already_correct",
+    "steps_expected": ["S5 Simulation — run deterministic scenarios", "S5 DBT (DuckDB) — deps/debug/run/test"],
+    "steps_found": ["S5 Simulation — run deterministic scenarios", "S5 DBT (DuckDB) — deps/debug/run/test"],
+    "order_preserved": true,
+    "yaml_schema_ok": true
+  },
+  "hashes": []
+}

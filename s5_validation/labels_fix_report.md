@@ -1,0 +1,12 @@
+# Labels Fix Report
+- Workflow analisado: `.github/workflows/_s4-orr.yml`
+- Steps esperados (NFC): `S5 Simulation — run deterministic scenarios`, `S5 DBT (DuckDB) — deps/debug/run/test`.
+- Labels antes do patch: `S5 Simulation — run deterministic scenarios`, `S5 DBT (DuckDB) — deps/debug/run/test`.
+- Labels depois do patch: idênticos aos anteriores (nenhuma alteração aplicada).
+- labels_fix.applied: **não** (`reason: already_correct`).
+- order_preserved: **true**.
+- yaml_schema_ok: **true** (validação manual com PyYAML indisponível; inspeção estrutural sem erros de indentação).
+- Assinaturas detectadas:
+  - `python -m tools.sim_harness` + `out/sim/*.report.json` → step de simulação encontrado.
+  - `pip install 'dbt-duckdb` + `dbt deps/run/test` → step de DBT encontrado.
+- Hash dos labels monitorados: `sha256=9b54bb659051b959d6267dbad046ae07e2f4b89bcdeef6a2c76ace59e214cd49`.

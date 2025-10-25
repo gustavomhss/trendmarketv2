@@ -1,0 +1,29 @@
+{
+  "project_file": "dbt_project.yml",
+  "profile": "ce_profile",
+  "adapter": "duckdb",
+  "models": {
+    "staging": [
+      "stg_oracle_quotes",
+      "stg_moderation_events",
+      "stg_simulation_runs"
+    ],
+    "marts": [
+      "mrt_twap_5m",
+      "mrt_moderation_events",
+      "mrt_simulation_runs"
+    ]
+  },
+  "tests": {
+    "stg_oracle_quotes": ["not_null", "accepted_values"],
+    "mrt_twap_5m": ["not_null", "accepted_values"],
+    "mrt_simulation_runs": ["not_null", "unique", "accepted_values"]
+  },
+  "run_results": {
+    "path": "target/run_results.json",
+    "total": 50,
+    "success": 50,
+    "pass_rate": 1.0
+  },
+  "duckdb_version_constraint": "dbt-duckdb~=1.8.0"
+}

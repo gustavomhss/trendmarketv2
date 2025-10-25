@@ -1,0 +1,52 @@
+{
+  "services/oracles/aggregator.py": {
+    "staleness_threshold_ms": 30000,
+    "divergence_threshold": 0.01,
+    "quorum_formula": "max(2, ceil((2*total)/3))",
+    "aggregation": "statistics.median",
+    "outputs": ["quorum_ok", "divergence_pct", "quorum_ratio"]
+  },
+  "services/oracles/twap.py": {
+    "window_seconds": 60,
+    "failover_threshold_ms": 60000,
+    "data_structure": "collections.deque",
+    "events": ["failover"],
+    "twap": "sum(price*Δt)/window_ms"
+  },
+  "services/fees/engine.py": {
+    "cooldown_seconds": 300,
+    "delta_limit": 0.20,
+    "clamp": true,
+    "history_tracking": true
+  },
+  "services/moderation/service.py": {
+    "handlers": ["pause", "resume", "appeal"],
+    "audit_sink": "JSONL",
+    "rbac_roles": {
+      "pause": ["moderator", "admin"],
+      "resume": ["moderator", "admin"],
+      "appeal": ["operator", "admin"]
+    }
+  },
+  "services/auto_resolution/service.py": {
+    "agreement_threshold": {
+      "defined": 0.6,
+      "enforced": false
+    },
+    "divergence_threshold": 0.01,
+    "outputs": ["audit_log", "metrics.jsonl", "resolve_events.jsonl"],
+    "decision_rules": [
+      "truth_source_final",
+      "truth_source_override",
+      "quorum_consensus",
+      "manual_override",
+      "manual_review_required"
+    ]
+  },
+  "tools/sim_harness.py": {
+    "scenarios": ["spike", "gap", "burst"],
+    "seed_env": "SEED=42",
+    "rng": "random.Random(seed)",
+    "reports": "out/sim/<scenario>.report.json"
+  }
+}

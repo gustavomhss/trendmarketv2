@@ -1,0 +1,90 @@
+{
+  "s4_exec": {
+    "path": ".github/workflows/s4-exec.yml",
+    "inputs": {
+      "run_sut": "fromJSON(github.event.inputs.run_sut || 'false')",
+      "run_sim": "fromJSON(github.event.inputs.run_sim || 'false')",
+      "run_dbt_ci": "fromJSON(github.event.inputs.run_dbt_ci || 'false')"
+    },
+    "calls": {
+      "uses": "./.github/workflows/_s4-orr.yml",
+      "secrets": "inherit"
+    }
+  },
+  "s4_orr": {
+    "path": ".github/workflows/_s4-orr.yml",
+    "labels_pre_patch": [
+      "S5 Simulation — run deterministic scenarios",
+      "S5 DBT (DuckDB) — deps/debug/run/test"
+    ],
+    "labels_post_patch": [
+      "S5 Simulation — run deterministic scenarios",
+      "S5 DBT (DuckDB) — deps/debug/run/test"
+    ],
+    "order_preserved": true,
+    "yaml_valid": true,
+    "steps_sequence": [
+      "Checkout",
+      "Security | Install Semgrep (pip<2)",
+      "Security | Install Gitleaks (tarball)",
+      "Security | Install Trivy (candidate list)",
+      "Security | Semgrep scan",
+      "Security | Gitleaks detect",
+      "Security | Trivy fs (if available)",
+      "Security | Upload findings",
+      "Mostrar versões das ferramentas",
+      "Localizar modelos TLA",
+      "TLA ASCII guard (if exists)",
+      "Detectar GHCR token",
+      "GHCR login (opcional)",
+      "TLA check (Apalache)",
+      "Upload TLA report",
+      "dbt run (DuckDB)",
+      "Iniciar SUT (Compose/npm)",
+      "S5 Simulation — run deterministic scenarios",
+      "S5 DBT (DuckDB) — deps/debug/run/test",
+      "Empacotar evidências (S4)",
+      "Upload bundle",
+      "Upload auditoria pip",
+      "Upload s4-orr evidence"
+    ],
+    "steps_detected": {
+      "simulation": {
+        "name": "S5 Simulation — run deterministic scenarios",
+        "signature": {
+          "command": "python -m tools.sim_harness",
+          "outputs": [
+            "out/sim/spike.report.json",
+            "out/sim/gap.report.json",
+            "out/sim/burst.report.json"
+          ],
+          "seed": "SEED=42"
+        }
+      },
+      "dbt": {
+        "name": "S5 DBT (DuckDB) — deps/debug/run/test",
+        "signature": {
+          "install": "python3 -m pip install --upgrade 'dbt-duckdb~=1.8.0'",
+          "commands": [
+            "dbt deps",
+            "dbt debug",
+            "dbt run",
+            "dbt test"
+          ],
+          "profile": "ce_profile"
+        }
+      }
+    },
+    "artifact_upload": {
+      "name": "s4-orr-evidence",
+      "globs": [
+        "out/**",
+        "out/dbt/**",
+        "out/apalache/**",
+        "target/**",
+        "logs/**"
+      ],
+      "if_no_files_found": "warn"
+    }
+  }
+}
