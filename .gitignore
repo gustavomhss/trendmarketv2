@@ -1,7 +1,18 @@
 # build/artefatos locais
 /target/
+!/target/
+!/target/manifest.json
+!/target/run_results.json
+!/target/invocation_id.txt
 /out/
+!/out/
+!/out/dbt/
+!/out/dbt/ce.duckdb
+!/out/logs/
+!/out/logs/dbt_offline_runner.log
+!/out/s5-status-bundle.sha256.txt
 **/*.zip
 .DS_Store
 .idea/
 .vscode/
+.venv/

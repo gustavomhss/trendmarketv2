@@ -3,3 +3,4 @@ Command: pip install duckdb dbt-duckdb
 Command: pip install dbt-duckdb==1.8.1
 See console output for details.
 Binary bundle artifacts were removed from version control to keep the repository PR-safe.
+Resolved by provisioning offline dbt runner artefacts; see out/logs/dbt_offline_runner.log for generated evidence.
