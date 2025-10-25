@@ -1,0 +1,91 @@
+{
+  "title": "S5 MBP Scale",
+  "uid": "s5-mbp-scale",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "utc",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Oracle Staleness p95 (ms)",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:staleness_p95_ms{symbol=\"BRLUSD\"}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Oracle Divergence p95",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:divergence_p95{symbol=\"BRLUSD\"}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Fee Δ5m",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:fee:delta_pct_5m{symbol=\"BRLUSD\"}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Fee Cooldown Hits",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:fee:cooldown_hits{symbol=\"BRLUSD\"}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Moderation Appeals Open",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:moderation:appeals_open{symbol=\"BRLUSD\"}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Simulation TTPV p95",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:simulation:ttpv_p95_ms"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Simulation Success Ratio",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:simulation:success_ratio"
+        }
+      ]
+    }
+  ]
+}
+
