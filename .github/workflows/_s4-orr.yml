@@ -407,7 +407,7 @@ jobs:
             echo "[sut] docker/compose ausentes; nada a fazer"
           fi
 
-      - name: S5 Simulation | Deterministic Harness
+      - name: "S5 Simulation — run deterministic scenarios"
         if: ${{ inputs.run_sim }}
         shell: bash
         run: |
@@ -417,7 +417,7 @@ jobs:
           SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario gap --out out/sim/gap.report.json
           SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
-      - name: S5 DBT (DuckDB)
+      - name: "S5 DBT (DuckDB) — deps/debug/run/test"
         if: ${{ inputs.run_dbt_ci || hashFiles('dbt_project.yml') != '' }}
         shell: bash
         run: |
