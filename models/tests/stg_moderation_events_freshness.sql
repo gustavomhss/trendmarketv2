@@ -7,4 +7,4 @@ cross join latest_event
 where datediff('minute', events.ts, latest_event.max_ts) > 60;
 select *
 from {{ ref('stg_moderation_events') }}
-where ts < timestamp '2024-01-01 00:00:00';
+where ts < timestamp '2024-02-25 00:00:00';

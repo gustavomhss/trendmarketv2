@@ -1,4 +1,8 @@
 id,scenario,started_at,finished_at,p95_latency_ms,result_path
+run_001,spike,2024-03-01T09:00:00Z,2024-03-01T09:07:30Z,755,s3://simulations/spike/run_001/report.json
+run_002,gap,2024-03-03T11:15:00Z,2024-03-03T11:22:00Z,640,s3://simulations/gap/run_002/report.json
+run_003,burst,2024-03-05T14:45:00Z,2024-03-05T14:50:45Z,812,s3://simulations/burst/run_003/report.json
+run_004,spike,2024-03-08T10:05:00Z,2024-03-08T10:12:20Z,698,s3://simulations/spike/run_004/report.json
 SIM-20240101-0001,spike,2024-01-01 00:00:00,2024-01-01 00:05:00,620,s3://simulations/spike/report.json
 SIM-20240101-0002,gap,2024-01-01 01:30:00,2024-01-01 01:34:30,700,s3://simulations/gap/report.json
 SIM-20240101-0003,burst,2024-01-01 03:00:00,2024-01-01 03:04:15,540,s3://simulations/burst/report.json
