@@ -1,40 +1,5 @@
 {{ config(materialized='table') }}
 
-with events as (
-    select * from (
-        values
-            ('mod-evt-1', 'BRLUSD', 'pause', 'moderation_bot', 'moderator', 'accepted', timestamp '2024-01-01 00:02:00', timestamp '2024-01-01 00:07:00'),
-            ('mod-evt-2', 'BRLUSD', 'resume', 'moderation_bot', 'moderator', 'accepted', timestamp '2024-01-01 00:08:00', timestamp '2024-01-01 00:08:30'),
-            ('mod-evt-3', 'BRLUSD', 'appeal', 'ops_user', 'operator', 'submitted', timestamp '2024-01-01 00:05:00', null)
-    ) as t(event_id, symbol, action, actor, role, outcome, action_ts, resolved_ts)
-)
-
-select
-    event_id,
-    symbol,
-    action,
-    actor,
-    role,
-    outcome,
-    action_ts,
-    resolved_ts
-from events;
-with source_data as (
-    select *
-    from {{ ref('moderation_events') }}
-),
-casted as (
-    select
-        cast(id as varchar) as id,
-        cast(ts as timestamp) as ts,
-        cast(symbol as varchar) as symbol,
-        cast(action as varchar) as action,
-        cast(reason as varchar) as reason,
-        cast(evidence_uri as varchar) as evidence_uri,
-        cast(actor as varchar) as actor
-    from source_data
-),
-validated as (
 with raw_events as (
     select *
     from read_csv_auto('seeds/moderation_events.csv', header=True)
@@ -49,16 +14,12 @@ typed_events as (
         trim(evidence_uri) as evidence_uri,
         lower(trim(actor)) as actor
     from raw_events
+),
+ranked_events as (
     select
-        id,
-        ts,
-        symbol,
-        action,
-        reason,
-        evidence_uri,
-        actor,
+        *,
         lag(ts) over (partition by symbol order by ts) as previous_event_ts
-    from casted
+    from typed_events
 )
 
 select
@@ -69,8 +30,5 @@ select
     reason,
     evidence_uri,
     actor,
-    case when previous_event_ts is null then 0 else datediff('minutes', previous_event_ts, ts) end as minutes_since_previous_event
-from validated;
-    actor
-from typed_events;
-from raw_events;
+    coalesce(datediff('minutes', previous_event_ts, ts), 0) as minutes_since_previous_event
+from ranked_events
