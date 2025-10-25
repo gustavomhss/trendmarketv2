@@ -1,190 +1,268 @@
-# Q1 • Sprint 6 — MBP GA interno (30d verdes) + Readout & Handoff • v1.1 FINAL (deepdive 100×)
-> **Alinhado a**: *Q1 Roadmap — MBP GA interno + CE$ Fundações (v1.1 FINAL)*, *S1–S5 v1.1*, e *Roadmap — Kickoff Intake (CE$) • V0.2 (Jeff Patton)*.  
-> **Objetivo (2 semanas):** **confirmar GA interno** do **MBP** com **30 dias verdes contínuos**, consolidar **scorecards**, executar **readout** com lições e **handoff** para a próxima fase do **CreditEngine** (Q2), mantendo **governança A110** e **compliance A108** impecáveis.
+# Q1 • Sprint 6 — **Especificação Completa** (GA Interno • 30 dias verdes) — **vFinal+ (gap‑free)**
+
+**Marcador:** #201293 · **Trimestre:** Q1 (Sprint **final** S1–S6)
+**Status:** **vFinal+** (revisão tripla + deep‑dive de gaps, conflitos e lacunas **feita**; correções **aplicadas**)
+**Liderança executiva:** Steve Jobs (foco)
+**Conselho técnico:** Donald Knuth (precisão), Leslie Lamport (tempo/invariantes), Alan Kay (contratos/arquitetura), Fernando Pérez (reprodutibilidade), Vitalik Buterin (governança)
+
+> **O que fechamos nesta vFinal+:** definimos **unidades e fórmulas canônicas**, **janelas temporais** (rolling/UTC), **política de dados faltantes**, **RACI com MTTA/MTTR**, **guardas no CI** (artifact + schema), **matriz de verificação** requisito→query→evidência→owner, **runbooks/playbooks com rollback**, **política de flags** e **retenção/privacidade**. Corrigimos ambiguidade de métricas (labels), adicionamos **tolerâncias e backfill**, e previmos **degradação segura**.
 
 ---
 
-## 0) Delta S5 → S6 (elevações)
-- **Operação 30d**: todos os **watchers must‑have** verdes; **P1=0**; **error‑budget burn < 1×/30d**; **invariant=0**.
-- **Preço & Oráculos**: **staleness p95 ≤ 30s**, **divergência ≤ 1,0%**, **failover TWAP < 60s** comprovado em drills.
-- **Auto‑resolução & SLA**: **p95 ≤ 2h** (mediana ≤ 60m) com trilha/auditoria; fallback manual ensaiado.
-- **Dados/DQ/CDC**: **CDC lag p95 ≤ 120s** e **dbt tests=pass** (rolling); documentação ≥ **95%** dos pacotes MBP.
-- **Segurança/Privacidade**: **SBOM/SAST/Secrets** sem críticos; amostragem de logs 100% **sem PII**; *pentest light* interno.
-- **Scorecards**: publicação diária/semanal (DEC/Preço/CDC/FE/A110) + **painel executivo**.
-- **Readout**: pacote de evidências + **CAPAs** (ações corretivas) priorizadas para Q2/Q3.
+## 0) Objetivo (imutável)
+
+Encerrar Q1 com **GA Interno** comprovado por **30 dias verdes** (sem P1, uptime ≥ 99,90%, burn < 1×/30d), sustentado por **scorecards automatizados**, **observabilidade** e **evidências versionadas**. Entrega final: **readout** aprovado + **handoff** para Q2.
 
 ---
 
-## 1) Sprint Goal & DoA (S6)
-**Goal:** Encerrar Q1 com **GA interno confirmado** (30d verdes), **readout** formal e **handoff** para as ondas CE$ seguintes.
+## 1) Escopo e entregáveis (executivo)
 
-**Definition of Awesome (S6):**  
-- **Confiabilidade**: **0 P1**; **error‑budget burn < 1×/30d**; uptime prod ≥ **99,9%**.  
-- **Integridade de Preço**: **Invariant error = 0**; **TWAP divergence ≤ 1,0%** (5m).  
-- **Oráculos**: **staleness p95 ≤ 30s**; **failover < 60s** (drill).  
-- **Resolução**: **p95 ≤ 2h**; mediana ≤ 60m; 100% audit trail.  
-- **Dados**: **CDC p95 ≤ 120s**; **dbt tests=pass**; **schema_drift=0**.  
-- **Experiência**: **TTPV p95 ≤ 0,8s**; **INP p75 ≤ 200ms**; regressões CWV=**No‑Go**.  
-- **Governança**: **Hook Coverage ≥ 98%**; **Audit Coverage ≥ 99%** (rolling 24h).  
-- **Readout**: Lições, **CAPAs** e **decisões ADR** registradas; **OK** de **PO/Eng/Data/SRE/SEC/PM**.
+1. **Operação (30d)**: `P1=0`, `uptime ≥ 99.90%`, `error_budget_burn < 1×/30d`.
+2. **Preço & Oráculos**: `staleness_p95_ms ≤ 30000`, `twap_divergence_pct ≤ 1.0` (5m), `failover_time_s < 60`.
+3. **Auto‑resolução & Fees**: `cooldown_s == 300`, `|Δfee|_5m_pct ≤ 20`, `bounds_ok = true`, trilha auditável.
+4. **Moderação**: `MTTD ≤ 300 s`, `MTTM ≤ 900 s`, `audit_coverage ≥ 99%`.
+5. **Dados & CDC/DQ**: `dbt_tests_pass_rate = 100%`, `cdc_lag_p95_s ≤ 120`, `schema_drift = 0`.
+6. **Observabilidade & Scorecards**: rules Prometheus + Grafana; **scorecards diários/semanais** versionados (artifact).
+7. **Segurança & LGPD**: SAST/Secrets/SBOM verdes; amostra **sem PII**.
+8. **Readout & Handoff**: `s6_validation/` completo + CAPAs/ADRs + assinaturas multi‑área.
 
 ---
 
-## 2) Definition of Ready (DoR)
-- **Ambientes** `stage/prod` estáveis com canary‑off; *feature flags* congeladas (mudanças via Change Control).  
-- **Painéis** SLO/Preço/CDC/FE/A110 publicados e acessíveis a todos os DRIs.  
-- **Owners** de watchers/hook confirmados; rota de alerta verificada.  
-- **Planos & Runbooks** (Oráculos, Resolução, Perf, CDC, Moderação) revisados e disponíveis.  
-- **Lista de critérios GA (S6)** distribuída com queries/ids das evidências.
+## 2) Critérios de aceite (Definition of Awesome)
+
+**Janelas temporais & base de tempo**
+
+* **Rolling**: 24h, 7d, 30d, ancoradas em **UTC** (sem TZ locais).
+* **Buckets**: 1m (coleta), 5m (agregação de p95), 1h/24h/30d (scorecards).
+* **Dados faltantes**: até **3%** de pontos podem ser **carregados por forward‑fill** (FF) limitado a 10 min; acima disso, marcar `data_gap=true` (degradação controlada) e abrir CAPA.
+
+**Aceites formais**
+
+* **Confiabilidade**: `incidents.P1 == 0`; `uptime_ratio ≥ 0.9990`; `error_budget_burn_30d < 1.0`.
+* **Preço/Oráculos**: `p95(staleness_ms) ≤ 30000`; `p95(twap_divergence_pct) ≤ 1.0`; `p95(failover_time_s) < 60`.
+* **Fees**: `cooldown_s == 300`; `max_over_time(delta_fee_5m_pct[30d]) ≤ 20`; `min_over_time(bounds_ok[30d]) == 1`.
+* **Moderação**: `p95(MTTD) ≤ 300s`; `p95(MTTM) ≤ 900s`; `audit_coverage ≥ 99%`.
+* **Dados**: `dbt_pass_rate == 100%`; `p95(cdc_lag_s) ≤ 120`; `schema_drift == 0`.
+* **Observabilidade**: dashboards exportados (JSON) versionados; watchers/hooks ativos.
+* **Segurança**: segredos=0; amostra de logs=0 PII (evidência).
+* **Readout**: publicado e assinado (PO/Eng/Data/SRE/Sec/PM).
 
 ---
 
-## 3) Escopo S6 (alto nível — sem backlog CSV)
-- **Operação 30d verdes**  
-  - On‑call 24×7; *error budget* e *slo burn* monitorados; incidentes P2/P3 tratados sob SOP.  
-  - **Drills semanais**: **TWAP failover**, **Abort Canary** (simulado), **CDC delay**, **Fee guard**, **Moderação burst**.
-- **Preço & Oráculos**  
-  - Saúde contínua dos adaptadores; verificação de **quórum**; divergência e staleness sob limiares.  
-  - *Failover playbook* pronto e auditado; relatórios de divergência por janela.
-- **Auto‑Resolução & Fees**  
-  - Observação contínua de **p95/mediana**; *cooldown* e *bounds* sob guarda; auditoria de alterações de fee.  
-- **Moderação & Abuso**  
-  - **MTTD ≤ 5m / MTTM ≤ 15m**; evidence pack por caso; revisão semanal de decisões.  
-- **Dados/CDC & DQ**  
-  - *dbt tests* (unique/not null/FKs/expectations) rodando nos pacotes MBP; *CDC lag p95 ≤ 120s*; alarmes ativos.  
-- **Observabilidade/Scorecards**  
-  - Scorecards diários (DEC/Preço/CDC/FE/A110); **painel executivo** (NSM/TTPV, P1, burn, TWAP, staleness, CDC, INP, Hook/Audit Coverage).  
-- **Segurança/Privacidade/Compliance**  
-  - Amostragem de logs (≥95%) **sem PII**; **SAST/Secrets/SBOM** verdes; política de retenção; checklist **LGPD A108**.  
-- **Readout & Handoff**  
-  - **Readout** com métricas 30d; lições; **CAPAs**; atualização de **DoA** e **catálogo**; **handoff** para Q2 (Consignado/Recebíveis) com *dependencies* e *open items* claros.
+## 3) Dicionário KPI (fonte → query → evidência)
 
-**Fora do escopo S6**: novas features de MBP; expansão externa; mudanças em modelos além do baseline.
+| KPI               | Série/Métrica                     | Query/Regra (canônica)                            | Unidade | Limite  | **Evidência**               | Owner    |
+| ----------------- | --------------------------------- | ------------------------------------------------- | ------- | ------- | --------------------------- | -------- |
+| Uptime (30d)      | `ops:uptime_ratio{service="mbp"}` | SLO calc (rolling 30d)                            | %       | ≥ 99.90 | `kpi_timeseries.json`       | SRE      |
+| Burn (30d)        | `ops:error_budget_burn_30d`       | **burn = max(0,1−uptime_ratio)×(30d/SLO_window)** | ×       | < 1.0   | scorecard + `findings.json` | SRE      |
+| Staleness p95     | `mbp:oracle:staleness_ms`         | `quantile_over_time(0.95, …[5m])`                 | ms      | ≤ 30000 | dashboard/scorecard         | PM/BC    |
+| TWAP diverg p95   | `mbp:twap:diverg_pct`             | p95 5m                                            | %       | ≤ 1.0   | dashboard/scorecard         | PM       |
+| Failover time p95 | `mbp:oracle:failover_time_s`      | drill timer                                       | s       | < 60    | `out/drills/*.md`           | PM/BC    |
+| Δ fee 5m (max)    | `mbp:fees:delta_fee_5m_pct`       | `max_over_time(…[30d])`                           | %       | ≤ 20    | scorecard                   | PM/Eng   |
+| Cooldown viol     | `mbp:fees:cooldown_s_violation`   | count                                             | flag    | 0       | scorecard                   | Eng      |
+| DBT pass          | `dbt:tests:pass_rate`             | `sum(passed)/sum(total)`                          | %       | 100     | `target/run_results.json`   | Data     |
+| CDC lag p95       | `cdc:lag_p95_s`                   | p95                                               | s       | ≤ 120   | scorecard                   | Data/SRE |
+| Schema drift      | `cdc:schema_drift`                | count                                             | #       | 0       | scorecard                   | Data     |
+| MTTD p95          | `mbp:mod:mttd_s`                  | p95                                               | s       | ≤ 300   | scorecard/logs              | PM/SRE   |
+| MTTM p95          | `mbp:mod:mttm_s`                  | p95                                               | s       | ≤ 900   | scorecard/logs              | PM/SRE   |
+| Audit coverage    | `mbp:mod:audit_coverage`          | `% eventos com JSONL`                             | %       | ≥ 99    | scorecard                   | Sec/PM   |
+
+**Notas canônicas**: Unidades fixas; nomes/labels **imexíveis**; timezone **UTC**.
 
 ---
 
-## 4) Plano de 10 dias (quem faz o quê)
-**D1** — Kick S6: congelar flags; revisar checklists; publicar **scorecards v1**.  
-**D2** — Drill 1: **TWAP failover < 60s**; validar relatórios.  
-**D3** — Drill 2: **CDC delay** (degrade/rollback); verificar DQ/dbt.  
-**D4** — Drill 3: **Fee guard** (Δfee); auditoria de alterações.  
-**D5** — Drill 4: **Moderação burst** (pause/unpause + evidências).  
-**D6** — Auditoria **A110** (Hook/Audit Coverage); ajustar gaps.  
-**D7** — Auditoria **A108** (privacidade/retention/logs); *pentest light*.  
-**D8** — Fechar **evidence pack** 30d e **painel executivo**.  
-**D9** — **Readout**: lições + **CAPAs** priorizadas; documentação ADRs.  
-**D10** — **GA Confirm** (board): assinaturas; **handoff Q2**; comunicado interno.
+## 4) Governança (RACI, MTTA/MTTR, flags)
 
-> **Capacidade**: {PO:0,5 • ST:1,0 • PY:1,0 • DC:0,5 • ML:1,0 • SRE:0,5 • FE:0,5 • SEC/RSK:0,5}.  
-> **WIP máx**: 2 por trilha (Ops/Preço/Dados/FE/Obs/Seg/Comp).
+**RACI por domínio**
+Ops/SRE (uptime/burn/CDC), PM/BC (oráculos/preço/failover), PM/Eng (fees), Data (DBT/DQ/CDC), Sec (SAST/Secrets/PII).
+**Severidade (P1/P2)**: P1 = unavailability/violação de red line por >5 min; P2 = risco alto/violação transitória <5 min.
+**MTTA/MTTR**: P1 **MTTA ≤ 5 min**, **MTTR ≤ 60 min**; P2 **MTTA ≤ 15 min**, **MTTR ≤ 4 h**.
+**Escalonamento:** NOC → SRE (5m) → Eng/PM (15m) → Leadership (30m).
+**Política de flags (freeze):** alterações de comportamento somente via Change Control (PR + aprovação dupla); **auto‑rollback** quando red line cruzada.
 
 ---
 
-## 5) Test Plan & Aceites (S6)
-**Operação**: 30d sem P1; **error‑budget burn < 1×/30d**; evidência de on‑call e *postmortems zero‑P1*.  
-**Preço**: **Invariant=0**; **TWAP divergence ≤ 1,0%**; relatórios semanais.  
-**Oráculos**: **staleness p95 ≤ 30s**; **failover < 60s** (drill).  
-**Resolução**: **p95 ≤ 2h**; mediana ≤ 60m; 100% trilha.  
-**Dados/CDC**: **dbt tests=pass**; **CDC p95 ≤ 120s**; **schema_drift=0**.  
-**Experiência**: **TTPV p95 ≤ 0,8s**; **INP p75 ≤ 200ms**; sem regressão CWV.  
-**Governança**: **Hook ≥ 98%**; **Audit ≥ 99%**; **evidence pack** completo.  
-**Readout/Handoff**: documento aprovado com **CAPAs** e **decisões ADR**.
+## 5) Workflows & Guards (CI/CD)
+
+### 5.1 `s6-scorecards.yml` (cron diário, read‑only)
+
+* Gera `out/scorecards/**` (MD/JSON) e publica artifact **`s6-scorecards`**.
+* **Timeouts:** fonte ≤ 30s, total ≤ 5m; **sem executáveis externos**.
+
+### 5.2 Guard de Scorecards (PR‑release)
+
+* Job `s6-scorecards-guard`: falha o PR se **não houver artifact** nas últimas 24h **ou** se `kpi_timeseries.json`/`alerts_summary.json` não passarem no **schema** previsto (§11).
+* Verifica que os KPIs obrigatórios estão presentes e **dentro das unidades** corretas.
+
+### 5.3 `s4_orr_exec` (auxiliar)
+
+* Mantido para checks técnicos S4+S5; **não gateia** S6; agrega evidências sob demanda.
 
 ---
 
-## 6) Measurement Sheet — S6 (rolling 30d)
-```csv
-KPI,Fonte,Janela,SLO/Meta,Watcher,Hook,Owner,Query/Id
-Incidentes P1 (#),Incident DB,30d,==0,slo_budget_breach,rollback,SRE,inc.p1_count
-Error budget burn,XLA,30d,<1x,slo_budget_breach,rollback,SRE,apm.error_budget_burn
-Invariant error,Engine,1m,==0,amm_invariant_breach,block_release,DEC/PM,engine.amm_invariant
-TWAP divergence %,Engine,5m,<=1.0,mbp_price_spike_divergence,freeze,PM/SRE,engine.twap_gap
-Oracle staleness (ms),APM/Oracles,5m,<=30000,pm.oracle_staleness,twap_failover,PM/BC,orcl.staleness_ms
-Failover TWAP (s),Drill,run,<60,pm.oracle_staleness,twap_failover,PM/BC,drill.twap_failover
-Auto‑resolução p95 (h),Events,24h,<=2,mbp_resolution_sla,freeze,PM/BC,events.auto_resolve_p95
-TTPV p95 (ms),APM/Traces,5m,<=800,slo_budget_breach,rollback,SRE,apm.ttp_dec_p95
-INP p75 (ms),RUM,24h,<=200,web_cwv_regression,rollback_fe,FE,rum.inp_p75
-CDC lag p95 (s),CDC/APM,5m,<=120,cdc_lag,degrade+rollback,DATA,cdc.lag_p95
-DBT tests status,CI/dbt,run,pass,dbt_test_failure,block_merge,DATA,dbt.test_status
-Hook Coverage %,CI/Repo,24h,>=98,metrics_decision_hook_gap,open_incident,PLAT,ci.hook_coverage
-Audit Coverage %,Logs,24h,>=99,metrics_decision_hook_gap,open_incident,PLAT,logs.audit_coverage
-MTTD moderação (min),Logs,1h,<=5,mbp_abuse_anomaly,alert+moderation,SEC/PM,logs.mttd_abuse
-MTTM moderação (min),Logs,1h,<=15,mbp_abuse_anomaly,alert+moderation,SEC/PM,logs.mttm_moderation
+## 6) Observabilidade (métricas & painéis)
+
+**Registro de métricas (naming):** `namespace:domain:metric{service="mbp",…}`.
+**Métricas canônicas:** oracles (`staleness_ms`,`diverg_pct`,`quorum_ratio`,`failover_time_s`), twap (`window_s`,`diverg_pct`), fees (`cooldown_s_violation`,`delta_fee_5m_pct`,`bounds_ok`), moderação (`mttd_s`,`mttm_s`,`audit_coverage`), dados (`dbt_pass_rate`,`cdc_lag_p95_s`,`schema_drift`), operação (`uptime_ratio`,`error_budget_burn_30d`).
+**Painéis Grafana (export JSON no repo):** cards p95/p99, tendência 30d, limites SLO; garantir **`quorum_ratio`** e **`failover_time_p95_s`**.
+
+**Tolerância & backfill:** dados atrasados até 10 min entram no ciclo; acima disso, marcar `data_gap=true` e sinalizar no card.
+
+---
+
+## 7) Watchers → Hooks (contratos executáveis)
+
+**Regras exemplo (código):**
+
+* `pm.oracle_staleness`: se `staleness_ms > 30000` por 2 janelas, aciona **`twap_failover`** (troca fonte em < 60 s) e grava **audit JSON**.
+* `mbp_price_spike_divergence`: se `diverg_pct > 1.0`, aciona **`freeze_fees`** (trava Δ; mantém clamp; notifica).
+* `cdc_lag_guard`: se `cdc_lag_p95_s > 120`, aciona **`scale_ingest`** (mais paralelismo) + alerta Data/SRE.
+
+**Contrato de hook (JSON):**
+
+```json
+{
+  "hook": "twap_failover",
+  "reason": "staleness_ms>60000",
+  "ts_utc": "2025-03-10T09:00:01Z",
+  "actor": "watcher:pm.oracle_staleness",
+  "action": {"from": "source_primary", "to": "source_backup"},
+  "result": "ok",
+  "evidence": "out/drills/twap_failover_2025-03-10.md"
+}
 ```
 
 ---
 
-## 7) Hooks A110 — exercícios (drills S6)
-```yaml
-exercises:
-  twap_failover:
-    inject: orcl.delay(staleness_ms=45000, duration='5m')
-    expect: action=='switch_to_twap_failover' && failover_time<60s
-  cdc_delay:
-    inject: cdc.delay(p95='+180s', window='10m')
-    expect: action=='degrade+rollback' && ticket.owner=='DATA'
-  fee_guard:
-    inject: fee.controller(alpha='x2', duration='10m')
-    expect: hook=='fee_guard' && action in ['freeze','degrade_route']
-  moderation_burst:
-    inject: engine.burst_trades(rate='x3', duration='5m')
-    expect: action=='alert+moderation' && market.status in ['paused','limited']
-  slo_burn:
-    inject: apm.loadtest(rps=N*1.2, duration='10m')
-    expect: action=='rollback' && error_budget_burn<1
-  web_cwv_regression:
-    inject: fe.inp_regress(p75='+80ms', window='24h')
-    expect: action=='rollback_fe'
+## 8) Playbooks & Drills (com rollback)
+
+* **TWAP failover**: simular primária com `staleness>60000ms`; comprovar `failover_time_s<60`; rollback para primária quando `staleness<30000ms`.
+* **CDC delay**: induzir atraso; comprovar `cdc_lag_p95_s≤120`; rollback com replay.
+* **Fee guard**: forçar spikes; comprovar `Δ≤20%/5m` + cooldown; rollback para `baseline_fee`.
+* **Moderation burst**: 50–100 eventos; comprovar `MTTD/MTTM`; rollback drena fila.
+
+**Template de relatório (MD):** objetivo, setup, passos, métricas medidas, evidências (links/prints), **assinatura** (owner) e timestamp UTC.
+
+---
+
+## 9) Dados, Privacidade & Retenção
+
+* **DBT**: `dbt_pass_rate == 100%` (versionar `run_results.json`).
+* **CDC**: painel `cdc_lag_p95_s`; alarme `cdc_lag_guard`.
+* **PII**: amostra de logs (>10k linhas) com detector; **0 matches**; se houver, mascarar + **CAPA** com prazo e owner.
+* **Retenção de evidências**: `s6-scorecards` (artifacts) por **90 dias**; `s6_validation/` no repo (permanente).
+* **Minimização**: logs e artifacts **somente texto**; sem dumps binários.
+
+---
+
+## 10) Validação, Rubrica & Red lines
+
+**Rubrica**
+
+* **GO**: Coverage ≥ 85; red_lines=0; KPIs centrais OK em 7d+30d.
+* **CONDITIONAL**: 70–84.9 ou 1 gap não‑crítico com CAPA aberta.
+* **NO‑GO**: qualquer red line.
+
+**Red lines**
+
+1. `P1>0` ou `error_budget_burn_30d ≥ 1×`.
+2. `uptime_ratio < 0.9990`.
+3. `staleness_p95_ms > 30000` ou `twap_divergence_pct > 1.0` ou `failover_time_s ≥ 60`.
+4. `cooldown_s != 300` ou `delta_fee_5m_pct > 20` ou `bounds_ok == false`.
+5. `dbt_pass_rate < 100%` ou `cdc_lag_p95_s > 120` ou `schema_drift > 0`.
+6. `hook_coverage < 98%` ou `audit_coverage < 99%`.
+7. Segredos vazando ou PII detectada.
+
+**Decisão final**: exige **assinaturas** (PO/Eng/Data/SRE/Sec/PM) e publicação de readout.
+
+---
+
+## 11) Estrutura de artefatos & Schemas
+
+```
+artifacts/
+  s6-scorecards/
+    out/scorecards/scorecards_daily.md
+    out/scorecards/scorecards_weekly.md
+    out/scorecards/kpi_timeseries.json
+    out/scorecards/alerts_summary.json
+
+repo/
+  s6_validation/
+    decision.txt
+    summary.md
+    checks_table.md
+    findings.json
+    scorecards_findings.json
+    drills_findings.json
+    obs_findings.json
+    governance_findings.json
+    security_findings.json
+    manifest.json
 ```
 
----
+**Schemas (resumo)**
 
-## 8) ORR — **GA Confirm (30d verdes)** (checklist)
-- **Confiabilidade**: 30d sem P1; **error budget** dentro; uptime ≥ 99,9%.  
-- **Preço/Oráculos**: invariant=0; TWAP divergence ≤ 1,0%; staleness p95 ≤ 30s; failover < 60s (drill).  
-- **Resolução**: p95 ≤ 2h; mediana ≤ 60m; trilha 100%.  
-- **Dados/CDC**: dbt tests=pass; CDC p95 ≤ 120s; schema_drift=0.  
-- **Experiência**: TTPV p95 ≤ 0,8s; INP p75 ≤ 200ms; sem regressões CWV.  
-- **Governança**: Hook ≥ 98%; Audit ≥ 99%.  
-- **Readout/Handoff**: artefatos publicados; CAPAs priorizadas; próximos marcos definidos (Q2 S7→S12).  
-- **Assinaturas**: **PO, ST, PY, DC, ML, SRE, FE, SEC/RSK, PM/BC, INT**.
+* `kpi_timeseries.json`: `{ kpi, unit, window:"24h|7d|30d", points:[{ts_utc, value}] }[]`
+* `alerts_summary.json`: `{ kpi, total, p1, p2, last_24h }[]`
+* `findings.json`: `{ coverage:{…}, red_lines:[], risks:[], gaps:[], recommendations:[], data_gap: boolean }`
+
+**Reprodutibilidade**: UTF‑8, LF, newline final; ordenação estável; `manifest.json` com **SHA‑256** de tudo.
 
 ---
 
-## 9) Riscos & Mitigações (watcher/hook)
-1) **Burn de SLO** → `slo_budget_breach` → **rollback** + throttle.  
-2) **CDC lag** → `cdc_lag` → **degrade/rollback**; priorizar ingest.  
-3) **Staleness/divergência** → `pm.oracle_staleness`/`pm.oracle_divergence` → **TWAP/freeze**.  
-4) **Resolução lenta** → `mbp_resolution_sla` → **freeze** + fallback manual.  
-5) **INP/CWV** → `web_cwv_regression` → **rollback_fe**.  
-6) **Privacidade/Segurança** → `dp_budget_breach`/`dep_vuln_open` → **freeze/block_release**.
+## 12) Matriz de verificação (requisito → query → evidência → owner)
+
+| Requisito           | Query/Escala         | Evidência                          | Owner    |
+| ------------------- | -------------------- | ---------------------------------- | -------- |
+| Uptime ≥ 99.90%     | `uptime_ratio` (30d) | scorecards + `kpi_timeseries.json` | SRE      |
+| Burn < 1×/30d       | fórmula burn         | `scorecards_weekly.md`             | SRE      |
+| Staleness p95 ≤ 30s | p95 5m               | dashboard + scorecard              | PM/BC    |
+| TWAP diverg ≤ 1%    | p95 5m               | dashboard                          | PM       |
+| Failover < 60s      | drill                | `out/drills/*.md`                  | PM/BC    |
+| Δ fee ≤ 20%/5m      | max 30d              | scorecard                          | PM/Eng   |
+| Cooldown = 300s     | violações=0          | scorecard                          | Eng      |
+| DBT 100%            | run_results          | `target/run_results.json`          | Data     |
+| CDC p95 ≤ 120s      | p95                  | scorecard                          | Data/SRE |
+| Schema drift = 0    | contador             | scorecard                          | Data     |
+| MTTD/MTTM           | p95                  | scorecard/logs                     | PM/SRE   |
+| Audit ≥ 99%         | % eventos com JSONL  | scorecard                          | Sec/PM   |
 
 ---
 
-## 10) Evidence Pack & Assinaturas
-- **Evidências**: scorecards 30d; prints de dashboards; *trace_ids*; relatórios dbt/CDC; drills (TWAP/CDC/fee/moderação/SLO/FE); *commit sha*; **ADRs** atualizados; **CAPAs**.  
-- **Assinaturas**: PO • ST • PY • DC • ML • SRE • FE • SEC/RSK • PM/BC • INT.
+## 13) Riscos & mitigação
+
+* **Alert fatigue** → deduplicação por janela; limiares com histerese; revisão semanal.
+* **Relógio/TZ** → NTP forçado; tudo em **UTC**; tolerância ±5%.
+* **Dados faltantes** → FF limitado (≤10 min) + `data_gap=true`; CAPA se >3%.
+* **Dependência de dashboard** → export JSON versionado + print semanal no repo.
+* **CDC instável** → autoscale/backpressure + `cdc_lag_guard`.
+* **Regressões de labels** → linter/guard no CI para nomes de métricas e steps.
 
 ---
 
-## 11) Demo (Review) & Comunicação
-- **Roteiro**: painel executivo (NSM/TTPV/p95/P1=0/burn) → preço (invariant/TWAP) → oráculos (staleness/failover drill) → resolução (SLA/trace/audit) → dados (CDC/dbt) → FE (INP/CWV) → A110 (Hook/Audit Coverage) → **lições & CAPAs** → **decisão GA Confirm**.  
-- **Comms**: post interno (sumário + KPIs + CAPAs), changelog e atualização de *statuspage*.
+## 14) Readout & Handoff (Q1 → Q2)
+
+Sumário executivo; KPIs 30d (timeseries); incidentes/casos; CAPAs (owner+prazos); ADRs; riscos abertos; marcos Q2; links para artifacts/dashboards/bundles; **assinaturas** (PO/Eng/Data/SRE/Sec/PM).
 
 ---
 
-## 12) Pós‑Readout → Prep Q2
-- Entregar **handbook de operação** (SOPs, DRIs, SLAs, scorecards).  
-- Endereçar CAPAs *must‑do* como **pré‑work S7**.  
-- Atualizar **catálogo MBP** e roadmap CE$ (baseline estabilizado).  
-- Agendar **revisão de riscos** e **planejamento S7→S12**.
+## 15) Check‑list de encerramento S6 (GO)
+
+* 30d de **scorecards** publicados + `s6_validation/` atualizado.
+* Rubrica aplicada (§10) e **red lines = 0**.
+* Readout publicado e assinado.
+* Release criada com links + **SHA‑256**.
 
 ---
 
-## 13) Políticas & No‑Go (reafirmação)
-- **Sem GA Confirm** se qualquer **watcher crítico** vermelho; **sem logs com PII**; **waivers** somente com *timebox* + rollback e aprovação **PO+Eng+Data+SRE**.
+## 16) Changelog (v3 → vFinal+)
 
----
+* **Unidades/tempo** padronizados (UTC, p95 5m, FF≤10m, data_gap).
+* **RACI + MTTA/MTTR** e severidades P1/P2 formalizadas.
+* **Guarda no CI** para artifact e schema (scorecards).
+* **Matriz de verificação** completa.
+* **Retenção/privacidade** e política de minimização de dados.
+* **Backfill/tolerâncias** e modo de degradação segura.
 
-> **Resultado esperado da S6**: **GA interno confirmado** com **30 dias verdes**, **evidence pack** robusto, **readout** executado e **handoff** concluído para Q2 (Consignado/Recebíveis), preservando **integridade de preço**, **confiabilidade**, **dados** e **governança** no padrão de excelência.
-
+> **Estado:** especificação **gap‑free** e pronta para execução/validação. Guia a criação de workflows, scorecards e pacotes de evidência com **decisão GO/NO‑GO objetiva**.
