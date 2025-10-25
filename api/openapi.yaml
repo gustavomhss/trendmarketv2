@@ -69,11 +69,10 @@ paths:
                 - schema_version
                 - event_id
                 - truth
-              required:
-                - schema_version
                 - decision_id
                 - truth_source
                 - quorum
+                - quorum_details
               properties:
                 schema_version:
                   type: integer
@@ -98,7 +97,7 @@ paths:
                     ts:
                       type: string
                       format: date-time
-                quorum:
+                quorum_details:
                   type: object
                   required:
                     - value
