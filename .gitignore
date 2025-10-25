@@ -7,7 +7,7 @@
 /out/
 !/out/
 !/out/dbt/
-!/out/dbt/ce.duckdb
+!/out/dbt/.gitkeep
 !/out/logs/
 !/out/logs/dbt_offline_runner.log
 !/out/s5-status-bundle.sha256.txt
