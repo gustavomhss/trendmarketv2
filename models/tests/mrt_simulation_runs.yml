@@ -37,7 +37,10 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [pass, breach]
+              arguments:
+                values:
+                  - pass
+                  - breach
       - name: hours_since_last_run
         tests:
           - not_null
