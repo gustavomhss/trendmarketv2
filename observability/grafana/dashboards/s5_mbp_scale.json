@@ -2,7 +2,7 @@
   "title": "S5 MBP Scale",
   "uid": "s5-mbp-scale",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "timezone": "utc",
   "time": {
     "from": "now-6h",
@@ -97,6 +97,10 @@
         },
         {
           "refId": "B",
+      "title": "Auto-Resolve Latency p95 (ms)",
+      "targets": [
+        {
+          "refId": "A",
           "expr": "mbp:auto_resolve:latency_p95_ms"
         }
       ]
@@ -109,6 +113,11 @@
         {
           "refId": "A",
           "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"auto\"}[5m]))"
+      "title": "Auto-Resolve Success Ratio",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:auto_resolve:success_ratio"
         }
       ]
     },
@@ -120,6 +129,11 @@
         {
           "refId": "A",
           "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"manual\"}[5m])) / sum(rate(mbp_auto_resolve_attempts_total[5m]))"
+      "title": "Auto-Resolve Backlog (max 15m)",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:auto_resolve:backlog_max"
         }
       ]
     }
