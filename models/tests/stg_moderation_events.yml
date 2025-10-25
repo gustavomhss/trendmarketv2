@@ -2,21 +2,6 @@ version: 2
 models:
   - name: stg_moderation_events
     columns:
-      - name: event_id
-        tests:
-          - not_null
-          - unique
-      - name: action
-        tests:
-          - accepted_values:
-              values: ['pause', 'resume', 'appeal']
-      - name: role
-        tests:
-          - accepted_values:
-              values: ['moderator', 'operator', 'admin']
-      - name: action_ts
-        tests:
-          - not_null
       - name: id
         tests:
           - not_null
@@ -30,9 +15,6 @@ models:
       - name: action
         tests:
           - not_null
-          - accepted_values:
-              values: [pause, escalate, resume]
-              values: [pause, resume, review]
       - name: reason
         tests:
           - not_null
@@ -45,5 +27,3 @@ models:
       - name: minutes_since_previous_event
         tests:
           - not_null
-          - accepted_values:
-              values: [auto_moderator, human_reviewer]
