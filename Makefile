@@ -43,6 +43,7 @@ clean:
 .PHONY: dbt-ci sim-all orr-bundle
 
 dbt-ci:
+	mkdir -p out/dbt/tmp
 	pip install 'dbt-duckdb~=1.8.0'
 	dbt deps --profiles-dir ~/.dbt --profile ce_profile
 	dbt debug --profiles-dir ~/.dbt --profile ce_profile
