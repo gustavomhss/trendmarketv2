@@ -1,3 +1,10 @@
+"""Auto-resolution service exports."""
+from .service import AutoResolutionService, ResolutionConflictError, ResolutionDecision
+
+__all__ = [
+    "AutoResolutionService",
+    "ResolutionConflictError",
+    "ResolutionDecision",
 """Auto-resolution service module."""
 from .api import AutoResolutionAPI, InvalidRequest
 from .resolver import (
