@@ -5,3 +5,6 @@ select runs.*
 from {{ ref('stg_simulation_runs') }} runs
 cross join latest_run
 where datediff('minute', runs.finished_at, latest_run.max_finished_at) > 120;
+select *
+from {{ ref('stg_simulation_runs') }}
+where finished_at - started_at > interval '5 minutes';

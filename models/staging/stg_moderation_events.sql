@@ -14,6 +14,23 @@ typed_events as (
         trim(evidence_uri) as evidence_uri,
         lower(trim(actor)) as actor
     from raw_events
+    select
+        id,
+        ts,
+        symbol,
+        action,
+        reason,
+        evidence_uri,
+        actor
+    from read_csv_auto('fixtures/moderation_events.csv',
+                       header=True,
+                       types={'id': 'VARCHAR',
+                              'ts': 'TIMESTAMP WITH TIME ZONE',
+                              'symbol': 'VARCHAR',
+                              'action': 'VARCHAR',
+                              'reason': 'VARCHAR',
+                              'evidence_uri': 'VARCHAR',
+                              'actor': 'VARCHAR'})
 )
 
 select
@@ -25,3 +42,4 @@ select
     evidence_uri,
     actor
 from typed_events;
+from raw_events;

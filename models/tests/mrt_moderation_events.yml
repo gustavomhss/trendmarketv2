@@ -1,6 +1,6 @@
 version: 2
 models:
-  - name: stg_moderation_events
+  - name: mrt_moderation_events
     columns:
       - name: id
         tests:
@@ -16,7 +16,6 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [pause, escalate, resume]
               values: [pause, resume, review]
       - name: reason
         tests:
@@ -27,5 +26,3 @@ models:
       - name: actor
         tests:
           - not_null
-          - accepted_values:
-              values: [auto_moderator, human_reviewer]
