@@ -1,5 +1,8 @@
 {{ config(materialized='table') }}
 
+with raw_runs as (
+    select *
+    from read_csv_auto('seeds/simulation_runs.csv', header=True)
 with source_data as (
     select *
     from {{ ref('simulation_runs') }}
@@ -12,6 +15,7 @@ typed_runs as (
         cast(finished_at as timestamp) as finished_at,
         cast(p95_latency_ms as integer) as p95_latency_ms,
         trim(result_path) as result_path
+    from raw_runs
     from source_data
 ),
 finalized_runs as (

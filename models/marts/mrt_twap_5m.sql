@@ -18,5 +18,4 @@ select
     window_start as ts,
     avg_price as twap,
     (quorum_ok = 1) as quorum_ok
-from minute_buckets;
-
+from minute_buckets
