@@ -47,8 +47,8 @@ jobs:
       ref: ${{ inputs.ref }}
       run_microbench: ${{ inputs.run_microbench }}
       run_tla: ${{ inputs.run_tla }}
-      run_sut: ${{ fromJSON(github.event.inputs.run_sut || 'false') }}
+      run_sut: ${{ inputs.run_sut }}
       bq_enable: ${{ inputs.bq_enable }}
-      run_sim: ${{ fromJSON(github.event.inputs.run_sim || 'false') }}
-      run_dbt_ci: ${{ fromJSON(github.event.inputs.run_dbt_ci || 'false') }}
+      run_sim: ${{ inputs.run_sim }}
+      run_dbt_ci: ${{ inputs.run_dbt_ci }}
     secrets: inherit
