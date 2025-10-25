@@ -4,13 +4,20 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from hashlib import sha256
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
 import json
 import time
 import uuid
 
+from .telemetry import telemetry as auto_resolution_telemetry
+
+if TYPE_CHECKING:  # pragma: no cover - import used for typing only
+    from .telemetry import AutoResolutionTelemetry
+
 ALLOWED_AUTO_ROLES = {"resolver", "admin", "resolver_lead"}
 ALLOWED_MANUAL_ROLES = {"admin", "resolver_lead"}
+
+_AUTO_FAILURE_REASON = "no_resolution_path"
 
 
 class ResolutionError(RuntimeError):
@@ -60,12 +67,15 @@ class AutoResolutionService:
         audit_log: Path,
         quorum_threshold: float = 2 / 3,
         truth_confidence_threshold: float = 0.7,
+        telemetry: "AutoResolutionTelemetry" | None = None,
     ) -> None:
         self.audit_log = audit_log
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
         self.quorum_threshold = quorum_threshold
         self.truth_confidence_threshold = truth_confidence_threshold
         self._idempotency: Dict[str, ResolutionRecord] = {}
+        self._telemetry = telemetry or auto_resolution_telemetry
+        self._backlog_events: Dict[str, str] = {}
 
     def apply(
         self,
@@ -91,41 +101,83 @@ class AutoResolutionService:
         normalized_votes = [vote.lower() for vote in quorum_votes]
         self._enforce_role(role, ALLOWED_AUTO_ROLES, action="apply resolution")
 
-        if manual_override is not None:
-            self._enforce_role(role, ALLOWED_MANUAL_ROLES, action="perform manual override")
-            outcome, truth_used, reason = self._apply_manual_override(manual_override, manual_reason)
-            manual_flag = True
-            quorum_ok = self._quorum_reached(normalized_votes)
-        else:
-            manual_flag = False
-            outcome, truth_used, reason, quorum_ok = self._apply_auto_logic(
-                normalized_votes, truth_source
-            )
+        start = time.perf_counter()
+        mode = "manual" if manual_override is not None else "auto"
+        span_attributes = {
+            "auto_resolve.event_id": event_id,
+            "auto_resolve.mode": mode,
+            "auto_resolve.actor": actor,
+            "auto_resolve.role": role,
+        }
+        if truth_source is not None:
+            span_attributes["auto_resolve.truth_source"] = truth_source.source
 
-        decided_at = time.time()
-        resolved_trace = trace_id or uuid.uuid4().hex
-        record = ResolutionRecord(
-            event_id=event_id,
-            outcome=outcome,
-            reason=reason,
-            trace_id=resolved_trace,
-            decided_at=decided_at,
-            idempotency_key=idempotency_key,
-            quorum_ok=quorum_ok,
-            truth_source_used=truth_used,
-            manual_override=manual_flag,
-        )
-        self._idempotency[idempotency_key] = record
-        self._append_audit(
-            actor=actor,
-            role=role,
-            record=record,
-            quorum_votes=normalized_votes,
-            truth_source=truth_source,
-            manual_reason=manual_reason,
-            evidence_uri=evidence_uri,
-        )
-        return record
+        with self._telemetry.span("auto_resolve.apply", attributes=span_attributes) as span:
+            try:
+                if manual_override is not None:
+                    self._enforce_role(role, ALLOWED_MANUAL_ROLES, action="perform manual override")
+                    outcome, truth_used, reason = self._apply_manual_override(
+                        manual_override, manual_reason
+                    )
+                    manual_flag = True
+                    quorum_ok = self._quorum_reached(normalized_votes)
+                else:
+                    manual_flag = False
+                    outcome, truth_used, reason, quorum_ok = self._apply_auto_logic(
+                        normalized_votes, truth_source
+                    )
+
+                decided_at = time.time()
+                resolved_trace = trace_id or uuid.uuid4().hex
+                record = ResolutionRecord(
+                    event_id=event_id,
+                    outcome=outcome,
+                    reason=reason,
+                    trace_id=resolved_trace,
+                    decided_at=decided_at,
+                    idempotency_key=idempotency_key,
+                    quorum_ok=quorum_ok,
+                    truth_source_used=truth_used,
+                    manual_override=manual_flag,
+                )
+                self._idempotency[idempotency_key] = record
+                self._clear_backlog(event_id)
+
+                duration_ms = (time.perf_counter() - start) * 1000.0
+                self._telemetry.record_success(
+                    mode="manual" if manual_flag else "auto",
+                    duration_ms=duration_ms,
+                    outcome=record.outcome,
+                    truth_source_used=record.truth_source_used,
+                )
+
+                if span is not None:
+                    span.set_attribute("auto_resolve.outcome", record.outcome)
+                    span.set_attribute("auto_resolve.truth_source_used", record.truth_source_used)
+                    span.set_attribute("auto_resolve.quorum_ok", record.quorum_ok)
+                    span.set_attribute("auto_resolve.manual_override", record.manual_override)
+
+                self._append_audit(
+                    actor=actor,
+                    role=role,
+                    record=record,
+                    quorum_votes=normalized_votes,
+                    truth_source=truth_source,
+                    manual_reason=manual_reason,
+                    evidence_uri=evidence_uri,
+                )
+                return record
+            except ResolutionError as exc:
+                duration_ms = (time.perf_counter() - start) * 1000.0
+                self._mark_backlog(event_id, _AUTO_FAILURE_REASON)
+                self._telemetry.record_failure(
+                    mode="auto",
+                    duration_ms=duration_ms,
+                    reason=_AUTO_FAILURE_REASON,
+                )
+                if span is not None:
+                    self._telemetry.span_record_error(span, exc)
+                raise
 
     def _apply_manual_override(
         self, manual_override: str, manual_reason: Optional[str]
@@ -211,6 +263,16 @@ class AutoResolutionService:
     def _require_idempotency_key(self, key: str) -> None:
         if not key or len(key) < 8:
             raise ValueError("idempotency_key must be at least 8 characters long")
+
+    def _mark_backlog(self, event_id: str, reason: str) -> None:
+        if event_id not in self._backlog_events:
+            self._backlog_events[event_id] = reason
+            self._telemetry.adjust_backlog(delta=1, reason=reason)
+
+    def _clear_backlog(self, event_id: str) -> None:
+        reason = self._backlog_events.pop(event_id, None)
+        if reason is not None:
+            self._telemetry.adjust_backlog(delta=-1, reason=reason)
 
     def load_audit_entries(self) -> List[Dict[str, object]]:
         if not self.audit_log.exists():

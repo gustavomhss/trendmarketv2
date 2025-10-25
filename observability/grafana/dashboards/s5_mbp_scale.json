@@ -85,6 +85,43 @@
           "expr": "mbp:simulation:success_ratio"
         }
       ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Auto-Resolve SLA (p50/p95)",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:auto_resolve:latency_p50_ms"
+        },
+        {
+          "refId": "B",
+          "expr": "mbp:auto_resolve:latency_p95_ms"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Auto-Resolve Decision Throughput",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"auto\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Manual Fallback Rate",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"manual\"}[5m])) / sum(rate(mbp_auto_resolve_attempts_total[5m]))"
+        }
+      ]
     }
   ]
 }
