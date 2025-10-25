@@ -45,10 +45,10 @@ jobs:
     uses: ./.github/workflows/_s4-orr.yml
     with:
       ref: ${{ inputs.ref }}
-      run_microbench: ${{ inputs.run_microbench }}
-      run_tla: ${{ inputs.run_tla }}
-      run_sut: ${{ fromJSON(github.event.inputs.run_sut || 'false') }}
-      bq_enable: ${{ inputs.bq_enable }}
-      run_sim: ${{ fromJSON(github.event.inputs.run_sim || 'false') }}
-      run_dbt_ci: ${{ fromJSON(github.event.inputs.run_dbt_ci || 'false') }}
+      run_microbench: ${{ fromJSON(inputs.run_microbench || 'false') }}
+      run_tla: ${{ fromJSON(inputs.run_tla || 'false') }}
+      run_sut: ${{ fromJSON(inputs.run_sut || 'false') }}
+      bq_enable: ${{ fromJSON(inputs.bq_enable || 'false') }}
+      run_sim: ${{ fromJSON(inputs.run_sim || 'false') }}
+      run_dbt_ci: ${{ fromJSON(inputs.run_dbt_ci || 'false') }}
     secrets: inherit
