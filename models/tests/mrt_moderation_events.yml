@@ -23,7 +23,11 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [pause, resume, review]
+              arguments:
+                values:
+                  - pause
+                  - resume
+                  - review
       - name: reason
         tests:
           - not_null
@@ -37,7 +41,11 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [1, 2, 3]
+              arguments:
+                values:
+                  - 1
+                  - 2
+                  - 3
       - name: minutes_since_previous_event
         tests:
           - not_null
@@ -51,4 +59,9 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [paused, active, under_review, historical]
+              arguments:
+                values:
+                  - paused
+                  - active
+                  - under_review
+                  - historical
