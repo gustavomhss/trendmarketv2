@@ -15,5 +15,4 @@ select
     source,
     price,
     staleness_ms
-from quotes;
-
+from quotes

@@ -1,31 +1,5 @@
 {{ config(materialized='table') }}
 
-with raw_events as (
-    select *
-    from read_csv_auto('seeds/moderation_events.csv', header=True)
-with source_data as (
-    select *
-    from {{ ref('moderation_events') }}
-),
-typed_events as (
-    select
-        cast(id as varchar) as id,
-        cast(ts as timestamp) as ts,
-        upper(trim(symbol)) as symbol,
-        lower(trim(action)) as action,
-        trim(reason) as reason,
-        trim(evidence_uri) as evidence_uri,
-        lower(trim(actor)) as actor
-    from raw_events
-    from source_data
-),
-ranked_events as (
-    select
-        *,
-        lag(ts) over (partition by symbol order by ts) as previous_event_ts
-    from typed_events
-)
-
 select
     id,
     ts,
@@ -35,4 +9,22 @@ select
     evidence_uri,
     actor,
     coalesce(datediff('minutes', previous_event_ts, ts), 0) as minutes_since_previous_event
-from ranked_events
+from (
+    select
+        *,
+        lag(ts) over (partition by symbol order by ts) as previous_event_ts
+    from (
+        select
+            cast(id as varchar) as id,
+            cast(ts as timestamp) as ts,
+            upper(trim(symbol)) as symbol,
+            lower(trim(action)) as action,
+            trim(reason) as reason,
+            trim(evidence_uri) as evidence_uri,
+            lower(trim(actor)) as actor
+        from (
+            select *
+            from read_csv_auto('seeds/moderation_events.csv', header=True)
+        ) as raw_events
+    ) as typed_events
+) as ranked_events
