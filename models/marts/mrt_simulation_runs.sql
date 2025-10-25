@@ -1,6 +1,6 @@
 {{ config(materialized='table') }}
 
-with ranked_runs as (
+with runs as (
     select
         id,
         scenario,
@@ -8,21 +8,38 @@ with ranked_runs as (
         finished_at,
         p95_latency_ms,
         result_path,
-        row_number() over (partition by scenario order by finished_at desc) as scenario_rank
+        run_duration_seconds,
+        row_number() over (partition by scenario order by finished_at desc, started_at desc) as scenario_rank
     from {{ ref('stg_simulation_runs') }}
 ),
-filtered_runs as (
+latest_per_scenario as (
     select
-        id,
         scenario,
+        id as latest_run_id,
         started_at,
         finished_at,
         p95_latency_ms,
-        result_path
-    from ranked_runs
+        result_path,
+        run_duration_seconds,
+        case when p95_latency_ms <= 800 then 'pass' else 'breach' end as ttpv_slo_status,
+        datediff('minutes', started_at, finished_at) as run_duration_minutes
+    from runs
     where scenario_rank = 1
-      and p95_latency_ms <= 800
+),
+scenario_metrics as (
+    select
+        scenario,
+        latest_run_id,
+        started_at,
+        finished_at,
+        p95_latency_ms,
+        result_path,
+        run_duration_seconds,
+        run_duration_minutes,
+        ttpv_slo_status,
+        datediff('hours', finished_at, max(finished_at) over ()) as hours_since_last_run
+    from latest_per_scenario
 )
 
 select *
-from filtered_runs;
+from scenario_metrics;

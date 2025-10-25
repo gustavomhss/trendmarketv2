@@ -1,0 +1,8 @@
+id,ts,symbol,action,reason,evidence_uri,actor
+evt_1001,2024-03-01T08:30:00Z,BRLUSD,pause,divergence_above_threshold,s3://moderation/BRLUSD/evt_1001.json,auto_guardian
+evt_1002,2024-03-01T08:45:00Z,BRLUSD,review,manual_followup_required,s3://moderation/BRLUSD/evt_1002.json,ops_analyst
+evt_1003,2024-03-02T09:10:00Z,BRLUSD,resume,divergence_resolved,s3://moderation/BRLUSD/evt_1003.json,auto_guardian
+evt_1004,2024-03-03T12:05:00Z,EURUSD,pause,latency_spike_detected,s3://moderation/EURUSD/evt_1004.json,auto_guardian
+evt_1005,2024-03-03T12:25:00Z,EURUSD,review,manual_confirmation_needed,s3://moderation/EURUSD/evt_1005.json,risk_specialist
+evt_1006,2024-03-03T12:55:00Z,EURUSD,resume,latency_normalized,s3://moderation/EURUSD/evt_1006.json,auto_guardian
+evt_1007,2024-03-04T10:15:00Z,BRLUSD,pause,market_depth_drop,s3://moderation/BRLUSD/evt_1007.json,auto_guardian
