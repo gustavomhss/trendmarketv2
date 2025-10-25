@@ -1,0 +1,51 @@
+groups:
+  - name: mbp_s5_oracles
+    interval: 30s
+    rules:
+      - record: mbp:oracle:staleness_p95_ms
+        expr: quantile_over_time(0.95, mbp_oracle_staleness_ms{env="prod"}[5m])
+      - record: mbp:oracle:divergence_p95
+        expr: quantile_over_time(0.95, mbp_oracle_diverg_pct{env="prod"}[5m])
+      - record: mbp:oracle:quorum_ratio
+        expr: sum(mbp_oracle_quorum_ok{env="prod"}) / sum(mbp_oracle_quorum_total{env="prod"})
+      - record: mbp:oracle:failover_time_p95_s
+        expr: quantile_over_time(0.95, mbp_oracle_failover_time_s{env="prod"}[15m])
+  - name: mbp_s5_fees
+    interval: 30s
+    rules:
+      - record: mbp:fee:delta_pct_5m
+        expr: max_over_time(mbp_fee_delta_pct{env="prod"}[5m])
+      - record: mbp:fee:in_bounds
+        expr: avg_over_time(mbp_fee_in_bounds{env="prod"}[5m])
+      - record: mbp:fee:cooldown_hits
+        expr: increase(mbp_fee_cooldown_trigger_total{env="prod"}[5m])
+  - name: mbp_s5_auto_resolution
+    interval: 30s
+    rules:
+      - record: mbp:auto_resolve:latency_p95_ms
+        expr: quantile_over_time(0.95, mbp_auto_resolve_latency_ms{env="prod"}[1h])
+      - record: mbp:auto_resolve:success_ratio
+        expr: sum(increase(mbp_auto_resolve_success_total{env="prod"}[1h])) / clamp_min(sum(increase(mbp_auto_resolve_attempt_total{env="prod"}[1h])), 1)
+      - record: mbp:auto_resolve:manual_fallback_rate
+        expr: sum(increase(mbp_auto_resolve_manual_fallback_total{env="prod"}[1h])) / clamp_min(sum(increase(mbp_auto_resolve_attempt_total{env="prod"}[1h])), 1)
+      - record: mbp:auto_resolve:backlog
+        expr: avg_over_time(mbp_auto_resolve_backlog{env="prod"}[5m])
+  - name: mbp_s5_moderation
+    interval: 30s
+    rules:
+      - record: mbp:moderation:pauses_total
+        expr: increase(mbp_moderation_pause_total{env="prod"}[30m])
+      - record: mbp:moderation:appeals_open
+        expr: avg_over_time(mbp_moderation_appeals_open{env="prod"}[5m])
+      - record: mbp:moderation:mttd_minutes
+        expr: avg_over_time(mbp_moderation_mttd_seconds{env="prod"}[1h]) / 60
+  - name: mbp_s5_simulation
+    interval: 1m
+    rules:
+      - record: mbp:simulation:ttpv_p95_ms
+        expr: quantile_over_time(0.95, mbp_simulation_ttpv_ms{env="prod"}[1h])
+      - record: mbp:simulation:runs_total
+        expr: increase(mbp_simulation_runs_total{env="prod"}[1h])
+      - record: mbp:simulation:success_ratio
+        expr: sum(increase(mbp_simulation_runs_success_total{env="prod"}[1h])) / sum(increase(mbp_simulation_runs_total{env="prod"}[1h]))
+

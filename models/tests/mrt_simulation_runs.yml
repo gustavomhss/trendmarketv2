@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: mrt_simulation_runs
+    columns:
+      - name: scenario
+        tests:
+          - not_null
+          - unique
+      - name: run_count
+        tests:
+          - not_null
+      - name: success_count
+        tests:
+          - not_null

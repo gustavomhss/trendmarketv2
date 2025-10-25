@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: mrt_moderation_events
+    columns:
+      - name: symbol
+        tests:
+          - not_null
+          - unique
+      - name: pauses
+        tests:
+          - not_null
+      - name: appeals
+        tests:
+          - not_null

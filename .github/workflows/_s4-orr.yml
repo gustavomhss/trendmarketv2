@@ -27,6 +27,16 @@ on:
         required: false
         type: boolean
         default: false
+      run_sim:
+        description: Run Sprint 5 simulations
+        required: false
+        type: boolean
+        default: false
+      run_dbt_ci:
+        description: Run Sprint 5 dbt-ci with DuckDB
+        required: false
+        type: boolean
+        default: false
       run_security:
         description: "Executar varreduras de segurança"
         required: false
@@ -396,6 +406,41 @@ jobs:
           else
             echo "[sut] docker/compose ausentes; nada a fazer"
           fi
+
+      - name: S5 Simulation | Deterministic Harness
+        if: ${{ inputs.run_sim }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/sim
+          SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
+          SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario gap --out out/sim/gap.report.json
+          SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
+
+      - name: S5 DBT (DuckDB)
+        if: ${{ inputs.run_dbt_ci || hashFiles('dbt_project.yml') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade 'dbt-duckdb~=1.8.0'
+          mkdir -p out/dbt
+          mkdir -p "$HOME/.dbt"
+          if [ ! -f "$HOME/.dbt/profiles.yml" ]; then
+            cat <<'YAML' > "$HOME/.dbt/profiles.yml"
+ce_profile:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      path: out/dbt/ce.duckdb
+      schema: main
+      threads: 4
+YAML
+          fi
+          dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt run --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt test --profiles-dir "$HOME/.dbt" --profile ce_profile
 
       - name: Empacotar evidências (S4)
         if: ${{ always() && !inputs.run_tla }}
