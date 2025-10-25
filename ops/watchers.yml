@@ -52,7 +52,15 @@ watchers:
     threshold: "> 1.0% (2 janelas)"
     action: freeze
     owner: product_dec
-    runbook: docs/runbooks/cdc_lag.md
+    runbook: docs/runbooks/oracle-quorum-twap.md
+    notify:
+      slack: "#dec-incident"
+  - hook: fee_cooldown_breach
+    metric: mbp:fee:delta_pct_5m
+    threshold: "> 0.20 (5m) ou cooldown_hits>0"
+    action: enforce_cooldown
+    owner: product_dec
+    runbook: docs/runbooks/fee-cooldown.md
     notify:
       slack: "#dec-incident"
   - hook: abuse_spike
@@ -60,6 +68,6 @@ watchers:
     threshold: "> baseline +3σ"
     action: escalate
     owner: compliance
-    runbook: docs/runbooks/decision_gap.md
+    runbook: docs/runbooks/moderation-pause.md
     notify:
       slack: "#compliance"
