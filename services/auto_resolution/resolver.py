@@ -9,15 +9,9 @@ import json
 import time
 import uuid
 
+from .service import IdempotencyKeyConflict
+
 ALLOWED_RESOLUTION_ROLES = {"resolver", "admin"}
-
-
-class IdempotencyKeyConflict(RuntimeError):
-    """Raised when an idempotency key is reused with mismatched payloads."""
-
-    def __init__(self, key: str) -> None:
-        super().__init__(f"Idempotency key '{key}' conflict")
-        self.key = key
 
 
 class DecisionConflict(RuntimeError):
