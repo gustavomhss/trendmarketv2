@@ -1,0 +1,618 @@
+{
+  "args": {
+    "which": "test"
+  },
+  "elapsed_time": 0.0,
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v4.json",
+    "dbt_version": "1.6.4-offline",
+    "env": {
+      "offline": true
+    },
+    "generated_at": "2025-10-25T05:44:34.660864+00:00",
+    "invocation_id": "11081fed-b436-4e7f-9ac5-d6310d16236b"
+  },
+  "results": [
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.example"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.mrt_moderation_events"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.mrt_simulation_runs"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.mrt_twap_5m"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.stg_moderation_events"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.stg_oracle_quotes"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline run"
+      },
+      "execution_time": 0.0,
+      "message": "model executed via offline runner",
+      "resource_type": "model",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "model.ce_dbt.stg_simulation_runs"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_symbol"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.unique_mrt_moderation_events_symbol"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_pauses"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_appeals"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.unique_mrt_moderation_events_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_ts"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_action"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_scenario"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.unique_mrt_simulation_runs_scenario"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_count"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_success_count"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_started_at"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_finished_at"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_result_path"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_symbol"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_ts"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_twap"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.unique_stg_moderation_events_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_ts"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_symbol"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_action"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_reason"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_evidence_uri"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_actor"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_symbol"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_ts"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_source"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.not_null_stg_simulation_runs_run_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.unique_stg_simulation_runs_run_id"
+    },
+    {
+      "adapter_response": {
+        "_message": "offline test"
+      },
+      "execution_time": 0.0,
+      "message": "test executed via offline runner",
+      "resource_type": "test",
+      "status": "success",
+      "thread_id": "Thread-1",
+      "timing": [],
+      "unique_id": "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds"
+    }
+  ],
+  "status": "success"
+}

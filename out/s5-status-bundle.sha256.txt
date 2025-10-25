@@ -1,0 +1,5 @@
+{
+  "file": "out/s5-status-bundle.zip",
+  "sha256": null,
+  "note": "Bundle is generated on demand with scripts/create_status_bundle.py and intentionally omitted from version control."
+}
