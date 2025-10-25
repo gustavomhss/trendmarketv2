@@ -10,8 +10,8 @@ models:
         tests:
           - not_null
       - name: success_count
-          - accepted_values:
-              values: [spike, gap, burst]
+        tests:
+          - not_null
       - name: latest_run_id
         tests:
           - not_null
