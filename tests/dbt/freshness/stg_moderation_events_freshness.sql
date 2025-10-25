@@ -4,7 +4,6 @@ with latest_event as (
 select events.*
 from {{ ref('stg_moderation_events') }} events
 cross join latest_event
-where datediff('minute', events.ts, latest_event.max_ts) > 60
-select *
-from {{ ref('stg_moderation_events') }}
-where ts < timestamp '2024-02-25 00:00:00'
+where
+    datediff('minute', events.ts, latest_event.max_ts) > 60
+    or events.ts < timestamp '2024-02-25 00:00:00'
