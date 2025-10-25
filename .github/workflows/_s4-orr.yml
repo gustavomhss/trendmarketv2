@@ -426,16 +426,7 @@ jobs:
           mkdir -p out/dbt
           mkdir -p "$HOME/.dbt"
           if [ ! -f "$HOME/.dbt/profiles.yml" ]; then
-            cat <<'YAML' > "$HOME/.dbt/profiles.yml"
-ce_profile:
-  target: duckdb
-  outputs:
-    duckdb:
-      type: duckdb
-      path: out/dbt/ce.duckdb
-      schema: main
-      threads: 4
-YAML
+            python3 -c "from pathlib import Path; profile_path = Path.home() / '.dbt' / 'profiles.yml'; profile_path.write_text('ce_profile:\n  target: duckdb\n  outputs:\n    duckdb:\n      type: duckdb\n      path: out/dbt/ce.duckdb\n      schema: main\n      threads: 4\n')"
           fi
           dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
           dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
