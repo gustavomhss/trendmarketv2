@@ -37,4 +37,13 @@ groups:
         expr: increase(mbp_simulation_runs_total{env="prod"}[1h])
       - record: mbp:simulation:success_ratio
         expr: sum(increase(mbp_simulation_runs_success_total{env="prod"}[1h])) / sum(increase(mbp_simulation_runs_total{env="prod"}[1h]))
+  - name: mbp_s5_auto_resolution
+    interval: 30s
+    rules:
+      - record: mbp:auto_resolve:latency_p95_ms
+        expr: histogram_quantile(0.95, sum(rate(mbp_auto_resolve_eval_duration_seconds_bucket{env="prod"}[5m])) by (le)) * 1000
+      - record: mbp:auto_resolve:success_ratio
+        expr: sum(increase(mbp_auto_resolve_success_total{env="prod"}[30m])) / clamp_min(sum(increase(mbp_auto_resolve_decisions_total{env="prod"}[30m])), 1)
+      - record: mbp:auto_resolve:backlog_max
+        expr: max_over_time(mbp_auto_resolve_backlog{truth_source="__total__", env="prod"}[15m])
 
