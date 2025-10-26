@@ -1,0 +1,35 @@
+{
+  "schema": "trendmarketv2.q1.boss.report",
+  "schema_version": 2,
+  "timestamp_utc": "2025-10-26T03:24:03Z",
+  "status": "FAIL",
+  "sprints": {
+    "s1": {
+      "status": "FAIL",
+      "notes": "primary:FAIL BOSS-E-S1-LINT:Ruff lint (exit 1) | clean:FAIL BOSS-E-S1-LINT:Ruff lint (exit 1)"
+    },
+    "s2": {
+      "status": "PASS",
+      "notes": "primary:PASS PASS:S2 primary guard completado | clean:PASS PASS:S2 clean guard completado"
+    },
+    "s3": {
+      "status": "FAIL",
+      "notes": "primary:FAIL BOSS-E-S3-SMOKE:Observability smoke (exit 2) | clean:FAIL BOSS-E-S3-SMOKE:Observability smoke (exit 2)"
+    },
+    "s4": {
+      "status": "FAIL",
+      "notes": "primary:FAIL BOSS-E-S4-YAML:Comando ausente: yamllint | clean:FAIL BOSS-E-S4-YAML:Comando ausente: yamllint"
+    },
+    "s5": {
+      "status": "PASS",
+      "notes": "primary:PASS PASS:S5 primary guard completado | clean:PASS PASS:S5 clean guard completado"
+    },
+    "s6": {
+      "status": "PASS",
+      "notes": "primary:PASS PASS:S6 primary guard completado | clean:PASS PASS:S6 clean guard completado"
+    }
+  },
+  "bundle": {
+    "sha256": "9d0914260ba82c82370f4dbc02cdde84f5f140ef9f577b4d3e52131c8a234f87"
+  }
+}

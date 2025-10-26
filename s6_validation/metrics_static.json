@@ -1,10 +1,10 @@
 {
-  "schema": "trendmarketv2.sprint6.metrics.v1",
-  "version": 1,
-  "timestamp_utc": "2024-09-01T05:55:00Z",
-  "quorum_ratio": 0.92,
-  "failover_time_p95_s": 7.8,
-  "staleness_p95_s": 12.0,
-  "cdc_lag_p95_s": 45.0,
+  "schema": "trendmarketv2.sprint6.metrics",
+  "schema_version": 2,
+  "timestamp_utc": "2024-09-02T06:00:00Z",
+  "quorum_ratio": 0.7025,
+  "failover_time_p95_s": 42.5,
+  "staleness_p95_s": 18.1,
+  "cdc_lag_p95_s": 88.2,
   "divergence_pct": 0.4
 }

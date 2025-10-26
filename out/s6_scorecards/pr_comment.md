@@ -8,6 +8,6 @@
 - CDC Lag p95 (s): ✅ PASS
 - Divergence (%): ✅ PASS
 
-Bundle SHA-256: `417865fb46b893742076ff856aaeba63bb95222386f3d07085db4ede11afa6f7`
+Bundle SHA-256: `f02a7eeaa3c07407a2f5cd414fe0afa834ef6df78c2a139ba185d6393d99288d`
 
 Relatório completo disponível em [report.md](./report.md).

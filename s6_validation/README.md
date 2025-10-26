@@ -16,10 +16,10 @@ approval from the scorecard and observability maintainers.
 
 Both JSON documents:
 
-- follow Draft‑07 schemas under `schemas/thresholds.schema.json` and
-  `schemas/metrics.schema.json` respectively;
-- declare `schema` identifiers locked to the `v1` contracts and `version: 1` in
-  accordance with the Sprint 6 spec; and
+- follow the Draft‑07 schemas in `schemas/thresholds.schema.json` and
+  `schemas/metrics.schema.json` (flat objects with the five metric keys);
+- declare immutable `schema` identifiers and `schema_version: 2` guards using
+  JSON Schema `const`; and
 - include `timestamp_utc` values using RFC 3339 in UTC.
 
 ## Deterministic regeneration flow
@@ -28,7 +28,9 @@ Both JSON documents:
    `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, and
    `divergence_pct`.
 2. Format using a canonical serializer (`sort_keys=true`, `ensure_ascii=false`,
-   `separators=(",", ":")`) so the bundle hash remains reproducible.
+   `separators=(",", ":")`) and ensure `thresholds.json` precede
+   `metrics_static.json` quando concatenados; o script calcula
+   `bundle.sha256` sobre essa ordem canônica.
 3. Validate against the schemas:
    ```bash
    python -m jsonschema --instance s6_validation/thresholds.json --schema schemas/thresholds.schema.json

@@ -1,0 +1,16 @@
+{
+  "stage": "s3",
+  "status": "FAIL",
+  "notes": "primary:FAIL BOSS-E-S3-SMOKE:Observability smoke (exit 2) | clean:FAIL BOSS-E-S3-SMOKE:Observability smoke (exit 2)",
+  "variants": {
+    "primary": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S3-SMOKE:Observability smoke (exit 2)"
+    },
+    "clean": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S3-SMOKE:Observability smoke (exit 2)"
+    }
+  },
+  "timestamp_utc": "2025-10-26T03:23:25Z"
+}
