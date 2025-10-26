@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "timestamp_utc": "2025-10-26T00:59:49+00:00",
+  "timestamp_utc": "2025-10-26T01:35:37Z",
   "status": "PASS",
   "metrics": {
     "quorum_ratio": {
@@ -32,14 +32,54 @@
   "inputs": {
     "thresholds": {
       "version": 1,
-      "timestamp_utc": "2024-09-01T06:00:00Z"
+      "timestamp_utc": "2024-09-01T06:00:00Z",
+      "metrics": {
+        "quorum_ratio": {
+          "version": 1,
+          "comparison": "gte"
+        },
+        "failover_time_p95_s": {
+          "version": 1,
+          "comparison": "lte"
+        },
+        "staleness_p95_s": {
+          "version": 1,
+          "comparison": "lte"
+        },
+        "cdc_lag_p95_s": {
+          "version": 1,
+          "comparison": "lte"
+        },
+        "divergence_pct": {
+          "version": 1,
+          "comparison": "lte"
+        }
+      }
     },
     "metrics": {
       "version": 1,
-      "timestamp_utc": "2024-09-01T05:55:00Z"
+      "timestamp_utc": "2024-09-01T05:55:00Z",
+      "metrics": {
+        "quorum_ratio": {
+          "version": 1
+        },
+        "failover_time_p95_s": {
+          "version": 1
+        },
+        "staleness_p95_s": {
+          "version": 1
+        },
+        "cdc_lag_p95_s": {
+          "version": 1
+        },
+        "divergence_pct": {
+          "version": 1
+        }
+      }
     }
   },
   "bundle": {
-    "sha256": "167136eea19ab6ef6a41465d234c248b3740c8d85656cf910b04942bba4207b4"
+    "sha256": "aa337206bdb5152ffd7f20af8c40a81b491ef4893f068e42c22608f4b7447a3f"
+    "sha256": "0123864136a308f3824003a64753bddac8d0ecaa4d1188da84e8371736336ef6"
   }
 }

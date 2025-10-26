@@ -1,13 +1,4 @@
 {
-  "__inputs": [],
-  "__requires": [
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": "9.5.2"
-    }
-  ],
   "title": "Scorecards Quorum Failover Staleness",
   "time": {
     "from": "now-24h",

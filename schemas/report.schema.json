@@ -40,19 +40,104 @@
       ],
       "properties": {
         "quorum_ratio": {
-          "$ref": "#/definitions/metricResult"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observed",
+            "target",
+            "ok"
+          ],
+          "properties": {
+            "observed": {
+              "type": "number"
+            },
+            "target": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
         },
         "failover_time_p95_s": {
-          "$ref": "#/definitions/metricResult"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observed",
+            "target",
+            "ok"
+          ],
+          "properties": {
+            "observed": {
+              "type": "number"
+            },
+            "target": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
         },
         "staleness_p95_s": {
-          "$ref": "#/definitions/metricResult"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observed",
+            "target",
+            "ok"
+          ],
+          "properties": {
+            "observed": {
+              "type": "number"
+            },
+            "target": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
         },
         "cdc_lag_p95_s": {
-          "$ref": "#/definitions/metricResult"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observed",
+            "target",
+            "ok"
+          ],
+          "properties": {
+            "observed": {
+              "type": "number"
+            },
+            "target": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
         },
         "divergence_pct": {
-          "$ref": "#/definitions/metricResult"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observed",
+            "target",
+            "ok"
+          ],
+          "properties": {
+            "observed": {
+              "type": "number"
+            },
+            "target": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          }
         }
       }
     },
@@ -65,10 +150,223 @@
       ],
       "properties": {
         "thresholds": {
-          "$ref": "#/definitions/inputMeta"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "timestamp_utc",
+            "metrics"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "const": 1
+            },
+            "timestamp_utc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "quorum_ratio",
+                "failover_time_p95_s",
+                "staleness_p95_s",
+                "cdc_lag_p95_s",
+                "divergence_pct"
+              ],
+              "properties": {
+                "quorum_ratio": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "comparison"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "comparison": {
+                      "type": "string",
+                      "const": "gte"
+                    }
+                  }
+                },
+                "failover_time_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "comparison"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "comparison": {
+                      "type": "string",
+                      "const": "lte"
+                    }
+                  }
+                },
+                "staleness_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "comparison"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "comparison": {
+                      "type": "string",
+                      "const": "lte"
+                    }
+                  }
+                },
+                "cdc_lag_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "comparison"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "comparison": {
+                      "type": "string",
+                      "const": "lte"
+                    }
+                  }
+                },
+                "divergence_pct": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "comparison"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "comparison": {
+                      "type": "string",
+                      "const": "lte"
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
         "metrics": {
-          "$ref": "#/definitions/inputMeta"
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "timestamp_utc",
+            "metrics"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "const": 1
+            },
+            "timestamp_utc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "quorum_ratio",
+                "failover_time_p95_s",
+                "staleness_p95_s",
+                "cdc_lag_p95_s",
+                "divergence_pct"
+              ],
+              "properties": {
+                "quorum_ratio": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "failover_time_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "staleness_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "cdc_lag_p95_s": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "divergence_pct": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -82,46 +380,6 @@
         "sha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
-        }
-      }
-    }
-  },
-  "definitions": {
-    "metricResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "observed",
-        "target",
-        "ok"
-      ],
-      "properties": {
-        "observed": {
-          "type": "number"
-        },
-        "target": {
-          "type": "number"
-        },
-        "ok": {
-          "type": "boolean"
-        }
-      }
-    },
-    "inputMeta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "version",
-        "timestamp_utc"
-      ],
-      "properties": {
-        "version": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "timestamp_utc": {
-          "type": "string",
-          "format": "date-time"
         }
       }
     }

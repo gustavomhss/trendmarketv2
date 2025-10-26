@@ -1,29 +1,103 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
+import json
+import contextlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+import textwrap
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Dict, Iterable, List, Mapping, Sequence
+from urllib import error as urllib_error
+from urllib import request as urllib_request
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+STAGES_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
+SCHEMA_VERSION = 1
+ERROR_PREFIX = "BOSS-E"
+RESULT_FILENAME = "result.json"
+GUARD_FILENAME = "guard_status.txt"
+
+PYTHON = sys.executable
+
+
+@dataclass(frozen=True)
+class CommandOutcome:
+    name: str
+    command: List[str]
+    status: str
+    returncode: int
+    detail: str
+    stdout: str
+    stderr: str
+
+
+@dataclass
+class StageBundle:
+    stage: str
+    checks: List[CommandOutcome]
+    metadata: Dict[str, object] = field(default_factory=dict)
+
+    @property
+    def status(self) -> str:
+        return "PASS" if all(outcome.status == "PASS" for outcome in self.checks) else "FAIL"
+
+    @property
+    def notes(self) -> str:
+        if not self.checks:
+            return "No checks executed."
+        parts: List[str] = []
+        for outcome in self.checks:
+            if outcome.status == "PASS":
+                parts.append(f"{outcome.name} OK")
+            else:
+                parts.append(outcome.detail)
+        return " | ".join(parts)
+
+
+class StageExecutionError(RuntimeError):
+    """Raised when the guard cannot enforce its contract."""
+import urllib.request
 from argparse import ArgumentParser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterable, List, Sequence
 from typing import Callable, Dict, List
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.append(str(BASE_DIR))
+OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
+ERROR_PREFIX = "BOSS-E"
 
-from scripts.scorecards.s6_scorecards import (  # noqa: E402
-    ScorecardArtifacts,
-    generate_report,
-    OUTPUT_DIR as S6_OUTPUT_DIR,
-)
 
-getcontext().prec = 28
-getcontext().rounding = ROUND_HALF_EVEN
+@dataclass
+class CommandRecord:
+    name: str
+    command: Sequence[str] | None
+    returncode: int
+    duration_seconds: float
+    stdout: str
+    stderr: str
 
+
+class StageFailure(Exception):
+    def __init__(self, code: str, message: str, record: CommandRecord | None = None) -> None:
+        self.code = code
+        self.message = message
+        self.record = record
+        super().__init__(f"{ERROR_PREFIX}-{code}:{message}")
+
+
+@dataclass
+class StageContext:
+    stage: str
+    records: List[CommandRecord] = field(default_factory=list)
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 ERROR_PREFIX = "BOSS-E"
 SCHEMA_VERSION = 1
@@ -158,7 +232,82 @@ def stage_s1(context: StageContext) -> str:
     validate_healthchecks()
     return "Lint, format, pytest básico e healthchecks do Compose validados."
 
+    def run(
+        self,
+        command: Sequence[str],
+        *,
+        failure_code: str = "CMDFAIL",
+        env: dict[str, str] | None = None,
+    ) -> CommandRecord:
+        start = time.monotonic()
+        process = subprocess.run(
+            list(command),
+            cwd=BASE_DIR,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        record = CommandRecord(
+            name=" ".join(map(str, command)),
+            command=list(command),
+            returncode=process.returncode,
+            duration_seconds=time.monotonic() - start,
+            stdout=process.stdout,
+            stderr=process.stderr,
+        )
+        self.records.append(record)
+        if process.returncode != 0:
+            raise StageFailure(
+                failure_code,
+                f"Command '{record.name}' returned {process.returncode}",
+                record,
+            )
+        return record
 
+    def record(
+        self,
+        name: str,
+        *,
+        stdout: str = "",
+        stderr: str = "",
+        duration: float = 0.0,
+        returncode: int = 0,
+        failure_code: str = "CHECKFAIL",
+    ) -> CommandRecord:
+        record = CommandRecord(
+            name=name,
+            command=None,
+            returncode=returncode,
+            duration_seconds=duration,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        self.records.append(record)
+        if returncode != 0:
+            raise StageFailure(failure_code, f"Check '{name}' failed", record)
+        return record
+
+
+def ensure_stage_dir(stage: str) -> Path:
+    stage_dir = OUTPUT_ROOT / stage
+    if stage_dir.exists():
+        shutil.rmtree(stage_dir)
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    return stage_dir
+
+
+def run_sut_healthcheck(ctx: StageContext) -> None:
+    server_path = BASE_DIR / "tools" / "sut_health.py"
+    if not server_path.exists():
+        ctx.record(
+            "sut_healthcheck",
+            stdout="",
+            stderr="tools/sut_health.py missing",
+            returncode=1,
+            failure_code="HEALTH-NO-SERVER",
+        )
+        return
 def stage_s2(context: StageContext) -> str:
     run_command(["cargo", "fetch", "--locked"], context, "S2-CARGO-FETCH", "cargo fetch falhou")
     run_command(["cargo", "build", "--locked", "--all-targets", "--quiet"], context, "S2-CARGO-BUILD", "cargo build falhou")
@@ -222,12 +371,514 @@ def prepare_variant_dir(stage: str, variant: str) -> Path:
     return target
 
 
+def trim_output(value: str | None, limit: int = 4000) -> str:
+    if not value:
+        return ""
+    if len(value) <= limit:
+        return value
+    trimmed = value[:limit]
+    suffix = f"\n...[truncated {len(value) - limit} chars]"
+    return trimmed + suffix
+
+
+def execute_command(name: str, command: Sequence[object], stage_code: str) -> CommandOutcome:
+    argv = [str(part) for part in command]
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        detail = f"{ERROR_PREFIX}-{stage_code}-MISSING: {name} ({exc})"
+        return CommandOutcome(
+            name=name,
+            command=argv,
+            status="FAIL",
+            returncode=127,
+            detail=detail,
+            stdout="",
+            stderr=str(exc),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        detail = f"{ERROR_PREFIX}-{stage_code}-UNEXPECTED: {name} ({exc})"
+        return CommandOutcome(
+            name=name,
+            command=argv,
+            status="FAIL",
+            returncode=1,
+            detail=detail,
+            stdout="",
+            stderr=str(exc),
+        )
+
+    status = "PASS" if completed.returncode == 0 else "FAIL"
+    if status == "PASS":
+        detail = f"{name} succeeded."
+    else:
+        detail = f"{ERROR_PREFIX}-{stage_code}-CMD: {name} exited {completed.returncode}."
+    return CommandOutcome(
+        name=name,
+        command=argv,
+        status=status,
+        returncode=completed.returncode,
+        detail=detail,
+        stdout=trim_output(completed.stdout),
+        stderr=trim_output(completed.stderr),
+    )
+
+
+def run_healthcheck(stage_code: str = "S1") -> CommandOutcome:
+    name = "SUT healthcheck"
+    command = ["node", str(BASE_DIR / "scripts" / "sut-server.js")]
+    try:
+        proc = subprocess.Popen(
+            command,
+            cwd=BASE_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH-MISSING: node not found ({exc})"
+        return CommandOutcome(
+            name=name,
+            command=[str(part) for part in command],
+            status="FAIL",
+            returncode=127,
+            detail=detail,
+            stdout="",
+            stderr=str(exc),
+        )
+
+    stdout = ""
+    stderr = ""
+    status = "FAIL"
+    detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH: health endpoint unavailable"
+    try:
+        url = "http://127.0.0.1:8080/health"
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                raise StageExecutionError("sut-server exited before responding")
+            try:
+                with urllib_request.urlopen(url, timeout=1) as response:
+                    payload = response.read().decode("utf-8")
+                data = json.loads(payload)
+            except (urllib_error.URLError, TimeoutError, json.JSONDecodeError):
+                time.sleep(0.2)
+                continue
+            status_value = str(data.get("status", "")).lower()
+            if status_value == "ok":
+                status = "PASS"
+                detail = "SUT health endpoint responded with status=ok."
+            else:
+                detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH: unexpected payload {data!r}"
+            break
+        else:
+            detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH: timeout waiting for health response"
+    except StageExecutionError as exc:
+        detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH: {exc}"
+    except Exception as exc:  # pragma: no cover - defensive
+        detail = f"{ERROR_PREFIX}-{stage_code}-HEALTH: {exc}"
+    finally:
+        try:
+            proc.terminate()
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+        stdout = trim_output(stdout)
+        stderr = trim_output(stderr)
+
+    return CommandOutcome(
+        name=name,
+        command=[str(part) for part in command],
+        status=status,
+        returncode=0 if status == "PASS" else 1,
+        detail=detail,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def stage_s1(_: Path) -> StageBundle:
+    checks = [
+        execute_command("Ruff lint", [PYTHON, "-m", "ruff", "check", "."], "S1"),
+        execute_command("Ruff format", [PYTHON, "-m", "ruff", "format", "--check", "."], "S1"),
+        execute_command("Pytest", [PYTHON, "-m", "pytest", "-q"], "S1"),
+        run_healthcheck(),
+    ]
+    return StageBundle(stage="s1", checks=checks)
+
+
+def stage_s2(_: Path) -> StageBundle:
+    checks = [
+        execute_command("Cargo fmt", ["cargo", "fmt", "--all", "--", "--check"], "S2"),
+        execute_command(
+            "Cargo build",
+            ["cargo", "build", "--workspace", "--all-targets", "--locked"],
+            "S2",
+        ),
+        execute_command(
+            "Cargo test",
+            [
+                "cargo",
+                "test",
+                "--workspace",
+                "--lib",
+                "--bins",
+                "--tests",
+            ],
+            "S2",
+        ),
+        execute_command("Microbench DEC", ["bash", "scripts/microbench_dec.sh"], "S2"),
+    ]
+    return StageBundle(stage="s2", checks=checks)
+
+
+def stage_s3(_: Path) -> StageBundle:
+    checks = [
+        execute_command("T2 unit observability", [PYTHON, "scripts/orr_t2_parse_unit.py"], "S3"),
+        execute_command("Trace/log smoke", [PYTHON, "scripts/obs_trace_log_smoke.py"], "S3"),
+        execute_command("Cardinality costs", [PYTHON, "scripts/obs_cardinality_costs.py"], "S3"),
+        execute_command(
+            "Bundle report",
+            [PYTHON, "scripts/obs_bundle_report.py", "--bundle", "out/obs_gatecheck"],
+            "S3",
+        ),
+    ]
+    metadata = {"bundle_dir": str(Path("out/obs_gatecheck"))}
+    return StageBundle(stage="s3", checks=checks, metadata=metadata)
+
+
+def stage_s4(_: Path) -> StageBundle:
+    checks = [
+        execute_command("Yamllint workflows", ["yamllint", ".github/workflows"], "S4"),
+        execute_command("Yamllint ops", ["yamllint", "ops"], "S4"),
+        execute_command("Repo denylist", ["bash", "scripts/ci_repo_guard.sh"], "S4"),
+        execute_command("TLA ASCII guard", ["bash", "scripts/tla_ascii_guard.sh"], "S4"),
+    ]
+    return StageBundle(stage="s4", checks=checks)
+
+
+def stage_s5(stage_dir: Path) -> StageBundle:
+    dashboard = BASE_DIR / "dashboards" / "grafana" / "scorecards_quorum_failover_staleness.json"
+    jq_script = textwrap.dedent(
+        """
+        def has_panel(id; title; expr) {
+          any(
+            .panels[];
+            .id == id and
+            .title == title and
+            .type == "stat" and
+            (.targets | length == 1) and
+            .targets[0].expr == expr
+          )
+        };
+        .title == "Scorecards Quorum Failover Staleness" and
+        .time.from == "now-24h" and
+        .time.to == "now" and
+        (.templating.list == []) and
+        (.schemaVersion >= 38) and
+        (.version == 1) and
+        (.panels | length == 5) and
+        has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\\\"prod\\\"})") and
+        has_panel(2; "Failover Time p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\\\"prod\\\"})") and
+        has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_ms{env=\\\"prod\\\"}) / 1000") and
+        has_panel(4; "CDC Lag p95 (s)"; "max(quantile_over_time(0.95, cdc_lag_seconds{env=\\\"prod\\\"}[5m]))") and
+        has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_p95{env=\\\"prod\\\"}) * 100")
+        """
+    ).strip()
+    checks = [
+        execute_command(
+            "Dashboard contract (jq)",
+            ["jq", "-e", jq_script, str(dashboard)],
+            "S5",
+        )
+    ]
+    metadata = {"dashboard": str(dashboard.relative_to(BASE_DIR))}
+    return StageBundle(stage="s5", checks=checks, metadata=metadata)
+
+
+def stage_s6(_: Path) -> StageBundle:
+    scorecards_dir = BASE_DIR / "out" / "s6_scorecards"
+    checks = [
+        execute_command("Generate scorecards", [PYTHON, "scripts/scorecards/s6_scorecards.py"], "S6"),
+        execute_command(
+            "Scorecards schema",
+            [
+                PYTHON,
+                "-m",
+                "jsonschema",
+                "--instance",
+                str(scorecards_dir / "report.json"),
+                "--schema",
+                "schemas/report.schema.json",
+            ],
+            "S6",
+        ),
+        execute_command(
+            "Scorecards guard",
+            ["bash", "scripts/watchers/s6_scorecard_guard.sh"],
+            "S6",
+        ),
+    ]
+    metadata: Dict[str, object] = {}
+    if scorecards_dir.exists():
+        metadata["scorecards_dir"] = str(scorecards_dir.relative_to(BASE_DIR))
+        bundle_path = scorecards_dir / "bundle.sha256"
+        if bundle_path.exists():
+            metadata["scorecards_bundle_sha256"] = bundle_path.read_text(encoding="utf-8").strip()
+    return StageBundle(stage="s6", checks=checks, metadata=metadata)
+
+
+STAGE_HANDLERS: Mapping[str, Callable[[Path], StageBundle]] = {
+    "s1": stage_s1,
+    "s2": stage_s2,
+    "s3": stage_s3,
+    "s4": stage_s4,
+    "s5": stage_s5,
+    "s6": stage_s6,
+}
+
+
+def serialise_outcome(outcome: CommandOutcome) -> Dict[str, object]:
+    payload: Dict[str, object] = {
+        "name": outcome.name,
+        "command": outcome.command,
+        "status": outcome.status,
+        "returncode": outcome.returncode,
+        "detail": outcome.detail,
+    }
+    if outcome.stdout:
+        payload["stdout"] = outcome.stdout
+    if outcome.stderr:
+        payload["stderr"] = outcome.stderr
+    return payload
+
 def write_outputs(directory: Path, payload: Dict[str, object]) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "result.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (directory / "guard_status.txt").write_text(f"{payload['status']}\n", encoding="utf-8")
 
+    start = time.monotonic()
+    process = subprocess.Popen(
+        [sys.executable, str(server_path)],
+        cwd=BASE_DIR,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    body = ""
+    status_code: int | None = None
+    error: Exception | None = None
+    try:
+        time.sleep(0.5)
+        with urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=5) as response:
+            status_code = response.status
+            body = response.read().decode("utf-8")
+        if status_code != 200:
+            raise RuntimeError(f"unexpected HTTP {status_code}")
+    except Exception as exc:  # pragma: no cover - defensive path
+        error = exc
+    finally:
+        with contextlib.suppress(Exception):
+            process.terminate()
+        with contextlib.suppress(Exception):
+            process.wait(timeout=2)
 
+    stdout = ""
+    stderr = ""
+    with contextlib.suppress(Exception):
+        captured = process.communicate(timeout=1)
+        stdout = captured[0]
+        stderr = captured[1]
+
+    duration = time.monotonic() - start
+    if error is not None:
+        ctx.record(
+            "sut_healthcheck",
+            stdout=stdout,
+            stderr=f"{stderr}\n{error}",
+            duration=duration,
+            returncode=1,
+            failure_code="HEALTHCHECK",
+        )
+    else:
+        ctx.record(
+            "sut_healthcheck",
+            stdout=textwrap.dedent(
+                f"HTTP {status_code}\n{body.strip()}"
+            ),
+            stderr=stderr,
+            duration=duration,
+        )
+
+
+def stage_s1(ctx: StageContext) -> str:
+    ctx.run(["yamllint", "."], failure_code="YAML-LINT")
+    ctx.run(["ruff", "check", "."], failure_code="LINT")
+    ctx.run(["ruff", "format", "--check", "."], failure_code="FORMAT")
+    ctx.run([sys.executable, "-m", "pytest", "-q"], failure_code="TESTS")
+    run_sut_healthcheck(ctx)
+    return "YAML linting, formatting, tests, and SUT healthcheck succeeded."
+
+
+def stage_s2(ctx: StageContext) -> str:
+    ctx.run(["cargo", "fetch", "--locked"], failure_code="CARGO-FETCH")
+    ctx.run(["cargo", "build", "--locked", "--workspace"], failure_code="CARGO-BUILD")
+    ctx.run(
+        ["cargo", "test", "--locked", "--workspace"],
+        failure_code="CARGO-TEST",
+    )
+    ctx.run(["bash", "scripts/microbench_dec.sh"], failure_code="MICROBENCH")
+    fixture = BASE_DIR / "fixtures" / "microbench" / "baseline.txt"
+    if fixture.exists():
+        ctx.run(
+            [sys.executable, "scripts/verify_microbench.py", str(fixture)],
+            failure_code="MICROBENCH-VERIFY",
+        )
+    return "Cargo build/test and microbench thresholds satisfied."
+
+
+def stage_s3(ctx: StageContext) -> str:
+    ctx.run(["bash", "scripts/obs_probe_synthetic.sh"], failure_code="PROBE")
+    ctx.run([sys.executable, "scripts/prom_label_lint.py"], failure_code="LABELS")
+    ctx.run([sys.executable, "scripts/obs_trace_log_smoke.py"], failure_code="TRACE-SMOKE")
+    ctx.run(
+        [sys.executable, "scripts/obs_bundle_report.py"],
+        failure_code="BUNDLE-REPORT",
+    )
+    return "Observability smoke validations completed."
+
+
+def _load_json(path: Path, failure_code: str, ctx: StageContext) -> dict:
+    if not path.exists():
+        ctx.record(
+            f"load:{path.name}",
+            stdout="",
+            stderr=f"Missing file: {path}",
+            returncode=1,
+            failure_code=failure_code,
+        )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        ctx.record(
+            f"load:{path.name}",
+            stdout="",
+            stderr=f"Invalid JSON in {path}: {exc}",
+            returncode=1,
+            failure_code=failure_code,
+        )
+    else:
+        ctx.record(f"load:{path.name}", stdout=json.dumps(data, indent=2))
+        return data
+    raise AssertionError("unreachable")
+
+
+def stage_s4(ctx: StageContext) -> str:
+    bundle_dir = BASE_DIR / "out" / "obs_gatecheck"
+    summary = _load_json(bundle_dir / "summary.json", "ORR-SUMMARY", ctx)
+    acceptance = summary.get("acceptance")
+    gatecheck = summary.get("gatecheck")
+    if acceptance != "OK" or gatecheck != "OK":
+        ctx.record(
+            "summary-status",
+            stdout=json.dumps({"acceptance": acceptance, "gatecheck": gatecheck}),
+            stderr="Gatecheck or acceptance not OK",
+            returncode=1,
+            failure_code="ORR-STATUS",
+        )
+    else:
+        ctx.record(
+            "summary-status",
+            stdout=json.dumps({"acceptance": acceptance, "gatecheck": gatecheck}),
+        )
+
+    bundle_hash_path = bundle_dir / "bundle.sha256.txt"
+    if not bundle_hash_path.exists():
+        ctx.record(
+            "bundle-hash",
+            stdout="",
+            stderr="bundle.sha256.txt missing",
+            returncode=1,
+            failure_code="ORR-BUNDLE",
+        )
+    else:
+        hash_line = bundle_hash_path.read_text(encoding="utf-8").strip()
+        hash_value = hash_line.split()[0] if hash_line else ""
+        if len(hash_value) != 64:
+            ctx.record(
+                "bundle-hash",
+                stdout=hash_line,
+                stderr="Invalid SHA-256 length",
+                returncode=1,
+                failure_code="ORR-BUNDLE",
+            )
+        else:
+            ctx.record("bundle-hash", stdout=hash_line)
+
+    log_path = bundle_dir / "logs" / "orr_all.txt"
+    if not log_path.exists():
+        ctx.record(
+            "orr-log",
+            stdout="",
+            stderr="logs/orr_all.txt missing",
+            returncode=1,
+            failure_code="ORR-LOG",
+        )
+    else:
+        content = log_path.read_text(encoding="utf-8")
+        if "ACCEPTANCE_OK" not in content or "GATECHECK_OK" not in content:
+            ctx.record(
+                "orr-log",
+                stdout="",
+                stderr="Required markers not found in orr_all.txt",
+                returncode=1,
+                failure_code="ORR-LOG",
+            )
+        else:
+            ctx.record(
+                "orr-log",
+                stdout="Markers OK",
+            )
+
+    return "ORR lite validations succeeded."
+
+
+def stage_s5(ctx: StageContext) -> str:
+    dashboard = BASE_DIR / "dashboards" / "grafana" / "scorecards_quorum_failover_staleness.json"
+    ctx.run(
+        [
+            "jq",
+            "-e",
+            ".title == \"Scorecards Quorum Failover Staleness\"",
+            str(dashboard),
+        ],
+        failure_code="DASHBOARD-TITLE",
+    )
+    ctx.run(
+        ["jq", "-e", ".time.from == \"now-24h\"", str(dashboard)],
+        failure_code="DASHBOARD-TIME",
+    )
+    ctx.run(
+        ["jq", "-e", ".time.to == \"now\"", str(dashboard)],
+        failure_code="DASHBOARD-TIME",
+    )
+    ctx.run(
+        ["jq", "-e", ".panels | length == 5", str(dashboard)],
+        failure_code="DASHBOARD-PANELS",
+    )
+    expressions = {
+        "Guard Status": "avg(scorecard_guard_status)",
+        "Latency p50": "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))",
+        "Latency p95": "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))",
+        "Scorecard Freshness (m)": "(time() - max(scorecard_last_run_timestamp)) / 60",
+        "Boss Aggregate Ratio": "avg(q1_boss_final_ratio)",
 def execute_stage(stage: str, variant: str) -> Dict[str, object]:
     handler = STAGE_HANDLERS.get(stage)
     if handler is None:
@@ -275,8 +926,107 @@ def run_static_stage(definition: StageDefinition) -> Dict[str, str]:
         "description": definition.description,
         "on_fail": definition.on_fail,
     }
+    for title, expr in expressions.items():
+        jq_filter = textwrap.dedent(
+            f"""
+            .panels[] | select(.title == \"{title}\") | (.type == \"stat\") and (.targets | length == 1) and (.targets[0].expr == \"{expr}\")
+            """
+        ).strip()
+        ctx.run(["jq", "-e", jq_filter, str(dashboard)], failure_code="DASHBOARD-CARD")
+    return "Grafana dashboard structure validated via jq."
 
 
+def stage_s6(ctx: StageContext) -> str:
+    ctx.run([sys.executable, "scripts/scorecards/s6_scorecards.py"], failure_code="SCORECARDS")
+    ctx.run(
+        [
+            sys.executable,
+            "-m",
+            "jsonschema",
+            "--instance",
+            "out/s6_scorecards/report.json",
+            "--schema",
+            "schemas/report.schema.json",
+        ],
+        failure_code="SCORECARDS-SCHEMA",
+    )
+    return "Scorecards generated and schema-validated."
+
+def ensure_stage_dir(stage: str) -> Path:
+    stage_dir = STAGES_ROOT / stage
+    if stage_dir.exists():
+        shutil.rmtree(stage_dir)
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    return stage_dir
+
+
+def write_stage_bundle(stage_dir: Path, bundle: StageBundle) -> None:
+    payload: Dict[str, object] = {
+        "schema_version": SCHEMA_VERSION,
+        "stage": bundle.stage,
+        "status": bundle.status,
+        "notes": bundle.notes,
+        "checks": [serialise_outcome(outcome) for outcome in bundle.checks],
+    }
+    if bundle.metadata:
+        payload["metadata"] = bundle.metadata
+    (stage_dir / RESULT_FILENAME).write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (stage_dir / GUARD_FILENAME).write_text(bundle.status + "\n", encoding="utf-8")
+
+
+def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Executa guardas de sprint para o Boss Final")
+    parser.add_argument("--stage", required=True, help="Identificador do estágio (s1..s6)")
+    return parser.parse_args(list(argv) if argv is not None else None)
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    args = parse_args(argv)
+    stage = args.stage.lower().strip()
+    handler = STAGE_HANDLERS.get(stage)
+    if handler is None:
+        fail("STAGE-UNKNOWN", f"Stage desconhecido: {stage}")
+    STAGES_ROOT.mkdir(parents=True, exist_ok=True)
+    stage_dir = ensure_stage_dir(stage)
+    bundle = handler(stage_dir)
+    if bundle.stage != stage:
+        fail("STAGE-MISMATCH", f"Handler retornou estágio {bundle.stage} para {stage}")
+    write_stage_bundle(stage_dir, bundle)
+    print(f"{bundle.status} {stage.upper()}: {bundle.notes}")
+STAGE_RUNNERS = {
+    "s1": stage_s1,
+    "s2": stage_s2,
+    "s3": stage_s3,
+    "s4": stage_s4,
+    "s5": stage_s5,
+    "s6": stage_s6,
+}
+
+
+def truncate(value: str, limit: int = 4000) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3] + "..."
+
+
+def write_stage_artifacts(
+    stage: str,
+    status: str,
+    notes: str,
+    ctx: StageContext,
+    started_at: datetime,
+    finished_at: datetime,
+) -> Path:
+    stage_dir = ensure_stage_dir(stage)
+    command_entries = [
+        {
+            "name": record.name,
+            "command": list(record.command) if record.command is not None else None,
+            "returncode": record.returncode,
+            "duration_seconds": round(record.duration_seconds, 3),
 def run_stage(stage: str) -> Dict[str, str]:
     if stage in STATIC_STAGES:
         return run_static_stage(STATIC_STAGES[stage])
@@ -307,13 +1057,88 @@ def run_stage(stage: str) -> Dict[str, str]:
             "bundle_sha256": report["bundle"]["sha256"],
             "on_fail": "Executar playbook de estabilização da Sprint 6 e rodar watchers.",
         }
-    fail("UNKNOWN-STAGE", f"Stage desconhecido: {stage}")
-    raise AssertionError("unreachable")
+        for record in ctx.records
+    ]
+    payload = {
+        "schema_version": 1,
+        "stage": stage,
+        "status": status,
+        "notes": notes,
+        "started_at": started_at.isoformat(),
+        "completed_at": finished_at.isoformat(),
+        "commands": command_entries,
+    }
+    (stage_dir / "stage.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (stage_dir / "guard_status.txt").write_text(status + "\n", encoding="utf-8")
+
+    log_lines: List[str] = []
+    for record in ctx.records:
+        prefix = f"$ {record.name}" if record.command else f"# {record.name}"
+        log_lines.append(prefix)
+        log_lines.append(
+            f"exit_code={record.returncode} duration={record.duration_seconds:.3f}s"
+        )
+        if record.stdout:
+            log_lines.append("--- stdout ---")
+            log_lines.append(truncate(record.stdout))
+        if record.stderr:
+            log_lines.append("--- stderr ---")
+            log_lines.append(truncate(record.stderr))
+        log_lines.append("")
+    (stage_dir / "commands.log").write_text("\n".join(log_lines).strip() + "\n", encoding="utf-8")
+
+    summary_lines = [
+        f"### Stage {stage.upper()} — {status}",
+        "",
+        f"- Notes: {notes}",
+        f"- Commands executed: {len(ctx.records)}",
+        f"- Completed at: {finished_at.isoformat()}",
+    ]
+    if status != "PASS":
+        summary_lines.append("- See commands.log for detailed failure output.")
+    (stage_dir / "comment.md").write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    return stage_dir
 
 
-def main() -> int:
+def main(argv: Iterable[str] | None = None) -> int:
     parser = ArgumentParser(description="Executa guardas de sprint para o Boss Final")
     parser.add_argument("--stage", required=True, help="Identificador do estágio (s1..s6)")
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    stage = args.stage.lower().strip()
+    if stage not in STAGE_RUNNERS:
+        raise SystemExit(f"{ERROR_PREFIX}-UNKNOWN-STAGE:Stage desconhecido: {stage}")
+
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    ctx = StageContext(stage)
+    started_at = datetime.now(timezone.utc).replace(microsecond=0)
+    status = "PASS"
+    notes = ""
+    failure: StageFailure | None = None
+
+    try:
+        notes = STAGE_RUNNERS[stage](ctx)
+    except StageFailure as exc:
+        status = "FAIL"
+        notes = exc.message
+        failure = exc
+    except Exception as exc:  # pragma: no cover - unexpected failure path
+        status = "FAIL"
+        notes = f"Unexpected error: {exc}"
+        failure = StageFailure("UNEXPECTED", notes)
+    finished_at = datetime.now(timezone.utc).replace(microsecond=0)
+
+    write_stage_artifacts(stage, status, notes, ctx, started_at, finished_at)
+
+    if status != "PASS":
+        error_code = failure.code if failure else "FAIL"
+        print(f"{ERROR_PREFIX}-{error_code}:{notes}", file=sys.stderr)
+        return 1
+
+    print(f"PASS {stage.upper()}")
     parser.add_argument("--variant", default="primary", help="Rótulo do ambiente/runner (ex: primary, clean)")
     args = parser.parse_args()
     stage = args.stage.lower().strip()
@@ -333,5 +1158,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

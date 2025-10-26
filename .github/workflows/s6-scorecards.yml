@@ -68,7 +68,7 @@ jobs:
 
       - name: Ruff lint
         timeout-minutes: 5
-        run: ruff check scripts/
+        run: ruff scripts/
 
       - name: Ruff format check
         timeout-minutes: 5
@@ -161,8 +161,8 @@ jobs:
           fi
         id: guard
 
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
+      - name: Publish scorecard summary
+        if: always()
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         with:
           script: |
@@ -185,6 +185,7 @@ jobs:
               }
             }
 
+            if (context.eventName === 'pull_request') {
             try {
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -196,10 +197,22 @@ jobs:
               core.warning(`Falha ao criar comentário no PR: ${error.message}`);
             } finally {
               try {
-                core.summary.addHeading('S6 Scorecards');
-                core.summary.addRaw(body);
-                await core.summary.write();
-              } catch (summaryError) {
-                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body,
+                });
+              } catch (error) {
+                core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
               }
+            }
+
+            try {
+              core.summary.addHeading('S6 Scorecards');
+              core.summary.addRaw(body);
+              core.summary.addEOL();
+              await core.summary.write();
+            } catch (summaryError) {
+              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
             }
