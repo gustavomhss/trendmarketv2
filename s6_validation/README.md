@@ -12,6 +12,7 @@ This directory stores the static inputs that power the Sprint 6 scorecard gate d
 ## Schemas and versioning
 
 - Both files conform to Draft-07 JSON Schemas committed under `schemas/thresholds.schema.json` and `schemas/metrics.schema.json`.
+- Validation in CI and local runs relies on the upstream [`jsonschema`](https://pypi.org/project/jsonschema/) package pinned at `4.23.0` (see `requirements.lock`).
 - The `schema_version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
 - Timestamps (`generated_at`, `collected_at`) use RFC 3339 and should reflect the source extraction moment.
 

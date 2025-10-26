@@ -18,6 +18,8 @@ ERROR_PREFIX = "BOSS-E"
 
 STAGES = ["s1", "s2", "s3", "s4", "s5", "s6"]
 
+SCHEMA_VERSION = 1
+
 
 def fail(code: str, message: str) -> None:
     print(f"FAIL {ERROR_PREFIX}-{code}:{message}")
@@ -166,7 +168,7 @@ def build_report(stages: List[Dict[str, str]]) -> Dict[str, object]:
     bundle_content = json.dumps(items, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     bundle_hash = __import__("hashlib").sha256(bundle_content).hexdigest()
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "generated_at": generated_at,
         "summary": summary,
         "stages": items,
