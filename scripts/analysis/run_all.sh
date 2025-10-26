@@ -48,11 +48,11 @@ INDEX_FILE="$EVID/analysis/index.html"
 
 # Se o caminho efetivo do EVID for o default "canônico", exibir caminho relativo no comando copiado
 # (melhor DX ao colar no terminal)
-_default_abs="$(cd "$DEFAULT_EVID" && pwd -P 2>/dev/null || echo "$DEFAULT_EVID")"
+_default_abs="$(cd "$DEFAULT_EVID" 2>/dev/null && pwd -P 2>/dev/null || echo "$DEFAULT_EVID")"
 _evid_abs="$(cd "$EVID" && pwd -P 2>/dev/null || echo "$EVID")"
 COMMAND_OUT="$_evid_abs"
 if [[ "$_evid_abs" == "$_default_abs" ]]; then
-  COMMAND_OUT="out/orr_gatecheck/evidence"
+  COMMAND_OUT="out/obs_gatecheck/evidence"
 fi
 
 COMMAND="bash scripts/analysis/run_all.sh --out ${COMMAND_OUT} --seed-dir seeds"
