@@ -17,26 +17,26 @@
 │ bundle.sha256 → provenance   │ spec_check + refmap     │ hash_manifest │
 └──────────────────────────────┴─────────────────────────┴──────────┘
                  ↓                        ↓                      ↓
-            out/orr_gatecheck       PR comment DX         artifacts ORR
+            out/obs_gatecheck       PR comment DX         artifacts ORR
 ```
 
 ### Contrato do EVID (evidence directory)
 
-Precedência: **Ambiente (`EVID`)** → **Flag CLI (`--out`/`--evidence`)** → **Default** (`out/orr_gatecheck/evidence`).
+Precedência: **Ambiente (`EVID`)** → **Flag CLI (`--out`/`--evidence`)** → **Default** (`out/obs_gatecheck/evidence`).
 Todos os scripts aceitam `--out`/`--evidence` e respeitam `EVID` se definido.
 
 ## Tempo-alvo de publicação on-chain
 
 * **SLO:** publicar `merkle_root` + `bundle.sha256` em ≤ 5 minutos após `STATUS: PASS`.
 * **Fallback:** utilizar Base Sepolia em modo `--dry-run` + WORM até que `L2_ENDPOINT`/wallet estejam ativos.
-* **Procedimento real:** executar `bash scripts/provenance/publish_root.sh --evidence out/orr_gatecheck/evidence` sem `--dry-run` com as variáveis `L2_*` presentes.
+* **Procedimento real:** executar `bash scripts/provenance/publish_root.sh --evidence out/obs_gatecheck/evidence` sem `--dry-run` com as variáveis `L2_*` presentes.
 
 ## Como rodar o pipeline
 
-1. Execute localmente: `bash scripts/orr_all.sh --seed-dir seeds`.
-2. Confira `out/orr_gatecheck/evidence/spec_check.txt` (esperado `RESULT=PASS`).
-3. Inspecione `out/orr_gatecheck/evidence/analysis/index.html` para o índice de evidências (botão “Copiar comando”).
-4. O bundle completo e hashes ficam em `out/orr_gatecheck/evidence/` e `out/sim/` (SimCity fast + nightly).
+1. Execute localmente: `RUN_PROFILE=fast bash scripts/orr_all.sh --seed-dir seeds` (modo rápido) ou `RUN_PROFILE=full bash scripts/orr_all.sh --seed-dir seeds` (modo completo).
+2. Confira `out/obs_gatecheck/evidence/spec_check.txt` (esperado `RESULT=PASS`).
+3. Inspecione `out/obs_gatecheck/evidence/analysis/index.html` para o índice de evidências (botão “Copiar comando”).
+4. O bundle completo e hashes ficam em `out/obs_gatecheck/evidence/` e `out/sim/` (SimCity fast + nightly).
 
 ## CI — GitHub Actions
 

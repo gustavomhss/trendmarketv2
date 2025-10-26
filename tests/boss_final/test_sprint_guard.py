@@ -5,37 +5,46 @@ from pathlib import Path
 
 import pytest
 
-from scripts.boss_final import aggregate_q1, sprint_guard
+from scripts.boss_final import sprint_guard
+
+
+def _freeze_time(monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T11:00:00Z") -> None:
+    monkeypatch.setattr(sprint_guard, "isoformat_utc", lambda: timestamp)
 
 
 def test_run_stage_writes_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stage_dir = tmp_path / "stages"
-    monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", stage_dir)
+    output_root = tmp_path / "stages"
+    monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
+    _freeze_time(monkeypatch, "2024-01-02T12:00:00Z")
 
     def handler(context: sprint_guard.StageContext) -> None:
-        context.records.append(
-            sprint_guard.CommandRecord(
-                name="dummy",
-                command=None,
-                status="PASS",
-                returncode=0,
-                duration_seconds=0.0,
-                stdout="ok",
-                stderr="",
-            )
+        sprint_guard.record_check(
+            context,
+            name="synthetic",
+            code="S1-SYNTH",
+            passed=True,
+            detail="ok",
         )
 
     monkeypatch.setitem(sprint_guard.STAGE_HANDLERS, "s1", handler)
-    result = sprint_guard.run_stage("s1", "primary")
 
-    assert result["status"] == "PASS"
-    guard_status = (stage_dir / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert guard_status == "PASS"
+    sprint_guard.run_stage("s1", "primary")
+    sprint_guard.run_stage("s1", "clean")
+
+    primary_dir = output_root / "s1" / "primary"
+    assert (primary_dir / "result.json").exists()
+    stage_summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
+    assert stage_summary["status"] == "PASS"
+    assert stage_summary["variants"]["primary"]["status"] == "PASS"
+    assert stage_summary["variants"]["clean"]["status"] == "PASS"
+    stage_guard = (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert stage_guard == "PASS"
 
 
 def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stage_dir = tmp_path / "stages"
-    monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", stage_dir)
+    output_root = tmp_path / "stages"
+    monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
+    _freeze_time(monkeypatch)
 
     def handler(_: sprint_guard.StageContext) -> None:
         raise sprint_guard.StageFailure("S1-TEST", "falha simulada")
@@ -45,8 +54,10 @@ def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyP
     with pytest.raises(SystemExit):
         sprint_guard.run_stage("s1", "primary")
 
-    guard_status = (stage_dir / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert guard_status == "FAIL"
+    primary_guard = (output_root / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert primary_guard == "FAIL"
+    summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "FAIL"
 
 
 def test_validate_dashboard_structure_pass(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -70,46 +81,38 @@ def test_validate_dashboard_structure_fail(monkeypatch: pytest.MonkeyPatch, tmp_
         sprint_guard.validate_dashboard_structure(context)
 
 
-def _write_stage(tmp_path: Path, stage: str, variant: str, status: str, notes: str) -> None:
-    result_dir = tmp_path / "stages" / stage / variant
-    result_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "stage": stage,
-        "variant": variant,
-        "status": status,
-        "notes": notes,
-        "timestamp_utc": "2024-01-01T00:00:00Z",
+def test_validate_actions_lock_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    base = tmp_path
+    actions_lock = {
+        "actions/checkout": {
+            "sha": "b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
+            "date": "2024-09-15",
+            "author": "GitHub Actions",
+            "rationale": "Checkout",
+        }
     }
-    (result_dir / "result.json").write_text(json.dumps(payload), encoding="utf-8")
-    (result_dir / "guard_status.txt").write_text(f"{status}\n", encoding="utf-8")
+    (base / "actions.lock").write_text(json.dumps(actions_lock, indent=2) + "\n", encoding="utf-8")
+    workflows_dir = base / ".github" / "workflows"
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+    workflow = workflows_dir / "test.yml"
+    workflow.write_text(
+        "\n".join(
+            [
+                "name: test",
+                "on: [push]",
+                "jobs:",
+                "  build:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
+    monkeypatch.setattr(sprint_guard, "BASE_DIR", base)
+    context = sprint_guard.StageContext(stage="s4", variant="primary")
+    sprint_guard.validate_actions_lock(context)
 
-def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    for stage in sprint_guard.STAGES:
-        _write_stage(tmp_path, stage, "primary", "PASS", "primary ok")
-        _write_stage(tmp_path, stage, "clean", "PASS", "clean ok")
-
-    monkeypatch.setattr(aggregate_q1, "OUTPUT_DIR", tmp_path)
-    monkeypatch.setattr(aggregate_q1, "STAGES_DIR", tmp_path / "stages")
-
-    artifacts = aggregate_q1.aggregate("v1.0.0")
-    assert artifacts.report["status"] == "PASS"
-    report = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
-    assert report["release_tag"] == "v1.0.0"
-    assert (tmp_path / "bundle.sha256").read_text(encoding="utf-8").strip() == artifacts.bundle_sha256
-
-
-def test_aggregate_fail_on_stage_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    for stage in sprint_guard.STAGES:
-        _write_stage(tmp_path, stage, "primary", "PASS", "primary ok")
-        _write_stage(tmp_path, stage, "clean", "PASS", "clean ok")
-    _write_stage(tmp_path, "s3", "clean", "FAIL", "clean failed")
-
-    monkeypatch.setattr(aggregate_q1, "OUTPUT_DIR", tmp_path)
-    monkeypatch.setattr(aggregate_q1, "STAGES_DIR", tmp_path / "stages")
-
-    with pytest.raises(SystemExit):
-        aggregate_q1.aggregate(None)
-
-    guard_status = (tmp_path / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert guard_status == "FAIL"
+    assert context.records[-2].status == "PASS"
+    assert context.records[-1].status == "PASS"

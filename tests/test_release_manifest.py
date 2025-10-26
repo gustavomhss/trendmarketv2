@@ -45,7 +45,6 @@ class ReleaseManifestTests(unittest.TestCase):
                     "profile": "full",
                     "ts": "2025-10-10T00:00:00Z",
                 },
-                {"acceptance": "OK", "gatecheck": "OK", "profile": "full"},
             )
 
             bundle = out_dir / "bundle.zip"
@@ -89,6 +88,7 @@ class ReleaseManifestTests(unittest.TestCase):
             _write_json(
                 evidence / "pii_probe.json", {"status": "OK", "cpf": False}
             )
+            (evidence / "pii_labels.ok").write_text("LABELS_OK\n", encoding="utf-8")
             _write_json(evidence / "chaos_summary.json", {"status": "GREEN"})
             _write_json(evidence / "baseline_perf.json", {"qps": 125})
             _write_json(evidence / "golden_traces.json", {"spans": 4})
@@ -106,8 +106,10 @@ class ReleaseManifestTests(unittest.TestCase):
 
             self.assertEqual(manifest["bundle"]["sha256"], "deadbeef")
             self.assertTrue(manifest["evidence_checks"]["metrics_summary"])
+            self.assertTrue(manifest["evidence_checks"]["pii_labels"])
             self.assertEqual(manifest["synthetic_probe"]["ok_ratio"], 1.0)
             self.assertEqual(manifest["watchers"]["alerts_count"], 1)
+            self.assertTrue(manifest["evidence_checks"]["pii_labels"])
             self.assertEqual(
                 manifest["drills"]["trace_log_smoke"]["observability_level"],
                 "full",
@@ -132,7 +134,6 @@ class ReleaseManifestTests(unittest.TestCase):
             _write_json(
                 out_dir / "summary.json",
                 {"acceptance": "FAIL", "gatecheck": "OK", "ts": "2025-10-10T00:00:00Z"},
-                out_dir / "summary.json", {"acceptance": "FAIL", "gatecheck": "OK"}
             )
 
             with self.assertRaises(ReleaseManifestError) as ctx:
@@ -150,7 +151,6 @@ class ReleaseManifestTests(unittest.TestCase):
                     "gatecheck": "OK",
                     "ts": "2025-10-10T00:00:00Z",
                 },
-                out_dir / "summary.json", {"acceptance": "OK", "gatecheck": "OK"}
             )
             evidence = out_dir / "evidence"
             evidence.mkdir(parents=True, exist_ok=True)

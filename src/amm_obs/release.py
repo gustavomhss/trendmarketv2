@@ -76,6 +76,7 @@ def _evidence_checks(context: _Context) -> Dict[str, bool]:
         "metrics_summary": (ev / "metrics_summary.json").exists(),
         "trace_log_smoke": (ev / "trace_log_smoke.json").exists(),
         "pii_probe": (ev / "pii_probe.json").exists(),
+        "pii_labels": (ev / "pii_labels.ok").exists(),
         "synthetic_probe": (ev / "synthetic_probe.json").exists(),
         "chaos_summary": (ev / "chaos_summary.json").exists(),
         "costs_cardinality": (ev / "costs_cardinality.json").exists(),

@@ -21,6 +21,7 @@
     "metrics_summary": true,
     "trace_log_smoke": true,
     "pii_probe": true,
+    "pii_labels": true,
     "synthetic_probe": true,
     "chaos_summary": true,
     "costs_cardinality": true,
