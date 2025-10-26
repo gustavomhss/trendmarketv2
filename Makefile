@@ -56,6 +56,7 @@ sim-all:
         SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
 orr-bundle:
+	mkdir -p out && zip -r out/s4-orr-evidence.zip out/** target/** logs/** || true
         mkdir -p out && zip -r out/s5-orr-evidence.zip out/** target/** logs/** || true
 
 .PHONY: s6-scorecards q1-boss-final
@@ -64,6 +65,8 @@ s6-scorecards:
 	@set -euo pipefail; PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 python scripts/scorecards/s6_scorecards.py
 	@set -euo pipefail; python -m jsonschema --instance out/s6_scorecards/report.json --schema schemas/report.schema.json
 
+q1-boss-final: s6-scorecards
+	@set -euo pipefail; for stage in s1 s2 s3 s4 s5 s6; do PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 python scripts/boss_final/sprint_guard.py --stage $$stage; done
 q1-boss-final:
 	@set -euo pipefail; for variant in primary clean; do \
 		for stage in s1 s2 s3 s4 s5 s6; do \

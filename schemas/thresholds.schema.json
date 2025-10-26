@@ -1,4 +1,111 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sprint 6 thresholds",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "metrics"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quorum_ratio",
+        "failover_time_p95_s",
+        "staleness_p95_s",
+        "cdc_lag_p95_s",
+        "divergence_pct"
+      ],
+      "properties": {
+        "quorum_ratio": {
+          "$ref": "#/definitions/ratioThreshold"
+        },
+        "failover_time_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "staleness_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "cdc_lag_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "divergence_pct": {
+          "$ref": "#/definitions/percentThreshold"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "baseThreshold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "comparison", "unit", "description", "on_fail"],
+      "properties": {
+        "target": {
+          "type": ["string", "number"],
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+        },
+        "comparison": {
+          "type": "string",
+          "enum": ["gte", "lte"]
+        },
+        "unit": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "on_fail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ratioThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseThreshold"
+        },
+        {
+          "properties": {
+            "unit": {
+              "const": "ratio"
+            }
+          }
+        }
+      ]
+    },
+    "secondsThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseThreshold"
+        },
+        {
+          "properties": {
+            "unit": {
+              "const": "seconds"
+            }
+          }
+        }
+      ]
+    },
+    "percentThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/baseThreshold"
+        },
+        {
+          "properties": {
+            "unit": {
+              "const": "percent"
+            }
+          }
+        }
+      ]
   "$id": "https://trendmarketv2.local/schemas/thresholds.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Sprint 6 Thresholds",

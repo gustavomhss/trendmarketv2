@@ -13,6 +13,10 @@ on:
     paths:
       - '.github/workflows/q1-boss-final.yml'
       - 'scripts/boss_final/**'
+      - 'schemas/q1_boss_report.schema.json'
+      - 'scripts/scorecards/**'
+      - 's6_validation/**'
+      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
       - 'scripts/scorecards/**'
       - 'schemas/**'
       - 's6_validation/**'
@@ -38,6 +42,7 @@ jobs:
   stage:
     name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -67,6 +72,34 @@ jobs:
           python -m pip install \
             -r requirements.lock \
             ruff==0.6.8 \
+            yamllint==1.35.1 \
+            pytest==8.3.3 \
+            hypothesis==6.103.0 \
+            jsonschema==4.23.0
+
+      - name: Ensure clean workspace
+        if: ${{ matrix.clean_runner }}
+        run: |
+          rm -rf "$HOME/.cache/pip"
+          rm -rf "$HOME/.cache/pytest"
+
+      - name: Execute sprint guard
+        timeout-minutes: 5
+        run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+
+      - name: Upload guard artifacts
+        if: ${{ !matrix.clean_runner }}
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-${{ matrix.stage }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}
+
+  boss:
+    needs: stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REPORT_DIR: out/q1_boss_final
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             yamllint==1.35.1 \
@@ -133,6 +166,66 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
+      - name: Download stage artifacts
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s1
+          path: out/q1_boss_final/stages/s1
+
+      - name: Download stage artifacts s2
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s2
+          path: out/q1_boss_final/stages/s2
+
+      - name: Download stage artifacts s3
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s3
+          path: out/q1_boss_final/stages/s3
+
+      - name: Download stage artifacts s4
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s4
+          path: out/q1_boss_final/stages/s4
+
+      - name: Download stage artifacts s5
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s5
+          path: out/q1_boss_final/stages/s5
+
+      - name: Download stage artifacts s6
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s6
+          path: out/q1_boss_final/stages/s6
+
+      - name: Aggregate Q1 boss report
+        timeout-minutes: 5
+        run: python scripts/boss_final/aggregate_q1.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-final
+          path: ${{ env.REPORT_DIR }}
+
+      - name: Validate report schema
+        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
+
+      - name: Evaluate guard status
+        id: guard
+        run: |
+          status=$(cat "$REPORT_DIR/guard_status.txt")
+          echo "guard_status=$status" >> $GITHUB_OUTPUT
+          if [ "$status" != "PASS" ]; then
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
       - name: Download stage bundles
         if: always()
         uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
@@ -172,6 +265,25 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const reportDir = process.env.REPORT_DIR;
+            const commentPath = path.join(reportDir, 'pr_comment.md');
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            if (fs.existsSync(commentPath)) {
+              body = fs.readFileSync(commentPath, 'utf8');
+            }
+            core.summary.addHeading('Q1 Boss Final');
+            core.summary.addRaw(body);
+            await core.summary.write();
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body
+              });
+            } catch (error) {
+              core.warning(`Falha ao comentar no PR: ${error.message}`);
+            }
             const base = path.join(process.cwd(), 'out', 'q1_boss_final');
             const commentPath = path.join(base, 'pr_comment.md');
             let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
