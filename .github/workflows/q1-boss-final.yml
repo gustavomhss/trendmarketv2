@@ -75,13 +75,23 @@ jobs:
       - name: Install Python dependencies
         timeout-minutes: 5
         run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
           python -m pip install \
             -r requirements.lock \
+            -c constraints-app.txt \
             ruff==0.6.8 \
             yamllint==1.35.1 \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
+          pip check
+          python - <<'PY'
+          import urllib3
+
+          print(f"urllib3 version: {urllib3.__version__}")
+          PY
 
       - name: Ensure clean workspace
         if: ${{ matrix.clean_runner }}
@@ -91,7 +101,7 @@ jobs:
 
       - name: Execute sprint guard
         timeout-minutes: 5
-        run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+        run: .venv/bin/python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
 
       - name: Upload guard artifacts
         if: ${{ !matrix.clean_runner }}
@@ -132,11 +142,21 @@ jobs:
       - name: Install Python dependencies
         timeout-minutes: 5
         run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
           python -m pip install \
             -r requirements.lock \
+            -c constraints-app.txt \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
+          pip check
+          python - <<'PY'
+          import urllib3
+
+          print(f"urllib3 version: {urllib3.__version__}")
+          PY
 
       - name: Download stage artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -178,7 +198,7 @@ jobs:
         id: aggregate
         continue-on-error: true
         timeout-minutes: 5
-        run: python scripts/boss_final/aggregate_q1.py
+        run: .venv/bin/python scripts/boss_final/aggregate_q1.py
 
       - name: Upload artifacts
         if: always()
@@ -189,7 +209,7 @@ jobs:
 
       - name: Validate report schema
         if: always()
-        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
+        run: .venv/bin/python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
 
       - name: Evaluate guard status
         id: guard
