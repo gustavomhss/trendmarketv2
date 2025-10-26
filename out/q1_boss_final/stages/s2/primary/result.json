@@ -1,0 +1,36 @@
+{
+  "stage": "s2",
+  "variant": "primary",
+  "status": "PASS",
+  "notes": "PASS:S2 primary guard completado",
+  "timestamp_utc": "2025-10-26T03:23:22Z",
+  "checks": [
+    {
+      "name": "Compile modules",
+      "command": "/root/.pyenv/versions/3.11.12/bin/python -m compileall src",
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.058153,
+      "stdout": "Listing 'src'...\nListing 'src/amm_obs'...",
+      "stderr": ""
+    },
+    {
+      "name": "Module pytest",
+      "command": "pytest -q tests/unit",
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.358557,
+      "stdout": "................................                                                                                         [100%]\n32 passed in 0.09s",
+      "stderr": ""
+    },
+    {
+      "name": "Microbenchmark",
+      "command": null,
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.0,
+      "stdout": "total=299995 tempo=0.004457s",
+      "stderr": ""
+    }
+  ]
+}

@@ -16,8 +16,9 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
 STAGES_DIR = OUTPUT_DIR / "stages"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ERROR_PREFIX = "BOSS-E"
+REPORT_SCHEMA = "trendmarketv2.q1.boss.report"
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class StageSummary:
     stage: str
     status: str
     notes: str
+    summary: Dict[str, object]
     variants: Dict[str, Dict[str, object]]
 
 
@@ -57,47 +59,94 @@ def load_stage_variant(stage: str, variant: str) -> Dict[str, object]:
         raise RuntimeError(f"{ERROR_PREFIX}-E-RESULT: resultado ausente para {stage}/{variant}")
     result = load_json(result_path)
     guard_path = directory / "guard_status.txt"
-    guard = guard_path.read_text(encoding="utf-8").strip() if guard_path.exists() else "MISSING"
+    if not guard_path.exists():
+        raise RuntimeError(f"{ERROR_PREFIX}-E-GUARD: guard_status.txt ausente para {stage}/{variant}")
+    guard = guard_path.read_text(encoding="utf-8").strip().upper()
+    status = str(result.get("status", "FAIL")).upper()
+    if guard not in {"PASS", "FAIL"}:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-GUARD: guard_status inválido para {stage}/{variant}")
+    if status not in {"PASS", "FAIL"}:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-STATUS: status inválido em {stage}/{variant}")
+    if status != guard:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-GUARD-MISMATCH: {stage}/{variant} guard {guard} != status {status}")
+    result["status"] = status
+    result["notes"] = str(result.get("notes", "")).strip()
     result.setdefault("guard_status", guard)
     return result
 
 
+def load_stage_summary(stage: str) -> Dict[str, object]:
+    directory = STAGES_DIR / stage
+    summary_path = directory / "summary.json"
+    guard_path = directory / "guard_status.txt"
+    if not summary_path.exists():
+        raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY: summary.json ausente para {stage}")
+    summary = load_json(summary_path)
+    if not guard_path.exists():
+        raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY-GUARD: guard_status.txt ausente para {stage}")
+    guard = guard_path.read_text(encoding="utf-8").strip().upper()
+    status = str(summary.get("status", "FAIL")).upper()
+    if status not in {"PASS", "FAIL"}:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY-STATUS: status inválido em {stage}")
+    if guard not in {"PASS", "FAIL"}:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY-GUARD: guard inválido em {stage}")
+    if status != guard:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY-MISMATCH: {stage} guard {guard} != summary {status}")
+    summary["status"] = status
+    summary["notes"] = str(summary.get("notes", "")).strip()
+    return summary
+
+
 def summarise_stage(stage: str) -> StageSummary:
+    summary_payload = load_stage_summary(stage)
     variants: Dict[str, Dict[str, object]] = {}
-    statuses: List[str] = []
     notes_parts: List[str] = []
     for variant in ("primary", "clean"):
         variant_result = load_stage_variant(stage, variant)
         variants[variant] = variant_result
-        status = variant_result.get("status", "FAIL").upper()
-        statuses.append(status)
         variant_note = variant_result.get("notes", "")
-        notes_parts.append(f"{variant}:{status}{(' ' + variant_note) if variant_note else ''}")
-    stage_status = "PASS" if all(status == "PASS" for status in statuses) else "FAIL"
-    notes = " | ".join(notes_parts)
-    return StageSummary(stage=stage, status=stage_status, notes=notes, variants=variants)
+        notes_parts.append(
+            f"{variant}:{variant_result['status']}{(' ' + variant_note) if variant_note else ''}"
+        )
+    stage_status = summary_payload.get("status", "FAIL").upper()
+    if stage_status == "PASS":
+        if any(variant_result["status"] != "PASS" for variant_result in variants.values()):
+            raise RuntimeError(f"{ERROR_PREFIX}-E-SUMMARY-DRIFT: {stage} summary PASS mas variante falhou")
+    notes = summary_payload.get("notes", "") or " | ".join(notes_parts)
+    return StageSummary(
+        stage=stage,
+        status=stage_status,
+        notes=str(notes).strip(),
+        summary=summary_payload,
+        variants=variants,
+    )
 
 
 def compute_bundle_sha(stage_summaries: Dict[str, StageSummary]) -> str:
     pieces: List[str] = []
     for stage in STAGES:
         summary = stage_summaries[stage]
+        pieces.append(canonical_dumps(summary.summary))
         for variant in ("primary", "clean"):
             variant_payload = summary.variants[variant]
-            pieces.append(canonical_dumps({
-                "stage": stage,
-                "variant": variant,
-                "status": variant_payload.get("status"),
-                "notes": variant_payload.get("notes"),
-                "timestamp_utc": variant_payload.get("timestamp_utc"),
-            }))
+            pieces.append(
+                canonical_dumps(
+                    {
+                        "stage": stage,
+                        "variant": variant,
+                        "status": variant_payload.get("status"),
+                        "notes": variant_payload.get("notes"),
+                        "timestamp_utc": variant_payload.get("timestamp_utc"),
+                    }
+                )
+            )
     concatenated = "".join(pieces)
     return hashlib.sha256(concatenated.encode("utf-8")).hexdigest()
 
 
 def build_report(stage_summaries: Dict[str, StageSummary], bundle_sha: str, release_tag: str | None) -> Dict[str, object]:
     report = {
-        "schema": "trendmarketv2.q1.boss.report",
+        "schema": REPORT_SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "timestamp_utc": isoformat_utc(),
         "status": "PASS" if all(summary.status == "PASS" for summary in stage_summaries.values()) else "FAIL",

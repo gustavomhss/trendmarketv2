@@ -53,6 +53,10 @@ class StageContext:
         return OUTPUT_ROOT / self.stage / self.variant
 
 
+def stage_summary_dir(stage: str) -> Path:
+    return OUTPUT_ROOT / stage
+
+
 class StageFailure(RuntimeError):
     def __init__(self, code: str, message: str, record: CommandRecord | None = None) -> None:
         self.code = f"{ERROR_PREFIX}-{code}"
@@ -67,6 +71,55 @@ def isoformat_utc() -> str:
 
 def canonical_dumps(payload: Dict[str, object]) -> str:
     return json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+
+def update_stage_summary(stage: str) -> Dict[str, object]:
+    base_dir = stage_summary_dir(stage)
+    base_dir.mkdir(parents=True, exist_ok=True)
+    variant_summaries: Dict[str, Dict[str, str]] = {}
+    notes_parts: List[str] = []
+    missing: List[str] = []
+    statuses: List[str] = []
+    for variant in ("primary", "clean"):
+        result_path = OUTPUT_ROOT / stage / variant / "result.json"
+        if not result_path.exists():
+            variant_summaries[variant] = {
+                "status": "MISSING",
+                "notes": "result.json ausente",
+            }
+            missing.append(variant)
+            continue
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        status = str(payload.get("status", "FAIL")).upper()
+        notes = str(payload.get("notes", "")).strip()
+        variant_summaries[variant] = {
+            "status": status,
+            "notes": notes,
+        }
+        statuses.append(status)
+        detail = f"{variant}:{status}"
+        if notes:
+            detail += f" {notes}"
+        notes_parts.append(detail)
+    if missing:
+        stage_status = "FAIL"
+        notes_parts.append(f"missing:{','.join(sorted(missing))}")
+    elif any(status != "PASS" for status in statuses) or len(statuses) != 2:
+        stage_status = "FAIL"
+    else:
+        stage_status = "PASS"
+    summary = {
+        "stage": stage,
+        "status": stage_status,
+        "notes": " | ".join(notes_parts),
+        "variants": variant_summaries,
+        "timestamp_utc": isoformat_utc(),
+    }
+    summary_path = base_dir / "summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    guard_path = base_dir / "guard_status.txt"
+    guard_path.write_text(f"{stage_status}\n", encoding="utf-8")
+    return summary
 
 
 def run_command(
@@ -161,24 +214,37 @@ def validate_actions_lock(context: StageContext) -> None:
     if not path.exists():
         record_check(context, name="actions.lock", code="S4-ACTIONS", passed=False, detail="actions.lock ausente")
         return
-    data: Dict[str, Dict[str, str]] = {}
-    current_key: Optional[str] = None
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        if not line.startswith(" "):
-            current_key = line.rstrip(":")
-            data[current_key] = {}
-            continue
-        if current_key is None:
-            continue
-        key, _, value = line.strip().partition(":")
-        data[current_key][key.strip()] = value.strip()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        record_check(
+            context,
+            name="actions.lock",
+            code="S4-ACTIONS",
+            passed=False,
+            detail=f"JSON inválido: {exc}",
+        )
+        return
+    if not isinstance(data, dict):
+        record_check(
+            context,
+            name="actions.lock",
+            code="S4-ACTIONS",
+            passed=False,
+            detail="Formato inválido: esperado objeto de ações",
+        )
+        return
     issues: List[str] = []
-    for action, meta in data.items():
-        sha = meta.get("sha")
-        if not sha or len(sha) != 40:
+    for action, meta in sorted(data.items()):
+        if not isinstance(meta, dict):
+            issues.append(f"{action}: metadados inválidos")
+            continue
+        sha = str(meta.get("sha", ""))
+        if len(sha) != 40:
             issues.append(f"{action}: SHA inválido")
+        for field in ("date", "author", "rationale"):
+            if field not in meta or not str(meta[field]).strip():
+                issues.append(f"{action}: campo {field} ausente")
     record_check(
         context,
         name="actions.lock",
@@ -356,13 +422,14 @@ STAGE_HANDLERS: Dict[str, Callable[[StageContext], None]] = {
 
 
 def write_stage_outputs(context: StageContext, status: str, notes: str) -> Dict[str, object]:
+    status = status.upper()
     directory = context.stage_dir()
     directory.mkdir(parents=True, exist_ok=True)
     result = {
         "stage": context.stage,
         "variant": context.variant,
         "status": status,
-        "notes": notes,
+        "notes": notes.strip(),
         "timestamp_utc": isoformat_utc(),
         "checks": [record.to_dict() for record in context.records],
     }
@@ -374,6 +441,7 @@ def write_stage_outputs(context: StageContext, status: str, notes: str) -> Dict[
     (directory / "comment.md").write_text("\n".join(comment_lines), encoding="utf-8")
     bundle_sha = hashlib.sha256(canonical_dumps(result).encode("utf-8")).hexdigest()
     (directory / "bundle.sha256").write_text(bundle_sha + "\n", encoding="utf-8")
+    update_stage_summary(context.stage)
     return result
 
 
@@ -386,12 +454,12 @@ def run_stage(stage: str, variant: str) -> Dict[str, object]:
     context = StageContext(stage=stage, variant=variant)
     handler = STAGE_HANDLERS[stage]
     status = "PASS"
-    notes = "PASS: todas as verificações concluídas"
+    notes = f"PASS:{stage.upper()} {variant} guard completado"
     try:
         handler(context)
     except StageFailure as exc:
         status = "FAIL"
-        notes = exc.code + ":" + exc.message
+        notes = f"{exc.code}:{exc.message}"
     result = write_stage_outputs(context, status, notes)
     if status != "PASS":
         raise SystemExit(1)

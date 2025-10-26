@@ -1,0 +1,16 @@
+{
+  "stage": "s1",
+  "status": "FAIL",
+  "notes": "primary:FAIL BOSS-E-S1-LINT:Ruff lint (exit 1) | clean:FAIL BOSS-E-S1-LINT:Ruff lint (exit 1)",
+  "variants": {
+    "primary": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S1-LINT:Ruff lint (exit 1)"
+    },
+    "clean": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S1-LINT:Ruff lint (exit 1)"
+    }
+  },
+  "timestamp_utc": "2025-10-26T03:27:37Z"
+}

@@ -11,11 +11,16 @@ on:
         type: string
   pull_request:
     paths:
-      - '.github/workflows/**'
-      - 'scripts/**'
-      - 's*/**'
-      - 'docs/**'
-      - 'dashboards/**'
+      - '.github/workflows/q1-boss-final.yml'
+      - 'scripts/boss_final/**'
+      - 'scripts/scorecards/**'
+      - 'schemas/**'
+      - 's6_validation/**'
+      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
+      - 'docs/scorecards/**'
+      - 'Makefile'
+      - 'tests/**'
+      - 'actions.lock'
 
 concurrency:
   group: q1-boss-final-${{ github.ref }}
@@ -33,7 +38,7 @@ jobs:
   stage:
     name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -62,22 +67,17 @@ jobs:
           python -m pip install \
             -r requirements.lock \
             ruff==0.6.8 \
-            yamllint==1.35.1 \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
+            yamllint==1.35.1 \
             jsonschema==4.23.0
 
-      - name: Install system dependencies
-        timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y jq yamllint
-
       - name: Execute sprint guard
-        id: run
-        continue-on-error: true
-        timeout-minutes: 10
+        id: stage
+        timeout-minutes: 12
         run: |
           set -euo pipefail
-          if [ "$CLEAN_RUNNER" = "true" ]; then
+          if [ "${{ matrix.clean_runner }}" = "true" ]; then
             variant="clean"
           else
             variant="primary"
@@ -85,94 +85,22 @@ jobs:
           echo "variant=$variant" >> "$GITHUB_OUTPUT"
           python scripts/boss_final/sprint_guard.py --stage "$STAGE" --variant "$variant"
 
-      - name: Capture guard result
-        id: guard
-        if: always()
-        run: |
-          set -euo pipefail
-          variant="${{ steps.run.outputs.variant }}"
-          result_dir="out/q1_boss_final/stages/${STAGE}/${variant}"
-          python - <<'PY' "$result_dir" "$GITHUB_OUTPUT"
-import json
-import sys
-from pathlib import Path
-result_dir = Path(sys.argv[1])
-output_path = Path(sys.argv[2])
-result_path = result_dir / "result.json"
-if not result_path.exists():
-    raise SystemExit(f"resultado ausente: {result_path}")
-result = json.loads(result_path.read_text(encoding="utf-8"))
-status = str(result.get("status", "FAIL")).upper()
-notes = result.get("notes", "").replace("\n", " ").strip()
-with output_path.open("a", encoding="utf-8") as handle:
-    handle.write(f"status={status}\n")
-    handle.write(f"notes={notes}\n")
-    handle.write(f"variant={result.get('variant', variant)}\n")
-    handle.write(f"result_dir={result_dir.as_posix()}\n")
-PY
-
       - name: Upload guard bundle
         if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
-          name: q1-boss-final-${{ matrix.stage }}-${{ steps.guard.outputs.variant }}
-          path: ${{ steps.guard.outputs.result_dir }}
+          name: q1-boss-final-${{ matrix.stage }}-${{ steps.stage.outputs.variant }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}/${{ steps.stage.outputs.variant }}
           if-no-files-found: error
 
-      - name: Upload stage directory
-        if: always()
-        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
-        with:
-          name: q1-boss-final-stage-${{ matrix.stage }}
-          path: out/q1_boss_final/stages/${{ matrix.stage }}
-
-      - name: Publish stage summary
-        if: always()
-        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
-        env:
-          STAGE: ${{ matrix.stage }}
-          VARIANT: ${{ steps.guard.outputs.variant }}
-          STATUS: ${{ steps.guard.outputs.status }}
-          NOTES: ${{ steps.guard.outputs.notes }}
-        with:
-          script: |
-            const stage = process.env.STAGE.toUpperCase();
-            const variant = process.env.VARIANT || 'primary';
-            const status = (process.env.STATUS || 'FAIL').toUpperCase();
-            const notes = process.env.NOTES || '';
-            const heading = `Stage ${stage} (${variant})`;
-            const body = `${status === 'PASS' ? '✅' : '❌'} ${heading} — **${status}**\n\n${notes}`;
-
-            const writeSummary = async () => {
-              try {
-                core.summary.addHeading(heading, 3);
-                core.summary.addRaw(`Status: **${status}**\n\n${notes}`);
-                await core.summary.write();
-              } catch (error) {
-                core.warning(`Falha ao escrever summary: ${error.message}`);
-              }
-            };
-
-            try {
-              if (context.eventName === 'pull_request' && variant === 'primary') {
-                try {
-                  await github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body,
-                  });
-                } catch (error) {
-                  core.warning(`Falha ao comentar no PR: ${error.message}`);
-                }
-              }
-            } finally {
-              await writeSummary();
-            }
-
       - name: Enforce guard status
-        if: ${{ steps.guard.outputs.status != 'PASS' }}
-        run: exit 1
+        if: ${{ always() && steps.stage.outcome == 'success' }}
+        run: |
+          status=$(cat out/q1_boss_final/stages/${{ matrix.stage }}/${{ steps.stage.outputs.variant }}/guard_status.txt)
+          if [ "$status" != "PASS" ]; then
+            echo "stage_guard=$status" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
   aggregate:
     name: Aggregate Boss Final
@@ -205,10 +133,18 @@ PY
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
+      - name: Download stage bundles
+        if: always()
+        uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
+        with:
+          pattern: q1-boss-final-*
+          path: out/q1_boss_final/stages
+          merge-multiple: true
+
       - name: Aggregate stages
         id: aggregate
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
           set -euo pipefail
           if [ -n "$RELEASE_TAG" ]; then
@@ -238,7 +174,7 @@ PY
             const path = require('path');
             const base = path.join(process.cwd(), 'out', 'q1_boss_final');
             const commentPath = path.join(base, 'pr_comment.md');
-            let body = '⚠️ Relatório do Boss Final indisponível. Consulte o GITHUB_STEP_SUMMARY.';
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
 
             try {
               if (fs.existsSync(commentPath)) {
@@ -280,6 +216,6 @@ PY
         if: ${{ steps.aggregate.outcome == 'failure' }}
         run: exit 1
 
-      - name: Fail on guard result
-        if: ${{ always() && needs.stage.result == 'failure' }}
+      - name: Fail when any stage guard failed
+        if: ${{ needs.stage.result == 'failure' }}
         run: exit 1

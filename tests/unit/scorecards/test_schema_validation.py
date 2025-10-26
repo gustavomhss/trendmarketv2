@@ -23,7 +23,7 @@ def _write_json(path: Path, content: dict) -> None:
 
 def test_threshold_validation_rejects_ratio_above_one(tmp_path: Path) -> None:
     data = json.loads(THRESHOLDS_SRC.read_text(encoding="utf-8"))
-    data["quorum_ratio_min"] = 1.5
+    data["quorum_ratio"] = 1.5
     test_path = tmp_path / "thresholds.json"
     _write_json(test_path, data)
 
@@ -67,21 +67,46 @@ def test_scorecard_report_schema_version_enforced(tmp_path: Path, monkeypatch: p
         validator.validate(report)
 
 
+def _write_stage_bundle(root: Path, stage: str) -> None:
+    stage_dir = root / stage
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    variants = {
+        "primary": {"status": "PASS", "notes": "primary ok"},
+        "clean": {"status": "PASS", "notes": "clean ok"},
+    }
+    for variant, payload in variants.items():
+        variant_dir = stage_dir / variant
+        variant_dir.mkdir(parents=True, exist_ok=True)
+        variant_payload = {
+            "stage": stage,
+            "variant": variant,
+            "status": payload["status"],
+            "notes": payload["notes"],
+            "timestamp_utc": "2024-01-01T00:00:00Z",
+            "checks": [],
+        }
+        (variant_dir / "result.json").write_text(
+            json.dumps(variant_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        (variant_dir / "guard_status.txt").write_text("PASS\n", encoding="utf-8")
+        (variant_dir / "bundle.sha256").write_text("00" * 32 + "\n", encoding="utf-8")
+    summary_payload = {
+        "stage": stage,
+        "status": "PASS",
+        "notes": "primary:PASS primary ok | clean:PASS clean ok",
+        "variants": {variant: {"status": info["status"], "notes": info["notes"]} for variant, info in variants.items()},
+        "timestamp_utc": "2024-01-01T00:05:00Z",
+    }
+    (stage_dir / "summary.json").write_text(
+        json.dumps(summary_payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    (stage_dir / "guard_status.txt").write_text("PASS\n", encoding="utf-8")
+
+
 def test_boss_report_schema_version_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = tmp_path / "stages"
     for stage in aggregate_q1.STAGES:
-        for variant in ("primary", "clean"):
-            variant_dir = stages_dir / stage / variant
-            variant_dir.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "stage": stage,
-                "variant": variant,
-                "status": "PASS",
-                "notes": f"{variant} ok",
-                "timestamp_utc": "2024-01-01T00:00:00Z",
-            }
-            (variant_dir / "result.json").write_text(json.dumps(payload), encoding="utf-8")
-            (variant_dir / "guard_status.txt").write_text("PASS\n", encoding="utf-8")
+        _write_stage_bundle(stages_dir, stage)
 
     monkeypatch.setattr(aggregate_q1, "OUTPUT_DIR", tmp_path)
     monkeypatch.setattr(aggregate_q1, "STAGES_DIR", stages_dir)
