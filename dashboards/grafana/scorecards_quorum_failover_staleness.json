@@ -14,7 +14,32 @@
       "id": 1,
       "title": "Quorum Ratio",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.66}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -26,7 +51,32 @@
       "id": 2,
       "title": "Failover p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 5, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 60}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -38,7 +88,32 @@
       "id": 3,
       "title": "Staleness p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 10, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 30}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -50,7 +125,32 @@
       "id": 4,
       "title": "CDC Lag p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 15, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 120}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -62,7 +162,32 @@
       "id": 5,
       "title": "Divergence (%)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 20, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 20, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
