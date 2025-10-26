@@ -11,7 +11,7 @@
 1. **Contratos formais**
    - Especificar schemas versionados para `mbp_resolutions` e `mbp_abuse_events` no registry, com regras de compatibilidade
      `BACKWARD`.
-   - `dbt` passa a ser autoridade externa para validar qualidade dos datasets (`analytics/dbt/models/sources.yml`).
+  - `dbt` passa a ser autoridade externa para validar qualidade dos datasets (`data/analytics/dbt/models/sources.yml`).
 2. **Engine regrado**
    - Fluxo de resolução executa `rule.eval` determinística (TWAP, quorum, abuso) antes de emitir decisão.
    - Toda decisão inclui `resolution_proof` e `audit_trace_id`, permitindo reconciliação posterior.
@@ -20,11 +20,11 @@
    - Hook `schema_registry_drift` bloqueia deploy quando schema diverge do contrato aceito.
 4. **Observabilidade acoplada a CDC**
    - Métrica `resolution.consistency_ok` acompanha percentuais de decisões aprovadas.
-   - Runbook `docs/runbooks/schema-drift.md` documenta processo de correção.
+  - Runbook `docs/runbooks/schema_registry.md` documenta processo de correção.
 
 ## Consequências
 
-- Necessário manter `analytics/dbt` atualizado com documentação (`dbt docs generate`) e publicar artifacts.
+- Necessário manter `data/analytics/dbt` atualizado com documentação (`dbt docs generate`) e publicar artifacts.
 - Adoção de `profiles.yml` com `env_var` protege secrets de BigQuery.
 - Incorpora watchers específicos: `dbt_test_failure → block_merge`, `schema_registry_drift → block_deploy`, owners compartilhados
   entre Data e SRE.

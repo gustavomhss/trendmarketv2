@@ -5,14 +5,14 @@ Manter `cdc:lag_p95_seconds:5m ≤ 120`. O gatilho de incidente é `cdc_lag` qua
 
 ## Detectar
 1. Confirmar alerta `cdc_lag` no Grafana (dashboard `MBP / CDC`), verificando `cdc:lag_p95_seconds:5m` e `cdc:lag_p99_seconds`.
-2. Conferir logs do conector Debezium (`ops/containers/cdc/values.yaml`) procurando por `WARN Rebalance` ou `ERROR CommitFailed`.
+2. Conferir logs do conector Debezium (`obs/ops/containers/cdc/values.yaml`) procurando por `WARN Rebalance` ou `ERROR CommitFailed`.
 3. Executar `python3 scripts/sim_run.sh --probe cdc_status` para capturar estado das filas Kafka e offsets.
 4. Validar se há manutenção ou alterações recentes no banco primário (`ops/release/changelog.md`).
 
 ## Mitigar
 1. **Aplicar degrade controlado**
    - Acionar feature flag `lite_mode` via `policy_engine.sh set lite_mode=true` para reduzir volume de resoluções.
-   - Suspender ingestão não crítica (streams analíticos) usando `ops/watchers.yml` (`cdc_lag → degrade+rollback`).
+   - Suspender ingestão não crítica (streams analíticos) usando `obs/ops/watchers.yml` (`cdc_lag → degrade+rollback`).
 2. **Rebalancear CDC**
    - Aumentar threads de leitura (`replication.slot.max_streams`) e redistribuir partições quentes (`kafka-topics.sh --alter`).
    - Se houver `schema_registry_drift`, seguir runbook correspondente antes de retomar consumo.
@@ -25,4 +25,4 @@ Manter `cdc:lag_p95_seconds:5m ≤ 120`. O gatilho de incidente é `cdc_lag` qua
 
 ## Comunicação
 - Anunciar status no canal `#dec-incident` e abrir ticket `INC-CDC`.
-- Notificar owners em `ops/watchers.yml` (SRE primário + Data Platform). Inclua horário de recuperação e ações tomadas.
+- Notificar owners em `obs/ops/watchers.yml` (SRE primário + Data Platform). Inclua horário de recuperação e ações tomadas.

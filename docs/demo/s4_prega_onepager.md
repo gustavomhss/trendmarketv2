@@ -12,4 +12,4 @@
 
 1. **Linha 1:** Estado dos SLOs principais (DEC p95, CDC p95, INP p75) marcados como OK/within.
 2. **Linha 2:** `BUNDLE_SHA256` e `ANCHOR_ROOT` prontos para copiar no PR/Release.
-3. **Linha 3:** Contagem de evidências e principais diretórios (`EVI/...`, `docs/ADRs/...`, `ops/prom/...`).
+3. **Linha 3:** Contagem de evidências e principais diretórios (`EVI/...`, `docs/ADRs/...`, `obs/ops/prom/...`).

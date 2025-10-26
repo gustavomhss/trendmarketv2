@@ -9,4 +9,4 @@
   - INT ≤ 1.000
   - SEC ≤ 1.000
 
-A verificação automatizada roda em `scripts/analysis/cardinality_report.sh`, que lê `seeds/load/cardinality_seed.json`, produz `cardinality.txt` e uma visão CSV/PNG com o status por domínio. Qualquer desvio gera `status=BREACH` e indica o excedente que deve ser apagado antes do próximo deploy.
+A verificação automatizada roda em `scripts/analysis/cardinality_report.sh`, que lê `data/cdc/seeds/load/cardinality_seed.json`, produz `cardinality.txt` e uma visão CSV/PNG com o status por domínio. Qualquer desvio gera `status=BREACH` e indica o excedente que deve ser apagado antes do próximo deploy.

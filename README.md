@@ -22,7 +22,7 @@
 
 ### Contrato do EVID (evidence directory)
 
-Precedência: **Ambiente (`EVID`)** → **Flag CLI (`--out`/`--evidence`)** → **Default** (`out/obs_gatecheck/evidence`).
+Precedência: **Ambiente (`EVID`)** → **Flag CLI (`--out`/`--evidence`)** → **Default** (`out/s4_orr/EVI`).
 Todos os scripts aceitam `--out`/`--evidence` e respeitam `EVID` se definido.
 
 ## Tempo-alvo de publicação on-chain
@@ -33,27 +33,28 @@ Todos os scripts aceitam `--out`/`--evidence` e respeitam `EVID` se definido.
 
 ## Como rodar o pipeline
 
-1. Execute localmente: `RUN_PROFILE=fast bash scripts/orr_all.sh --seed-dir seeds` (modo rápido) ou `RUN_PROFILE=full bash scripts/orr_all.sh --seed-dir seeds` (modo completo).
-2. Confira `out/obs_gatecheck/evidence/spec_check.txt` (esperado `RESULT=PASS`).
-3. Inspecione `out/obs_gatecheck/evidence/analysis/index.html` para o índice de evidências (botão “Copiar comando”).
-4. O bundle completo e hashes ficam em `out/obs_gatecheck/evidence/` e `out/sim/` (SimCity fast + nightly).
+1. Rode `make prega` para executar o gate Sprint 4 completo (ORR real, dbt docs, flamegraphs, bundle).
+2. Valide os logs em `out/s4_orr/` e confirme os marcadores `ACCEPTANCE_OK` e `GATECHECK_OK` em `out/s4_orr/EVI/`.
+3. Inspecione os artefatos do dbt em `data/analytics/dbt/target/` e os diffs de schema em `out/s4_orr/EVI/schema_diff.txt`.
+4. O bundle e SHA ficam em `out/s4_evidence_bundle_*.zip` e `out/s4_evidence_bundle_*.zip.sha256`.
 
 ## CI — GitHub Actions
 
-* Workflow: `.github/workflows/_mbp-s2-orr.yml` (job **MBP S2 ORR**).
-* Passos chave: dependências mínimas → `bash scripts/orr_all.sh` → validação `spec_check.txt` → artefato `orr-evidence` → comentário estruturado com hashes, merkle e links.
+* Workflow: `.github/workflows/_s4-orr.yml` (job **Sprint 4 ORR**).
+* Passos chave: checkout → `make prega` → upload de artefatos (dbt docs, bundle) → publicação do resumo.
 * Shellcheck roda de forma advisory (não bloqueia).
 
 ## Estrutura útil
 
 * `docs/spec/SPEC.md` — especificação Lamport-style (INV1..INV5, LF1..LF2).
 * `docs/mbp/sprint-2/` — resultados, manifesto de políticas e orçamento de cardinalidade.
-* `configs/policies/` — composição de políticas (`project < env < mbp_s2`).
-* `scripts/` — automações determinísticas (analysis, hooks, provenance, simulações, ORR).
-* `sim/scenarios/` — cenários SimCity Sprint 2.
-* `seeds/` — sementes versionadas por domínio para garantir reproducibilidade.
+* `engine/` — código do Decision Engine (Rust) e benches.
+* `data/cdc/` — contratos, schemas e seeds versionados.
+* `data/analytics/dbt/` — modelos analíticos e artefatos dbt.
+* `obs/ops/` — infraestrutura de observabilidade (Prometheus, Otel, watchers).
+* `scripts/` — automações determinísticas (analysis, hooks, provenance, ORR, bundle).
 
 ## Após merge
 
-* Proteja `main` exigindo o job **MBP S2 ORR**.
+* Proteja `main` exigindo o job **Sprint 4 ORR** (`_s4-orr.yml`).
 * Gere tag pós-ORR se necessário seguindo o plano trimestral.

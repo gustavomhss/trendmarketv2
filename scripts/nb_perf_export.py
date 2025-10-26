@@ -15,7 +15,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 summary = {
     "generated_at": datetime.utcnow().isoformat() + "Z",
     "sources": {
-        "dec_summary": os.path.join(OUT_DIR, "dec_120rps_60m.json"),
+        "dec_summary": os.path.join(OUT_DIR, "EVI", "dec_120rps_60m.json"),
         "cdc_series": os.path.join(OUT_DIR, "EVI", "cdc_lag_p95_seconds_5m.json"),
         "rum_snapshot": os.path.join(OUT_DIR, "EVI", "web_inp_snapshot.json"),
     },

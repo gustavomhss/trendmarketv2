@@ -56,7 +56,7 @@ Pacote completo e executável para a Sprint 2: especificação consolidada (Lamp
 │   ├── cdc_freeze.yaml
 │   ├── schema_drift.yaml
 │   └── fe_cwv_regress.yaml
-├── seeds/
+├── data/cdc/seeds/
 │   ├── engine/
 │   ├── load/
 │   └── rum/

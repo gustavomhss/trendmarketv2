@@ -79,8 +79,8 @@ Os arquivos em `s6_validation/` são as únicas entradas para o cálculo offline
 - `metrics_static.json`: objeto plano com `schema`, `schema_version`,
   `timestamp_utc` e os cinco valores observados correspondentes.
 
-Ambos validam contra os schemas Draft‑07 (`schemas/thresholds.schema.json` e
-`schemas/metrics.schema.json`) com `schema_version: 2` protegido por `const`.
+Ambos validam contra os schemas Draft‑07 (`data/cdc/schemas/thresholds.schema.json` e
+`data/cdc/schemas/metrics.schema.json`) com `schema_version: 2` protegido por `const`.
 Formatação canônica (`sort_keys=true`, separadores `(",",":")`, newline final e
 UTF‑8) é obrigatória para preservar o hash do bundle.
 
@@ -96,7 +96,7 @@ os indicadores estiverem dentro dos limites após considerar o epsilon.
 ```bash
 PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 \
   python scripts/scorecards/s6_scorecards.py
-python -m jsonschema --instance out/s6_scorecards/report.json --schema schemas/report.schema.json
+python -m jsonschema --instance out/s6_scorecards/report.json --schema data/cdc/schemas/report.schema.json
 ```
 
 A execução gera `out/s6_scorecards/` contendo `report.json`, `report.md`,
@@ -106,7 +106,7 @@ exige `guard_status.txt` = `PASS`.
 
 ## Estrutura do report
 
-`report.json` segue o schema Draft‑07 `schemas/report.schema.json`:
+`report.json` segue o schema Draft‑07 `data/cdc/schemas/report.schema.json`:
 
 - `schema`: `trendmarketv2.sprint6.report`
 - `schema_version`: `2`

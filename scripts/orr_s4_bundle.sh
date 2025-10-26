@@ -17,14 +17,14 @@ pushd "$ROOT" >/dev/null
 CANDIDATES=(
   "out/s4_orr"
   "out/pip-audit"
-  "analytics/dbt/target"
-  "docs/ADRs/ADR-001-DEC-Decision-Engine.md"
-  "docs/ADRs/ADR-002-Rule-Engine-Resolution.md"
+  "data/analytics/dbt/target"
+  "docs/ADRs/ADR-001-DEC-SLO-Degrade-Rollback.md"
+  "docs/ADRs/ADR-002-Resolution-Engine-Regra.md"
   "docs/ADRs/ADR-003-TWAP-Benchmarks.md"
   "docs/runbooks"
-  "ops/watchers.yml"
+  "obs/ops/watchers.yml"
   "scripts/microbench_dec.sh"
-  "benches"
+  "engine/benches"
 )
 
 ENTRIES=()

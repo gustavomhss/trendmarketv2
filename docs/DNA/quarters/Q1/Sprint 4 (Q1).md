@@ -36,9 +36,9 @@
 
 ## 3) Fronteiras Arquiteturais & Reprodutibilidade
 
-- Estruturar/validar diretórios: `engine/`, `data/` (`cdc/`, `analytics/dbt/`), `obs/` (`ops/prom/`, `ops/otel/`, `dashboards/`), `fe/` (`rum/`, `web/`), `schemas/`, `docs/` (`adr/`, `runbooks/`, `spec/`, `demo/`), `scripts/`, `sim/` (harness).
+* Estruturar/validar diretórios: `engine/`, `data/cdc/`, `data/analytics/dbt/`, `obs/ops/prom/`, `obs/ops/otel/`, `obs/dashboards/`, `fe/rum/`, `fe/web/`, `docs/ADRs/`, `docs/runbooks/`, `docs/spec/`, `docs/demo/`, `scripts/`, `sim/` (harness).
 - Harness atual deve permanecer compatível com a separação futura (S5: `sim/` como serviço independente).
-- **ENV pinado:** manter `requirements.lock`, `Cargo.lock`, `package-lock.json`, `ops/containers/orr.Dockerfile` com digest fixo.
+- **ENV pinado:** manter `requirements.lock`, `engine/Cargo.lock`, `package-lock.json`, `obs/ops/containers/orr.Dockerfile` com digest fixo.
 - **Reprodutibilidade:** gerar `docs/REPRO.md` com 6 passos “do zero ao `make prega`”.
 
 ---
@@ -53,15 +53,15 @@
    - `scripts/anchor_root.py`, `scripts/anchor_integrity.sh` (Merkle root + tag Git `anchor-M2-<root>`).
    - `scripts/microbench_dec.sh` e `scripts/flamegraph_hotpaths.sh` (inclui cenário `--scenario dec_tail` com `dec_flame_p99.svg`).
 3. **Observabilidade:**
-   - `ops/prom/rules_s4.yaml` (DEC p95, CDC lag, SchemaDrift, Hook/Audit coverage, SLOBudgetBreach, CDCLagHigh, recuperação pós-rollback).
-   - `ops/prom/decision_gap.rules.yaml` + `docs/runbooks/decision_gap.md`.
+   - `obs/ops/prom/rules_s4.yaml` (DEC p95, CDC lag, SchemaDrift, Hook/Audit coverage, SLOBudgetBreach, CDCLagHigh, recuperação pós-rollback).
+   - `obs/ops/prom/decision_gap.rules.yaml` + `docs/runbooks/decision_gap.md`.
 4. **Dados/Contratos/dbt:**
-   - `analytics/dbt/models/mbp/schema.yml`, `analytics/dbt/models/mbp/README.md` (≥95% docs, lineage, owners).
-   - `analytics/dbt/profiles/profiles.yml` pinado.
+   - `data/analytics/dbt/models/mbp/schema.yml`, `data/analytics/dbt/models/mbp/README.md` (≥95% docs, lineage, owners).
+   - `data/analytics/dbt/profiles/profiles.yml` pinado.
    - Publicar docs dbt como artifact (CI executa `dbt docs generate` + upload `catalog.json`, `manifest.json`, `index.html`).
 5. **Schema Registry:**
-   - `schemas/mbp/quotes/v1.2.0.json` e `scripts/schema_compat_check.py` (fail-closed para breaking). Guardar diff em `EVI/schema_diff.txt`.
-6. **ADRs Accepted:** `docs/adr/ADR-001-DEC-SLO-Degrade-Rollback.md`, `ADR-002-Resolution-Engine-Regra.md`, `ADR-003-TWAP-Benchmarks.md`.
+   - `data/cdc/schemas/mbp/quotes/v1.2.0.json` e `scripts/schema_compat_check.py` (fail-closed para breaking). Guardar diff em `EVI/schema_diff.txt`.
+6. **ADRs Accepted:** `docs/ADRs/ADR-001-DEC-SLO-Degrade-Rollback.md`, `ADR-002-Resolution-Engine-Regra.md`, `ADR-003-TWAP-Benchmarks.md`.
 7. **Runbooks:** `docs/runbooks/dec_slo.md`, `cdc_lag.md`, `schema_registry.md`, `decision_gap.md`.
 8. **RUM → Prom:** `fe/rum/collector.js`, `fe/rum/server.js` (porta 9314, métrica `web_vitals_inp_ms{page,env}`), `fe/rum/collector_publish.js`. Snapshot `/metrics` → `EVI/web_inp_snapshot.json`.
 9. **CI (GitHub Actions):** `_s4-orr.yml` (reusável endurecido) e `s4-exec.yml` (dispatcher). Incluir jobs opcionais (off-by-default) para TLA e microbench (limites Knuth).

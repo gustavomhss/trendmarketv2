@@ -25,7 +25,7 @@ require jq
 require git
 require cargo
 
-for lock in requirements.lock package-lock.json Cargo.lock; do
+for lock in requirements.lock package-lock.json engine/Cargo.lock; do
   if [ ! -f "$ROOT_DIR/$lock" ]; then
     log "Lockfile ausente: $lock"
     LOCK_ERR=1
@@ -35,9 +35,9 @@ for lock in requirements.lock package-lock.json Cargo.lock; do
   fi
 done
 
-DOCKERFILE="$ROOT_DIR/ops/containers/orr.Dockerfile"
+DOCKERFILE="$ROOT_DIR/obs/ops/containers/orr.Dockerfile"
 if [ ! -f "$DOCKERFILE" ]; then
-  log "Dockerfile pinado ausente: ops/containers/orr.Dockerfile"
+  log "Dockerfile pinado ausente: obs/ops/containers/orr.Dockerfile"
   LOCK_ERR=1
 else
   if ! grep -Eq '@sha256:[a-f0-9]+' "$DOCKERFILE"; then

@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
 POL_DIR="$ROOT/configs/policies"
 OUT_DIR="$ROOT/../out/orr_gatecheck/evidence"
-METRICS_SEED="$ROOT/seeds/engine/policy_metrics.json"
+METRICS_SEED="$ROOT/data/cdc/seeds/engine/policy_metrics.json"
 EMIT_HASH=false
 
 while [[ $# -gt 0 ]]; do

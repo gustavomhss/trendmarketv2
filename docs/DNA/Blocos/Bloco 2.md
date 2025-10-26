@@ -112,7 +112,7 @@ watchers_params:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p ops/watchers/logs
+mkdir -p obs/ops/watchers/logs
 for w in progress_gap_watch overshoot_guard_v2 non_consumption_watch_v2 blast_radius_guard \
          progress_regression_watch sustaining_demand_guard_v2 jargon_guard checksum_repro_watch \
          mev_inclusion_delay_watch new_market_share_watch identifiability_guard confounding_leak_watch \
@@ -120,7 +120,7 @@ for w in progress_gap_watch overshoot_guard_v2 non_consumption_watch_v2 blast_ra
          thickness_watch congestion_watch challenge_backlog_watch stability_watch truthfulness_watch \
          simplicity_watch collusion_watch unraveling_watch decision_cycle_slip_watch \
          attention_overload_watch aspiration_drift_watch search_stall_watch sop_exception_storm_watch coupling_spike_watch; do
-  echo "{\"watcher\":\"$w\",\"dry_run\":true,\"ts\":\"$(date -Iseconds)\"}" >> ops/watchers/logs/${w}.log
+  echo "{\"watcher\":\"$w\",\"dry_run\":true,\"ts\":\"$(date -Iseconds)\"}" >> obs/ops/watchers/logs/${w}.log
   echo "DRYRUN $w";
 done
 # (Licença: MIT — trecho original)
@@ -616,7 +616,7 @@ PACKS = B02-INTENTS B02-WORLDS B02-INSPECTORS B02-ACTIVE-ESSAYS B02-MEV
 EVID = ops/evidence
 QGEN = ops/tests/qgen
 PROB = ops/tests/probes
-WATCH= ops/watchers
+WATCH= obs/ops/watchers
 
 .PHONY: all ingest qgen probes goldens merge_evidence update_rag_kpis watchers_dry watchers_fire gatecheck closeout toc
 
@@ -644,10 +644,10 @@ update_rag_kpis:
 	python ops/scripts/calc_kpis_rag.py --evidence_dir $(EVID) --update_frontmatter true --md_file BLOCO_02_AUTOPILOT_FINAL_v2_10.md
 
 watchers_dry:
-	bash ops/watchers/dry_run.sh
+	bash obs/ops/watchers/dry_run.sh
 
 watchers_fire:
-	python ops/watchers/run_once.py --events data/events.jsonl --out $(WATCH)/logs
+	python obs/ops/watchers/run_once.py --events data/events.jsonl --out $(WATCH)/logs
 
 gatecheck:
 	python ops/scripts/gatecheck.py > $(EVID)/gatecheck_report.json
@@ -719,7 +719,7 @@ p = argparse.ArgumentParser(); p.add_argument('--png'); p.add_argument('--slot')
 print('data:image/png;base64,' + base64.b64encode(open(args.png,'rb').read()).decode())
 ```
 
-### `ops/watchers/run_once.py`
+### `obs/ops/watchers/run_once.py`
 ```python
 import json, argparse, pathlib, time
 p=argparse.ArgumentParser(); p.add_argument('--events'); p.add_argument('--out'); args=p.parse_args()
@@ -754,7 +754,7 @@ print(json.dumps(oks, indent=2))
 - **WORLDS Golden PNG:**  `WORLDS_GOLDEN_DATA_URI: <cole data URI se quiser>`
 - Evidence agregado: `ops/evidence/B02-aggregated.kpis.json`  
 - Gatecheck: `ops/evidence/gatecheck_report.json`  
-- Watchers logs: `ops/watchers/logs/*.log`
+- Watchers logs: `obs/ops/watchers/logs/*.log`
 
 ---
 

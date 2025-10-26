@@ -25,7 +25,7 @@
 
 ## Consequências
 
-- Necessário manter seeds realistas (`seeds/s3/price_stream_sample.csv`) para validar divergência.
+- Necessário manter seeds realistas (`data/cdc/seeds/s3/price_stream_sample.csv`) para validar divergência.
 - Gate opcional no CI evita falsa falha quando bench não está presente, mas falha determinística quando limites são excedidos.
 - TWAP torna-se peça central nos runbooks (`docs/runbooks/cdc-lag.md`, `docs/runbooks/rollback-degrade.md`).
 

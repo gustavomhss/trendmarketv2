@@ -24,10 +24,11 @@ import uuid
 from typing import Dict, Iterable, List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_FILE = REPO_ROOT / "dbt_project.yml"
-MODELS_DIR = REPO_ROOT / "models"
+PROJECT_ROOT = REPO_ROOT / "data" / "analytics" / "dbt"
+PROJECT_FILE = PROJECT_ROOT / "dbt_project.yml"
+MODELS_DIR = PROJECT_ROOT / "models"
 TESTS_DIR = MODELS_DIR / "tests"
-TARGET_DIR = REPO_ROOT / "target"
+TARGET_DIR = PROJECT_ROOT / "target"
 OUT_DIR = REPO_ROOT / "out"
 DBT_DIR = OUT_DIR / "dbt"
 LOG_DIR = OUT_DIR / "logs"
@@ -424,7 +425,7 @@ def command_deps() -> None:
     log("offline dbt deps executed")
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
     DBT_DIR.mkdir(parents=True, exist_ok=True)
-    (REPO_ROOT / "dbt_packages").mkdir(parents=True, exist_ok=True)
+    (PROJECT_ROOT / "dbt_packages").mkdir(parents=True, exist_ok=True)
     print("Dependencies resolved offline (no-op).")
 
 

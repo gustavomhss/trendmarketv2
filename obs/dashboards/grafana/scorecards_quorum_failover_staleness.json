@@ -1,0 +1,77 @@
+{
+  "title": "Scorecards Quorum Failover Staleness",
+  "uid": "s6-scorecards",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "5m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Quorum Ratio",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:quorum_ratio{env=\"prod\"})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Failover p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Staleness p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "CDC Lag p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Divergence (%)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:divergence_pct{env=\"prod\"})"
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 # build/artefatos locais
 /target/
+engine/target/
 !/target/
 !/target/manifest.json
 !/target/run_results.json

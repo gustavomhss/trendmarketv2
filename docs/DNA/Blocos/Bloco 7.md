@@ -17,7 +17,7 @@ links:
   evidence_dir: ops/evidence/
   qgen_dir: ops/tests/qgen/
   probes_dir: ops/tests/probes/
-  watchers_dir: ops/watchers/
+  watchers_dir: obs/ops/watchers/
   scripts_dir: ops/scripts/
 watchers_profile: [simon_v2_8, fx_benchmarks, cls_calendar]
 three_numbers: { ttc_p50_minutes_max: 15, attention_utilization_bounds: {min: 0.3, max: 0.85}, coupling_max: 0.5 }
@@ -116,11 +116,11 @@ watchers_params:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p ops/watchers/logs
+mkdir -p obs/ops/watchers/logs
 for w in fx_benchmark_watch cls_calendar_watch simplicity_watch congestion_watch \
          decision_cycle_slip_watch attention_overload_watch aspiration_drift_watch \
          search_stall_watch sop_exception_storm_watch coupling_spike_watch; do
-  echo "{\"watcher\":\"$w\",\"dry_run\":true,\"ts\":\"$(date -Iseconds)\"}" >> ops/watchers/logs/${w}.log
+  echo "{\"watcher\":\"$w\",\"dry_run\":true,\"ts\":\"$(date -Iseconds)\"}" >> obs/ops/watchers/logs/${w}.log
   echo "DRYRUN $w";
 done
 ```
@@ -269,7 +269,7 @@ PACK = A42-FX-01
 EVID = ops/evidence
 QGEN = ops/tests/qgen
 PROB = ops/tests/probes
-WATCH= ops/watchers
+WATCH= obs/ops/watchers
 
 .PHONY: all ingest qgen probes golden merge_evidence update_rag_kpis watchers_dry watchers_fire gatecheck closeout
 
@@ -294,10 +294,10 @@ update_rag_kpis:
 	python ops/scripts/calc_kpis_rag.py --evidence_dir $(EVID) --update_frontmatter true --md_file BLOCO_07_FX_A42_CIP_CONSOLIDADO.md
 
 watchers_dry:
-	bash ops/watchers/dry_run.sh
+	bash obs/ops/watchers/dry_run.sh
 
 watchers_fire:
-	python ops/watchers/run_once.py --events data/events.jsonl --out $(WATCH)/logs
+	python obs/ops/watchers/run_once.py --events data/events.jsonl --out $(WATCH)/logs
 
 gatecheck:
 	python ops/scripts/gatecheck.py > $(EVID)/gatecheck_report.json

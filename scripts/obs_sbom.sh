@@ -9,7 +9,7 @@ SBOM_JSON="$EVI/sbom.cdx.json"
 SBOM_SHA="$EVI/sbom.cdx.sha256"
 
 generate_with_cargo() {
-  local manifest="$ROOT/Cargo.toml"
+  local manifest="$ROOT/engine/Cargo.toml"
   if [[ ! -f "$manifest" ]]; then
     return 1
   fi
@@ -24,7 +24,7 @@ generate_with_cargo() {
   fi
 
   local tmp="${SBOM_JSON}.tmp"
-  if ! cargo cyclonedx --format json >"$tmp"; then
+  if ! cargo cyclonedx --manifest-path "$manifest" --format json >"$tmp"; then
     rm -f "$tmp"
     return 1
   fi
@@ -64,7 +64,7 @@ def git_rev(repo_root: Path) -> str:
 
 
 def iter_components(repo_root: Path):
-    include = ("src", "scripts", "ops", "docs/obs")
+    include = ("engine", "scripts", "obs", "data", "docs/obs")
     for folder in include:
         base = repo_root / folder
         if not base.exists():

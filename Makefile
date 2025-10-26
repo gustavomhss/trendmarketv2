@@ -7,8 +7,8 @@ BUNDLE_DIR := out/obs_gatecheck
 
 .PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean
 
-prega: env.pin orr bundle anchors nb.perf
-	@echo "[prega] pipeline concluída"
+prega: env.pin orr dbt.docs rum.docs flame bundle anchors nb.perf
+        @echo "[prega] pipeline concluída"
 
 env.pin:
 	@set -euo pipefail; ./scripts/env_pin_check.sh
@@ -17,6 +17,7 @@ orr:
         @set -euo pipefail; ./scripts/orr_s5_run.sh
 
 bundle:
+        @set -euo pipefail; ./scripts/s4_bundle.sh
         @set -euo pipefail; ./scripts/s5_bundle.sh
 
 anchors:
@@ -29,7 +30,7 @@ micro:
 	@set -euo pipefail; ./scripts/microbench_dec.sh
 
 dbt.docs:
-	@set -euo pipefail; dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+        @set -euo pipefail; dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
 
 rum.docs:
 	@set -euo pipefail; node fe/rum/collector_publish.js
@@ -44,11 +45,11 @@ clean:
 
 dbt-ci:
 	mkdir -p out/dbt/tmp
-	pip install 'dbt-duckdb~=1.8.0'
-	dbt deps --profiles-dir ~/.dbt --profile ce_profile
-	dbt debug --profiles-dir ~/.dbt --profile ce_profile
-	dbt run   --profiles-dir ~/.dbt --profile ce_profile
-	dbt test  --profiles-dir ~/.dbt --profile ce_profile
+        pip install 'dbt-duckdb~=1.8.0'
+        dbt deps --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt debug --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt run   --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt test  --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
 
 sim-all:
         SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
@@ -63,7 +64,7 @@ orr-bundle:
 
 s6-scorecards:
 	@set -euo pipefail; PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 python scripts/scorecards/s6_scorecards.py
-	@set -euo pipefail; python -m jsonschema --instance out/s6_scorecards/report.json --schema schemas/report.schema.json
+        @set -euo pipefail; python -m jsonschema --instance out/s6_scorecards/report.json --schema data/cdc/schemas/report.schema.json
 
 q1-boss-final: s6-scorecards
 	@set -euo pipefail; for stage in s1 s2 s3 s4 s5 s6; do PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 python scripts/boss_final/sprint_guard.py --stage $$stage; done
@@ -74,4 +75,4 @@ q1-boss-final:
 		done; \
 	done
 	@set -euo pipefail; python scripts/boss_final/aggregate_q1.py
-	@set -euo pipefail; python -m jsonschema --instance out/q1_boss_final/report.json --schema schemas/q1_boss_report.schema.json
+        @set -euo pipefail; python -m jsonschema --instance out/q1_boss_final/report.json --schema data/cdc/schemas/q1_boss_report.schema.json

@@ -18,12 +18,12 @@ Restabelecer quorum ≥ 2/3 e manter `mbp:oracle:staleness_p95_ms ≤ 30000`, `m
 
 ## Diagnóstico
 1. **Saúde das fontes** — Liste batidas de heartbeat por feed (`kubectl exec statefulset/oracle-feed -- curl -s localhost:8080/healthz`). Verifique `quality_score` e `staleness`.
-2. **Quorum real** — Rode `python tools/sim_harness.py --fixtures seeds/s3 --scenario spike --out out/obs_gatecheck/evidence/oracle_sim_spike.json` para comparar quorum e TWAP com amostras determinísticas.
+2. **Quorum real** — Rode `python tools/sim_harness.py --fixtures data/cdc/seeds/s3 --scenario spike --out out/obs_gatecheck/evidence/oracle_sim_spike.json` para comparar quorum e TWAP com amostras determinísticas.
 3. **Configuração atual** — Capture toggles ativos via `bash scripts/policy_engine.sh --emit-policy-hash --out out/obs_gatecheck/evidence` e valide se `enable_twap_failover` e `enable_quorum` estão `true`.
 4. **Causa raiz provável** —
    - Divergência alta persistente → fonte enviesada (verificar `services/oracles/aggregator.py`).
    - Staleness elevado → atraso na ingestão (`CDC`, upstream HTTP, fila). Cruze com runbook `docs/runbooks/cdc_lag.md` se necessário.
-   - Quorum < 2/3 → feeds indisponíveis; revisar circuit-breakers (`ops/watchers/a110_observability.yaml`).
+   - Quorum < 2/3 → feeds indisponíveis; revisar circuit-breakers (`obs/ops/watchers/a110_observability.yaml`).
 
 ## Mitigar
 1. **Failover imediato** — `policy_engine.sh set enable_twap_failover=true` (mantém TWAP de 60s servido). Verifique `mbp:oracle:failover_time_p95_s` < 60 após 2 janelas.

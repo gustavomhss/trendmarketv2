@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-SCHEMA_REGISTRY = os.path.join('schemas', 'mbp', 'quotes')
+SCHEMA_REGISTRY = os.path.join('data', 'cdc', 'schemas', 'mbp', 'quotes')
 EVI_DIFF = os.path.join('out', 's4_orr', 'EVI', 'schema_diff.txt')
 
 

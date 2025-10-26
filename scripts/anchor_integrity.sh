@@ -14,10 +14,10 @@ FILES=(
   "$ROOT/docs/spec/invariants.md"
   "$ROOT/docs/spec/tla/dec_pre_ga.tla"
   "$ROOT/docs/ADRs"
-  "$ROOT/ops/prom"
+  "$ROOT/obs/ops/prom"
   "$ROOT/docs/runbooks"
-  "$ROOT/analytics/dbt/models/mbp/schema.yml"
-  "$ROOT/schemas/mbp/quotes/v1.2.0.json"
+  "$ROOT/data/analytics/dbt/models/mbp/schema.yml"
+  "$ROOT/data/cdc/schemas/mbp/quotes/v1.2.0.json"
   "$OUT_DIR/EVI"
 )
 

@@ -38,7 +38,7 @@
   rollback.
 - Necessidade de treinamento da equipe SRE para operar o degrade automático e validar rollback via `docs/runbooks/rollback-
   degrade.md`.
-- Observabilidade mais rica implica atualizar dashboards (`ops/grafana/dec_slo.json`) e watchers (`ops/watchers.yml`).
+- Observabilidade mais rica implica atualizar dashboards (`obs/ops/grafana/dec_slo.json`) e watchers (`obs/ops/watchers.yml`).
 - O pipeline CI passa a exigir microbenchmarks (`match_core`, `route_fast`, `twap_update`) para detectar regressões antes do deploy.
 
 ## Rationale & Trade-offs
@@ -49,7 +49,7 @@
 
 ## Observabilidade e Governança
 
-- Watchers: `slo_budget_breach → degrade+rollback`, `dec_failover_spike → abrir incidente`. Ambos descritos em `ops/watchers.yml`.
+- Watchers: `slo_budget_breach → degrade+rollback`, `dec_failover_spike → abrir incidente`. Ambos descritos em `obs/ops/watchers.yml`.
 - Runbooks associados: `docs/runbooks/rollback-degrade.md` e `docs/runbooks/cdc-lag.md`.
 - Evidências obrigatórias: microbench (`out/s4_orr/logs/microbench.txt`), bundle (`out/s4_evidence_bundle_*.zip`) e relatório de
   watchers.

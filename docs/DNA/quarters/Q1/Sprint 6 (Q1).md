@@ -37,7 +37,7 @@ Esta especificação define, sem ambiguidade, a Sprint 6 (Q1) do projeto CE. O o
 
 **Pós‑condições (saídas S6):**
 
-* Gerar, em `out/s6_scorecards/`: `report.json` (`schema_version=1`, conforme `schemas/report.schema.json`), `report.md` (tabela ordenada, formatos fixos), `guard_status.txt` (`PASS`/`FAIL`), `bundle.sha256`, `scorecard.svg`, `badge.svg`, `pr_comment.md`.
+* Gerar, em `out/s6_scorecards/`: `report.json` (`schema_version=1`, conforme `data/cdc/schemas/report.schema.json`), `report.md` (tabela ordenada, formatos fixos), `guard_status.txt` (`PASS`/`FAIL`), `bundle.sha256`, `scorecard.svg`, `badge.svg`, `pr_comment.md`.
 * Reexecução 2× com mesma entrada ⇒ `bundle.sha256` e `report.md` **idênticos** (exceto `timestamp` em `report.json`).
 
 **Invariantes:**
@@ -47,7 +47,7 @@ Esta especificação define, sem ambiguidade, a Sprint 6 (Q1) do projeto CE. O o
 
 **Pós‑condições (Boss Final Q1):**
 
-* Gerar, em `out/q1_boss_final/`: `report.json` (`schema_version=1`, conforme `schemas/q1_boss_report.schema.json`), `report.md`, `guard_status.txt`, `bundle.sha256`, `badge.svg`, `pr_comment.md`, `dag.svg`.
+* Gerar, em `out/q1_boss_final/`: `report.json` (`schema_version=1`, conforme `data/cdc/schemas/q1_boss_report.schema.json`), `report.md`, `guard_status.txt`, `bundle.sha256`, `badge.svg`, `pr_comment.md`, `dag.svg`.
 * `PASS` global sse `s1..s6` estão `PASS` e artefatos válidos.
 
 **Liveness:**
@@ -64,10 +64,10 @@ scripts/scorecards/s6_scorecards.py
 scripts/watchers/s6_scorecard_guard.sh
 scripts/boss_final/sprint_guard.py
 scripts/boss_final/aggregate_q1.py
-schemas/thresholds.schema.json
-schemas/metrics.schema.json
-schemas/report.schema.json
-schemas/q1_boss_report.schema.json
+data/cdc/schemas/thresholds.schema.json
+data/cdc/schemas/metrics.schema.json
+data/cdc/schemas/report.schema.json
+data/cdc/schemas/q1_boss_report.schema.json
 s6_validation/thresholds.json
 s6_validation/metrics_static.json
 s6_validation/README.md
@@ -95,25 +95,25 @@ out/q1_boss_final/ (gerado)
 
 ## 7. Schemas JSON (Draft‑07)
 
-**`schemas/thresholds.schema.json`**
+**`data/cdc/schemas/thresholds.schema.json`**
 
 ```json
 {"$id":"https://ce.local/schemas/thresholds.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Thresholds","type":"object","additionalProperties":false,"required":["version","quorum_ratio_min","failover_time_p95_s_max","staleness_p95_s_max","cdc_lag_p95_s_max","divergence_pct_max"],"properties":{"version":{"type":"integer","minimum":1},"quorum_ratio_min":{"type":"number","minimum":0.0,"maximum":1.0},"failover_time_p95_s_max":{"type":"number","minimum":0.0},"staleness_p95_s_max":{"type":"number","minimum":0.0},"cdc_lag_p95_s_max":{"type":"number","minimum":0.0},"divergence_pct_max":{"type":"number","minimum":0.0}}}
 ```
 
-**`schemas/metrics.schema.json`**
+**`data/cdc/schemas/metrics.schema.json`**
 
 ```json
 {"$id":"https://ce.local/schemas/metrics.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Metrics Static","type":"object","additionalProperties":false,"required":["version","quorum_ratio","failover_time_p95_s","staleness_p95_s","cdc_lag_p95_s","divergence_pct"],"properties":{"version":{"type":"integer","minimum":1},"quorum_ratio":{"type":"number","minimum":0.0,"maximum":1.0},"failover_time_p95_s":{"type":"number","minimum":0.0},"staleness_p95_s":{"type":"number","minimum":0.0},"cdc_lag_p95_s":{"type":"number","minimum":0.0},"divergence_pct":{"type":"number","minimum":0.0}}}
 ```
 
-**`schemas/report.schema.json`** (S6)
+**`data/cdc/schemas/report.schema.json`** (S6)
 
 ```json
 {"$id":"https://ce.local/schemas/report.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Report","type":"object","additionalProperties":false,"required":["schema_version","timestamp_utc","metrics","status"],"properties":{"schema_version":{"type":"integer","const":1},"timestamp_utc":{"type":"string","format":"date-time"},"metrics":{"type":"object","additionalProperties":false,"required":["quorum_ratio","failover_time_p95_s","staleness_p95_s","cdc_lag_p95_s","divergence_pct"],"properties":{"quorum_ratio":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"failover_time_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"staleness_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"cdc_lag_p95_s":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}},"divergence_pct":{"type":"object","required":["observed","target","ok"],"additionalProperties":false,"properties":{"observed":{"type":"number"},"target":{"type":"number"},"ok":{"type":"boolean"}}}}},"status":{"type":"string","enum":["PASS","FAIL"]}}}
 ```
 
-**`schemas/q1_boss_report.schema.json`**
+**`data/cdc/schemas/q1_boss_report.schema.json`**
 
 ```json
 {"$id":"https://ce.local/schemas/q1_boss_report.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"Q1 Boss Final Report","type":"object","additionalProperties":false,"required":["schema_version","timestamp_utc","sprints","status"],"properties":{"schema_version":{"type":"integer","const":1},"timestamp_utc":{"type":"string","format":"date-time"},"sprints":{"type":"object","additionalProperties":false,"required":["s1","s2","s3","s4","s5","s6"],"properties":{"s1":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s2":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s3":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s4":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s5":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}},"s6":{"type":"object","required":["status","notes"],"additionalProperties":false,"properties":{"status":{"type":"string","enum":["PASS","FAIL"]},"notes":{"type":"string"}}}}},"status":{"type":"string","enum":["PASS","FAIL"]}}}

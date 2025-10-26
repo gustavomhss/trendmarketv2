@@ -9,7 +9,7 @@ ROOT="$SCRIPT_DIR/.."
 OUT_DIR="$ROOT/../out/sim"
 MODE="fast"
 REAL_MODE=false
-METRICS_SEED="$ROOT/seeds/engine/policy_metrics.json"
+METRICS_SEED="$ROOT/data/cdc/seeds/engine/policy_metrics.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

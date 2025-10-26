@@ -376,8 +376,8 @@ CREATE TABLE mbp_abuse_events (
 * **LF2 Release:** `MVP_READY` ∧ watchers verdes ~> `RELEASE_READY` ~> `RELEASED`.
 ---
 ## Anexo técnico — Quickstart S3 (gerado pelo prompt Codex)
-- Rodar local: `python3 scripts/s3/twap_compute.py seeds/s3/price_stream_sample.csv out/s3_gatecheck/twap.csv`
+- Rodar local: `python3 scripts/s3/twap_compute.py data/cdc/seeds/s3/price_stream_sample.csv out/s3_gatecheck/twap.csv`
 - Checar freeze: `bash scripts/s3/twap_freeze_check.sh out/s3_gatecheck/twap.csv`
-- Simular abuso: `python3 scripts/s3/anti_abuse.py seeds/s3/orders_sample.json && cat out/s3_gatecheck/abuse_flags.json`
+- Simular abuso: `python3 scripts/s3/anti_abuse.py data/cdc/seeds/s3/orders_sample.json && cat out/s3_gatecheck/abuse_flags.json`
 - Criar mercado por template: `python3 scripts/s3/create_market_from_template.py TPL-YESNO-01 "Pergunta Interna 001"`
 - CI/ORR: abra PR e verifique **MBP S3 ORR** verde.
