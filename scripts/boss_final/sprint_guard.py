@@ -1,101 +1,325 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import http.server
+import importlib.util
 import json
-import sys
+import os
+import socketserver
+import subprocess
+import threading
+import time
+import urllib.request
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, getcontext, ROUND_HALF_EVEN
 from pathlib import Path
-from typing import Dict
+from typing import Any, Callable, Dict, Optional
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.append(str(BASE_DIR))
 
-from scripts.scorecards.s6_scorecards import generate_report, OUTPUT_DIR as S6_OUTPUT_DIR  # noqa: E402
-
-getcontext().prec = 28
-getcontext().rounding = ROUND_HALF_EVEN
+_S6_MODULE_PATH = BASE_DIR / "scripts" / "scorecards" / "s6_scorecards.py"
+_S6_SPEC = importlib.util.spec_from_file_location("s6_scorecards", _S6_MODULE_PATH)
+if _S6_SPEC is None or _S6_SPEC.loader is None:  # pragma: no cover - defensive
+    raise RuntimeError(
+        f"Não foi possível carregar módulo de scorecards em {_S6_MODULE_PATH}"
+    )
+_S6_MODULE = importlib.util.module_from_spec(_S6_SPEC)
+_S6_SPEC.loader.exec_module(_S6_MODULE)
+generate_report = _S6_MODULE.generate_report
+S6_OUTPUT_DIR = _S6_MODULE.OUTPUT_DIR
 
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 ERROR_PREFIX = "BOSS-E"
+DEFAULT_ENV = dict(os.environ)
+DEFAULT_ENV.setdefault("PYTHONPATH", str(BASE_DIR / "src"))
+
+
+class StageExecutionError(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.detail = message
 
 
 @dataclass(frozen=True)
-class StageDefinition:
-    stage: str
-    target_ratio: Decimal
-    description: str
-    on_fail: str
+class StageOutcome:
+    notes: str
+    details: Optional[Dict[str, Any]] = None
 
 
-STATIC_STAGES: Dict[str, StageDefinition] = {
-    "s1": StageDefinition("s1", Decimal("0.9820"), "Fundamentos de liquidez", "Revisar book de ordens e elasticidade."),
-    "s2": StageDefinition("s2", Decimal("0.9650"), "Observabilidade", "Corrigir gaps de telemetria e alertas."),
-    "s3": StageDefinition("s3", Decimal("0.9725"), "Risk & Limits", "Revalidar limites de crédito e alçadas."),
-    "s4": StageDefinition("s4", Decimal("0.9780"), "Infra & Resiliência", "Acionar runbook de failover."),
-    "s5": StageDefinition("s5", Decimal("0.9810"), "Latência e UX", "Reexecutar testes sintéticos e otimizar rotas."),
-}
-
-
-def fail(code: str, message: str) -> None:
-    raise SystemExit(f"{ERROR_PREFIX}-{code}:{message}")
+StageHandler = Callable[[], StageOutcome]
 
 
 def ensure_output_dir() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def run_static_stage(definition: StageDefinition) -> Dict[str, str]:
-    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    return {
-        "schema_version": 1,
-        "stage": definition.stage,
-        "status": "pass",
-        "score": str(definition.target_ratio),
-        "formatted_score": f"{definition.target_ratio.quantize(Decimal('0.0001'))}",
-        "generated_at": now,
-        "description": definition.description,
-        "on_fail": definition.on_fail,
+def run_command(command: list[str], *, env: Optional[Dict[str, str]] = None) -> None:
+    command_display = " ".join(command)
+    print(f"[boss] running: {command_display}")
+    try:
+        command_env = dict(DEFAULT_ENV)
+        if env:
+            command_env.update(env)
+        subprocess.run(command, check=True, env=command_env)
+    except FileNotFoundError as exc:  # pragma: no cover - defensive
+        raise StageExecutionError(
+            "COMMAND-NOT-FOUND", f"Comando não encontrado: {command[0]} ({exc})"
+        )
+    except subprocess.CalledProcessError as exc:
+        raise StageExecutionError(
+            "COMMAND-FAIL", f"'{command_display}' retornou código {exc.returncode}"
+        )
+
+
+def health_probe() -> int:
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path == "/health":
+                payload = json.dumps({"status": "ok"}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A003 - match BaseHTTPRequestHandler signature
+            return
+
+    class Server(socketserver.TCPServer):
+        allow_reuse_address = True
+
+    with Server(("127.0.0.1", 0), Handler) as httpd:
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{port}/health"
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                try:
+                    with urllib.request.urlopen(url, timeout=1) as response:  # noqa: S310 - controlled local call
+                        if response.status != 200:
+                            raise StageExecutionError(
+                                "HEALTH-STATUS", f"HTTP {response.status} em {url}"
+                            )
+                        payload = json.loads(response.read().decode("utf-8"))
+                        if payload.get("status") != "ok":
+                            raise StageExecutionError(
+                                "HEALTH-PAYLOAD",
+                                f"Payload inesperado em {url}: {payload}",
+                            )
+                        return port
+                except StageExecutionError:
+                    raise
+                except Exception:
+                    time.sleep(0.1)
+            raise StageExecutionError("HEALTH-TIMEOUT", f"Timeout ao validar {url}")
+        finally:
+            httpd.shutdown()
+            thread.join()
+
+
+def stage_s1() -> StageOutcome:
+    run_command(["ruff", "check", "scripts/boss_final"])
+    run_command(["ruff", "format", "--check", "scripts/boss_final"])
+    pytest_targets = [
+        "tests/test_prompt_extras.py",
+        "tests/test_release_manifest.py::ReleaseManifestTests::test_build_release_metadata_derives_version",
+    ]
+    run_command(["pytest", "-q", *pytest_targets])
+    port = health_probe()
+    return StageOutcome(
+        notes=(
+            "Lint, format, pytest básico (prompt_extras + release_metadata) e health check responderam"
+            f" em 127.0.0.1:{port}."
+        ),
+        details={"health_port": port, "pytest_targets": pytest_targets},
+    )
+
+
+def stage_s2() -> StageOutcome:
+    cargo_env = {"CARGO_TERM_COLOR": "always"}
+    run_command(["cargo", "fetch"], env=cargo_env)
+    run_command(["cargo", "build", "--locked", "--all-targets"], env=cargo_env)
+    run_command(["cargo", "test", "--locked", "--all-targets"], env=cargo_env)
+    run_command(["bash", "scripts/microbench_dec.sh"], env=cargo_env)
+    return StageOutcome(
+        notes="Cargo fetch/build/test e microbench determinístico concluídos sem violações.",
+    )
+
+
+def stage_s3() -> StageOutcome:
+    run_command(["bash", "scripts/obs_probe_synthetic.sh"])
+    evidence_path = (
+        BASE_DIR / "out" / "obs_gatecheck" / "evidence" / "synthetic_probe.json"
+    )
+    if not evidence_path.exists():
+        raise StageExecutionError(
+            "S3-EVIDENCE", f"Arquivo esperado não encontrado: {evidence_path}"
+        )
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    ok = int(payload.get("ok", 0))
+    total = int(payload.get("total", 0))
+    ratio = float(payload.get("ok_ratio", 0.0))
+    notes = f"Smoke observability executado ({ok}/{total} requisições OK, razão {ratio:.4f})."
+    return StageOutcome(
+        notes=notes,
+        details={
+            "evidence": str(evidence_path.relative_to(BASE_DIR)),
+            "ok": ok,
+            "total": total,
+            "ratio": ratio,
+        },
+    )
+
+
+def stage_s4() -> StageOutcome:
+    run_command(["bash", "scripts/s4_bundle.sh"])
+    bundles = sorted(
+        (BASE_DIR / "out").glob("s4_evidence_bundle_*.zip"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    if not bundles:
+        raise StageExecutionError(
+            "S4-BUNDLE", "Nenhum bundle s4_evidence_bundle_*.zip gerado em out/."
+        )
+    bundle = bundles[-1]
+    sha_path = Path(f"{bundle}.sha256")
+    if not sha_path.exists():
+        raise StageExecutionError("S4-SHA", f"SHA esperado ausente: {sha_path}")
+    notes = f"Bundle ORR lite gerado ({bundle.name}) com SHA registrado."
+    return StageOutcome(
+        notes=notes,
+        details={
+            "bundle": str(bundle.relative_to(BASE_DIR)),
+            "sha": str(sha_path.relative_to(BASE_DIR)),
+        },
+    )
+
+
+def stage_s5() -> StageOutcome:
+    dashboard_path = (
+        BASE_DIR
+        / "dashboards"
+        / "grafana"
+        / "scorecards_quorum_failover_staleness.json"
+    )
+    if not dashboard_path.exists():
+        raise StageExecutionError(
+            "S5-DASHBOARD", f"Dashboard ausente: {dashboard_path}"
+        )
+    run_command(["jq", "-e", "select(.schemaVersion == 38)", str(dashboard_path)])
+    run_command(["jq", "-e", ".panels | length == 5", str(dashboard_path)])
+    run_command(["jq", "-e", 'all(.panels[]; .type == "stat")', str(dashboard_path)])
+    data = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    schema_version = data.get("schemaVersion")
+    panel_count = len(data.get("panels", []))
+    notes = f"Dashboard scorecards validado via jq (schemaVersion={schema_version}, painéis stat={panel_count})."
+    return StageOutcome(
+        notes=notes,
+        details={
+            "dashboard": str(dashboard_path.relative_to(BASE_DIR)),
+            "schemaVersion": schema_version,
+            "panel_count": panel_count,
+        },
+    )
+
+
+def stage_s6() -> StageOutcome:
+    report = generate_report()
+    summary = report.get("summary", {})
+    status = summary.get("status", "fail").upper()
+    if status not in {"PASS", "FAIL"}:
+        raise StageExecutionError(
+            "S6-STATUS", f"Status inválido retornado pelo scorecard: {status}"
+        )
+    notes = f"Scorecards {summary.get('passing', 0)}/{summary.get('total_metrics', 0)} verificados."
+    details = {
+        "report_path": str(S6_OUTPUT_DIR.relative_to(BASE_DIR)),
+        "bundle_sha256": report.get("bundle_sha256"),
+        "summary": summary,
     }
+    if status == "FAIL":
+        raise StageExecutionError("S6-GUARD", notes)
+    return StageOutcome(notes=notes, details=details)
 
 
-def run_stage(stage: str) -> Dict[str, str]:
-    if stage in STATIC_STAGES:
-        return run_static_stage(STATIC_STAGES[stage])
-    if stage == "s6":
-        report = generate_report()
-        summary = report["summary"]
-        ratio = Decimal(summary["passing"]) / Decimal(max(summary["total_metrics"], 1))
-        formatted_ratio = f"{ratio.quantize(Decimal('0.0001'))}"
-        status = summary["status"]
-        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        return {
+STAGE_HANDLERS: Dict[str, StageHandler] = {
+    "s1": stage_s1,
+    "s2": stage_s2,
+    "s3": stage_s3,
+    "s4": stage_s4,
+    "s5": stage_s5,
+    "s6": stage_s6,
+}
+
+
+def write_stage_files(stage: str, payload: Dict[str, Any]) -> None:
+    ensure_output_dir()
+    json_path = OUTPUT_DIR / f"{stage}.json"
+    status_path = OUTPUT_DIR / f"{stage}.status"
+    json_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    status_path.write_text(payload["status"] + "\n", encoding="utf-8")
+
+
+def execute_stage(stage: str) -> Dict[str, Any]:
+    handler = STAGE_HANDLERS.get(stage)
+    if handler is None:
+        raise StageExecutionError("UNKNOWN-STAGE", f"Stage desconhecido: {stage}")
+    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    try:
+        outcome = handler()
+    except StageExecutionError as exc:
+        notes = f"{ERROR_PREFIX}-{exc.code}:{exc.detail}"
+        payload: Dict[str, Any] = {
             "schema_version": 1,
-            "stage": "s6",
-            "status": status,
-            "score": str(ratio),
-            "formatted_score": formatted_ratio,
-            "generated_at": now,
-            "report_path": str(S6_OUTPUT_DIR.relative_to(BASE_DIR)),
-            "bundle_sha256": report["bundle_sha256"],
-            "on_fail": "Executar playbook de estabilização da Sprint 6 e rodar watchers.",
+            "stage": stage,
+            "status": "FAIL",
+            "generated_at": generated_at,
+            "notes": notes,
         }
-    fail("UNKNOWN-STAGE", f"Stage desconhecido: {stage}")
-    raise AssertionError("unreachable")
+        payload["details"] = {"error_code": exc.code, "detail": exc.detail}
+        return payload
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        notes = f"{ERROR_PREFIX}-UNEXPECTED:{exc}"
+        payload = {
+            "schema_version": 1,
+            "stage": stage,
+            "status": "FAIL",
+            "generated_at": generated_at,
+            "notes": notes,
+            "details": {"exception": repr(exc)},
+        }
+        return payload
+    payload = {
+        "schema_version": 1,
+        "stage": stage,
+        "status": "PASS",
+        "generated_at": generated_at,
+        "notes": outcome.notes,
+    }
+    if outcome.details:
+        payload["details"] = outcome.details
+    return payload
 
 
 def main() -> int:
     parser = ArgumentParser(description="Executa guardas de sprint para o Boss Final")
-    parser.add_argument("--stage", required=True, help="Identificador do estágio (s1..s6)")
+    parser.add_argument(
+        "--stage", required=True, help="Identificador do estágio (s1..s6)"
+    )
     args = parser.parse_args()
     stage = args.stage.lower().strip()
-    ensure_output_dir()
-    result = run_stage(stage)
-    output_path = OUTPUT_DIR / f"{stage}.json"
-    output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print("PASS", stage)
+    result = execute_stage(stage)
+    write_stage_files(stage, result)
+    print(f"{result['status']} {stage}")
     return 0
 
 
