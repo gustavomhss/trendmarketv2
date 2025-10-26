@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Q1 Boss Final Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "summary",
+    "stages",
+    "bundle_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "passing_stages",
+        "failing_stages",
+        "aggregate_ratio",
+        "formatted_ratio",
+        "total_stages"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail"]
+        },
+        "passing_stages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failing_stages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "aggregate_ratio": {
+          "type": "string"
+        },
+        "formatted_ratio": {
+          "type": "string"
+        },
+        "total_stages": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "status",
+          "score",
+          "formatted_score",
+          "generated_at"
+        ],
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          },
+          "score": {
+            "type": "string"
+          },
+          "formatted_score": {
+            "type": "string"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "on_fail": {
+            "type": "string"
+          },
+          "report_path": {
+            "type": "string"
+          },
+          "bundle_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "bundle_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
