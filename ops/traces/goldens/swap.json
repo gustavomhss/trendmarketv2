@@ -1,0 +1,22 @@
+{
+  "id": "swap",
+  "operation": "swap",
+  "service": "trendmarket-amm",
+  "lookback": "1h",
+  "limit": 50,
+  "attributes": [
+    {"key": "service.name", "equals": "trendmarket-amm"},
+    {"key": "service.version"},
+    {"key": "deployment.environment", "aliases": ["net.peer.env"]},
+    {"key": "http.route"},
+    {"key": "amm.operation", "equals": "swap"},
+    {"key": "amm.market_id"},
+    {"key": "amm.region"},
+    {"key": "amm.seed_id"},
+    {"key": "amm.pool_id"},
+    {"key": "amm.side"},
+    {"key": "amm.amount_in"},
+    {"key": "amm.amount_out"},
+    {"key": "amm.delta_k_ratio", "approx": 1.5e-9, "tolerance": 1e-12}
+  ]
+}

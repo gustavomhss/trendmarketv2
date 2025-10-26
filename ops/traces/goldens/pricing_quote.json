@@ -1,0 +1,21 @@
+{
+  "id": "pricing_quote",
+  "operation": "pricing",
+  "service": "trendmarket-amm",
+  "lookback": "1h",
+  "limit": 50,
+  "attributes": [
+    {"key": "service.name", "equals": "trendmarket-amm"},
+    {"key": "service.version"},
+    {"key": "deployment.environment", "aliases": ["net.peer.env"]},
+    {"key": "http.route"},
+    {"key": "amm.operation", "equals": "pricing"},
+    {"key": "amm.market_id"},
+    {"key": "amm.region"},
+    {"key": "amm.seed_id"},
+    {"key": "amm.pool_id"},
+    {"key": "pricing.mode"},
+    {"key": "pricing.model_version"},
+    {"key": "pricing.mid_price"}
+  ]
+}

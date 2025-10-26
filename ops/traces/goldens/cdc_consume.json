@@ -1,0 +1,21 @@
+{
+  "id": "cdc_consume",
+  "operation": "cdc_consume",
+  "service": "trendmarket-amm",
+  "lookback": "1h",
+  "limit": 50,
+  "attributes": [
+    {"key": "service.name", "equals": "trendmarket-amm"},
+    {"key": "service.version"},
+    {"key": "deployment.environment", "aliases": ["net.peer.env"]},
+    {"key": "http.route"},
+    {"key": "amm.operation", "equals": "cdc_consume"},
+    {"key": "amm.market_id"},
+    {"key": "amm.region"},
+    {"key": "amm.seed_id"},
+    {"key": "cdc.stream"},
+    {"key": "cdc.partition"},
+    {"key": "cdc.lag_seconds"},
+    {"key": "cdc.offset"}
+  ]
+}
