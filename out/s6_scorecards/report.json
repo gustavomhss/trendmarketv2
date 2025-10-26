@@ -1,6 +1,7 @@
 {
+  "schema": "trendmarketv2.sprint6.report",
   "schema_version": 1,
-  "timestamp_utc": "2025-10-26T01:35:37Z",
+  "timestamp_utc": "2025-10-26T02:45:34Z",
   "status": "PASS",
   "metrics": {
     "quorum_ratio": {
@@ -31,55 +32,17 @@
   },
   "inputs": {
     "thresholds": {
+      "schema": "trendmarketv2.sprint6.thresholds.v1",
       "version": 1,
-      "timestamp_utc": "2024-09-01T06:00:00Z",
-      "metrics": {
-        "quorum_ratio": {
-          "version": 1,
-          "comparison": "gte"
-        },
-        "failover_time_p95_s": {
-          "version": 1,
-          "comparison": "lte"
-        },
-        "staleness_p95_s": {
-          "version": 1,
-          "comparison": "lte"
-        },
-        "cdc_lag_p95_s": {
-          "version": 1,
-          "comparison": "lte"
-        },
-        "divergence_pct": {
-          "version": 1,
-          "comparison": "lte"
-        }
-      }
+      "timestamp_utc": "2024-09-01T06:00:00Z"
     },
     "metrics": {
+      "schema": "trendmarketv2.sprint6.metrics.v1",
       "version": 1,
-      "timestamp_utc": "2024-09-01T05:55:00Z",
-      "metrics": {
-        "quorum_ratio": {
-          "version": 1
-        },
-        "failover_time_p95_s": {
-          "version": 1
-        },
-        "staleness_p95_s": {
-          "version": 1
-        },
-        "cdc_lag_p95_s": {
-          "version": 1
-        },
-        "divergence_pct": {
-          "version": 1
-        }
-      }
+      "timestamp_utc": "2024-09-01T05:55:00Z"
     }
   },
   "bundle": {
-    "sha256": "aa337206bdb5152ffd7f20af8c40a81b491ef4893f068e42c22608f4b7447a3f"
-    "sha256": "0123864136a308f3824003a64753bddac8d0ecaa4d1188da84e8371736336ef6"
+    "sha256": "417865fb46b893742076ff856aaeba63bb95222386f3d07085db4ede11afa6f7"
   }
 }

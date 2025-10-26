@@ -1,714 +1,238 @@
 #!/usr/bin/env python3
+"""Aggregate Boss Final stage results for Q1."""
+
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
-import hashlib
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_EVEN, getcontext
-from pathlib import Path
-from typing import Dict, Iterable, List, Mapping
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List
-from hashlib import sha256
 from pathlib import Path
 from typing import Dict, List, Sequence
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-STAGES_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
+STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
+STAGES_DIR = OUTPUT_DIR / "stages"
+SCHEMA_VERSION = 1
 ERROR_PREFIX = "BOSS-E"
-SCHEMA_VERSION = 1
-RESULT_FILENAME = "result.json"
-GUARD_FILENAME = "guard_status.txt"
-STAGES: tuple[str, ...] = ("s1", "s2", "s3", "s4", "s5", "s6")
 
 
 @dataclass(frozen=True)
-class StagePayload:
+class StageSummary:
     stage: str
     status: str
     notes: str
-    raw: Dict[str, object]
-STAGES: Sequence[str] = ("s1", "s2", "s3", "s4", "s5", "s6")
-STAGE_GUARD_SUFFIX = "_guard_status.txt"
-
-getcontext().prec = 28
-getcontext().rounding = ROUND_HALF_EVEN
-
-
-class AggregationFailure(Exception):
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
+    variants: Dict[str, Dict[str, object]]
 
 
 @dataclass(frozen=True)
-class BossArtifacts:
+class AggregateArtifacts:
     report: Dict[str, object]
-    stages: List[Dict[str, object]]
-    summary: Dict[str, object]
+    stage_summaries: Dict[str, StageSummary]
     bundle_sha256: str
-class VariantResult:
-    stage: str
-    variant: str
-    status: str
-    notes: str
-    failure_code: str | None
-STAGES = ["s1", "s2", "s3", "s4", "s5", "s6"]
-
-
-@dataclass
-class StageBundle:
-    stage: str
-    status: str
-    notes: str
-
-SCHEMA_VERSION = 1
-
-
-def fail(code: str, message: str) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / GUARD_FILENAME).write_text("FAIL\n", encoding="utf-8")
-    raise SystemExit(f"{ERROR_PREFIX}-{code}:{message}")
-    (OUTPUT_DIR / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
-    raise SystemExit(f"{ERROR_PREFIX}-{code}:{message}")
-
-
-def read_text(path: Path, code: str) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        fail(code, f"Missing required file: {path}")
-    print(f"FAIL {ERROR_PREFIX}-{code}:{message}")
-    raise SystemExit(1)
-
-
-def ensure_stage_dir(stage: str) -> Path:
-    stage_dir = STAGES_DIR / stage
-    if not stage_dir.exists():
-        raise AggregationFailure("STAGE-MISSING", f"Diretório ausente para {stage}: {stage_dir}")
-    return stage_dir
-
-
-def load_variant(stage: str, variant_dir: Path) -> VariantResult:
-    guard_path = variant_dir / "guard_status.txt"
-    result_path = variant_dir / "result.json"
-    if not guard_path.exists():
-        raise AggregationFailure("VARIANT-GUARD", f"guard_status.txt ausente em {variant_dir}")
-    if not result_path.exists():
-        raise AggregationFailure("VARIANT-RESULT", f"result.json ausente em {variant_dir}")
-    guard = guard_path.read_text(encoding="utf-8").strip().upper()
-    if guard not in {"PASS", "FAIL"}:
-        raise AggregationFailure("VARIANT-GUARD", f"valor inválido em {guard_path}: {guard}")
-    try:
-        result = json.loads(result_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise AggregationFailure("VARIANT-JSON", f"JSON inválido em {result_path}: {exc}") from exc
-    if result.get("stage") != stage:
-        raise AggregationFailure("VARIANT-STAGE", f"Stage inconsistente em {result_path}")
-    variant = result.get("variant", variant_dir.name)
-    status = result.get("status", "").upper()
-    if status != guard:
-        raise AggregationFailure("VARIANT-MISMATCH", f"guard_status divergente em {variant_dir}")
-    notes = (result.get("notes") or "").strip()
-    failure_code = result.get("failure_code")
-    if failure_code is not None:
-        failure_code = str(failure_code)
-    return VariantResult(stage=stage, variant=variant, status=status, notes=notes, failure_code=failure_code)
-
-
-def load_stage(stage: str) -> Dict[str, object]:
-    stage_dir = ensure_stage_dir(stage)
-    variant_dirs = sorted([path for path in stage_dir.iterdir() if path.is_dir()])
-    if not variant_dirs:
-        raise AggregationFailure("STAGE-VARIANTS", f"Nenhuma variante encontrada para {stage}")
-    variants = [load_variant(stage, variant_dir) for variant_dir in variant_dirs]
-    stage_status = "PASS" if all(item.status == "PASS" for item in variants) else "FAIL"
-    parts: List[str] = []
-    for item in variants:
-        prefix = item.variant.upper()
-        if item.failure_code and item.status != "PASS":
-            prefix = f"{prefix} [{item.failure_code}]"
-        snippet = item.notes or ("OK" if item.status == "PASS" else "Sem notas")
-        parts.append(f"{prefix}: {snippet}")
-    notes = "; ".join(parts)
-    return {
-        "stage": stage,
-        "status": stage_status,
-        "notes": notes,
-        "variants": [item.__dict__ for item in variants],
-    }
 
 
 def isoformat_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def load_stage_guard_status(stage: str) -> str:
-    path = STAGES_DIR / stage / GUARD_FILENAME
-    if not path.exists():
-        raise AggregationFailure("STAGE-GUARD-MISSING", f"Guard status ausente para {stage}: {path}")
-    try:
-        status = path.read_text(encoding="utf-8").strip().upper()
-    except OSError as exc:
-        raise AggregationFailure("STAGE-GUARD-IO", f"Falha ao ler guard status de {stage}: {exc}") from exc
-    if status not in {"PASS", "FAIL"}:
-        raise AggregationFailure("STAGE-GUARD-INVALID", f"Valor inválido em guard status de {stage}: {status}")
-    return status
+def canonical_dumps(payload: Dict[str, object]) -> str:
+    return json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
-def load_stage(stage: str) -> Dict[str, object]:
-    path = STAGES_DIR / f"{stage}.json"
-    if not path.exists():
-        raise AggregationFailure("STAGE-MISSING", f"Arquivo do estágio ausente: {path}")
+def load_json(path: Path) -> Dict[str, object]:
     try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise AggregationFailure("STAGE-IO", f"Falha ao ler {path}: {exc}") from exc
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise AggregationFailure("STAGE-INVALID", f"JSON inválido em {path}: {exc}") from exc
-    required = {"schema_version", "stage", "status", "score", "formatted_score", "generated_at"}
-    missing = sorted(required - data.keys())
-    if missing:
-        raise AggregationFailure("STAGE-SCHEMA", f"Campos ausentes para {stage}: {missing}")
-    if int(data["schema_version"]) != 1:
-        raise AggregationFailure("STAGE-SCHEMA", f"schema_version inválido em {path}")
-    if str(data["stage"]).lower() != stage:
-        raise AggregationFailure("STAGE-MISMATCH", f"ID do estágio divergente em {path}")
-    guard_status = load_stage_guard_status(stage)
-    status = str(data["status"]).upper()
-    if guard_status == "FAIL":
-        status = "FAIL"
-    elif status == "FAIL":
-        raise AggregationFailure("STAGE-GUARD-DIVERGENCE", f"Guard status PASS mas estágio falhou: {stage}")
-    try:
-        score = Decimal(str(data["score"]))
-    except Exception as exc:  # pragma: no cover - defensive
-        raise AggregationFailure("STAGE-SCORE", f"Score inválido em {path}: {exc}") from exc
-    entry: Dict[str, object] = {
-        "stage": stage,
-        "status": status,
-        "score": score,
-        "formatted_score": str(data["formatted_score"]),
-        "generated_at": str(data["generated_at"]),
-        "guard_status": guard_status,
-    }
-    for key in ("notes", "on_fail", "report_path", "bundle_sha256"):
-        if key in data:
-            entry[key] = data[key]
-    return entry
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{ERROR_PREFIX}-E-MISSING: {path} ausente") from exc
 
 
-def load_all_stages() -> List[Dict[str, object]]:
-    stages: List[Dict[str, object]] = []
+def load_stage_variant(stage: str, variant: str) -> Dict[str, object]:
+    directory = STAGES_DIR / stage / variant
+    result_path = directory / "result.json"
+    if not result_path.exists():
+        raise RuntimeError(f"{ERROR_PREFIX}-E-RESULT: resultado ausente para {stage}/{variant}")
+    result = load_json(result_path)
+    guard_path = directory / "guard_status.txt"
+    guard = guard_path.read_text(encoding="utf-8").strip() if guard_path.exists() else "MISSING"
+    result.setdefault("guard_status", guard)
+    return result
+
+
+def summarise_stage(stage: str) -> StageSummary:
+    variants: Dict[str, Dict[str, object]] = {}
+    statuses: List[str] = []
+    notes_parts: List[str] = []
+    for variant in ("primary", "clean"):
+        variant_result = load_stage_variant(stage, variant)
+        variants[variant] = variant_result
+        status = variant_result.get("status", "FAIL").upper()
+        statuses.append(status)
+        variant_note = variant_result.get("notes", "")
+        notes_parts.append(f"{variant}:{status}{(' ' + variant_note) if variant_note else ''}")
+    stage_status = "PASS" if all(status == "PASS" for status in statuses) else "FAIL"
+    notes = " | ".join(notes_parts)
+    return StageSummary(stage=stage, status=stage_status, notes=notes, variants=variants)
+
+
+def compute_bundle_sha(stage_summaries: Dict[str, StageSummary]) -> str:
+    pieces: List[str] = []
     for stage in STAGES:
-        stages.append(load_stage(stage))
-        fail(code, f"Could not read {path}: {exc}")
+        summary = stage_summaries[stage]
+        for variant in ("primary", "clean"):
+            variant_payload = summary.variants[variant]
+            pieces.append(canonical_dumps({
+                "stage": stage,
+                "variant": variant,
+                "status": variant_payload.get("status"),
+                "notes": variant_payload.get("notes"),
+                "timestamp_utc": variant_payload.get("timestamp_utc"),
+            }))
+    concatenated = "".join(pieces)
+    return hashlib.sha256(concatenated.encode("utf-8")).hexdigest()
 
 
-def load_stage(stage: str) -> StageBundle:
-    stage_dir = STAGES_DIR / stage
-    if not stage_dir.exists():
-        fail("STAGE-DIR", f"Stage directory missing: {stage_dir}")
-
-    stage_path = stage_dir / "stage.json"
-    raw = read_text(stage_path, "STAGE-JSON")
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        fail("STAGE-JSON", f"Invalid JSON in {stage_path}: {exc}")
-
-    if data.get("stage") != stage:
-        fail("STAGE-ID", f"Stage id mismatch for {stage}: {data.get('stage')}")
-
-    status = str(data.get("status", "")).upper()
-    notes = str(data.get("notes", "")).strip()
-    if status not in {"PASS", "FAIL"}:
-        fail("STAGE-STATUS", f"Stage {stage} reported invalid status: {status}")
-    if not notes:
-        fail("STAGE-NOTES", f"Stage {stage} did not provide notes")
-
-    guard_path = stage_dir / "guard_status.txt"
-    guard_status = read_text(guard_path, "STAGE-GUARD").strip().upper()
-    if guard_status not in {"PASS", "FAIL"}:
-        fail("STAGE-GUARD", f"Invalid guard status for {stage}: {guard_status}")
-    if guard_status != status:
-        fail("STAGE-DIVERGENCE", f"Stage {stage} mismatch between guard ({guard_status}) and status ({status})")
-
-    return StageBundle(stage=stage, status=status, notes=notes)
-
-def load_stage(stage: str) -> StagePayload:
-    path = STAGES_DIR / stage / RESULT_FILENAME
-    if not path.exists():
-        fail("STAGE-RESULT-MISSING", f"Arquivo do estágio ausente: {path}")
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        fail("STAGE-RESULT-INVALID", f"JSON inválido em {path}: {exc}")
-
-def load_all_stages() -> Dict[str, StageBundle]:
-    bundles: Dict[str, StageBundle] = {}
-    for stage in STAGES:
-        bundles[stage] = load_stage(stage)
-    return bundles
-
-    schema_version = data.get("schema_version")
-    if schema_version != SCHEMA_VERSION:
-        fail("STAGE-SCHEMA", f"schema_version inesperado para {stage}: {schema_version}")
-
-    declared_stage = str(data.get("stage", "")).lower()
-    if declared_stage != stage:
-        fail("STAGE-MISMATCH", f"ID do estágio divergente em {stage}: {declared_stage}")
-
-    status = str(data.get("status", "")).upper()
-    if status not in {"PASS", "FAIL"}:
-        fail("STAGE-STATUS", f"Status inválido em {stage}: {status}")
-
-    notes = data.get("notes")
-    if not isinstance(notes, str):
-        fail("STAGE-NOTES", f"Notas inválidas em {stage}: {notes!r}")
-    notes = notes.strip()
-
-    guard_status = load_stage_guard_status(stage)
-    if guard_status != status:
-        fail(
-            "STAGE-GUARD-DIVERGENCE",
-            f"Guard status {guard_status} difere do resultado {status} em {stage}",
-        )
-
-    return StagePayload(stage=stage, status=status, notes=notes, raw=data)
-
-
-def load_all_stages() -> List[StagePayload]:
-    return [load_stage(stage) for stage in STAGES]
-
-
-def build_report(stages: Iterable[StagePayload]) -> Dict[str, object]:
-    stage_map: Dict[str, StagePayload] = {payload.stage: payload for payload in stages}
-    if set(stage_map) != set(STAGES):
-        missing = sorted(set(STAGES) - set(stage_map))
-        fail("STAGE-MISSING", f"Estágios ausentes: {missing}")
-
-    timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    sprints: Dict[str, Dict[str, str]] = {}
-    overall = "PASS"
-    for stage in STAGES:
-        payload = stage_map[stage]
-        sprints[stage] = {
-            "status": payload.status,
-            "notes": payload.notes,
-        }
-        if payload.status != "PASS":
-            overall = "FAIL"
-
-    return {
+def build_report(stage_summaries: Dict[str, StageSummary], bundle_sha: str, release_tag: str | None) -> Dict[str, object]:
+    report = {
+        "schema": "trendmarketv2.q1.boss.report",
         "schema_version": SCHEMA_VERSION,
-        "timestamp_utc": timestamp,
-        "sprints": sprints,
-        "status": overall,
+        "timestamp_utc": isoformat_utc(),
+        "status": "PASS" if all(summary.status == "PASS" for summary in stage_summaries.values()) else "FAIL",
+        "sprints": {
+            stage: {
+                "status": summary.status,
+                "notes": summary.notes,
+            }
+            for stage, summary in stage_summaries.items()
+        },
+        "bundle": {"sha256": bundle_sha},
     }
+    if release_tag:
+        report["release_tag"] = release_tag
+    return report
 
 
-def compute_bundle_hash(report: Mapping[str, object]) -> str:
-    canonical = {
-        "status": report["status"],
-        "sprints": report["sprints"],
-    }
-    payload = json.dumps(
-        canonical,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def render_markdown(report: Mapping[str, object], stages: Iterable[StagePayload], bundle_hash: str) -> str:
-    stage_map = {payload.stage: payload for payload in stages}
-    lines: List[str] = ["# Q1 Boss Final", ""]
-    emoji = "✅" if report["status"] == "PASS" else "❌"
-    lines.append(f"{emoji} Status geral: **{report['status']}**")
-    lines.append(f"- Timestamp (UTC): {report['timestamp_utc']}")
-    lines.append(f"- Bundle SHA-256: `{bundle_hash}`")
+def render_markdown(artifacts: AggregateArtifacts) -> str:
+    lines = ["# Q1 Boss Final", ""]
+    emoji = "✅" if artifacts.report["status"] == "PASS" else "❌"
+    lines.append(f"{emoji} Status global: **{artifacts.report['status']}**")
     lines.append("")
-
-    for stage in STAGES:
-        entry = report["sprints"][stage]
-        payload = stage_map[stage]
-        stage_emoji = "✅" if entry["status"] == "PASS" else "❌"
-        lines.append(f"## {stage.upper()}")
-        lines.append(f"- Status: {stage_emoji} {entry['status']}")
-        lines.append(f"- Notes: {entry['notes'] or 'n/a'}")
-        checks = payload.raw.get("checks")
-        if isinstance(checks, list) and checks:
-            lines.append("- Checks:")
-            for check in checks:
-                check_name = str(check.get("name", "?"))
-                check_status = str(check.get("status", "?")).upper()
-                check_emoji = "✅" if check_status == "PASS" else "❌"
-                detail = str(check.get("detail", "")).replace("\n", " ")
-                lines.append(f"  - {check_emoji} {check_name}: {detail}")
-        metadata = payload.raw.get("metadata")
-        if isinstance(metadata, dict) and metadata:
-            lines.append("- Metadata:")
-            for key, value in sorted(metadata.items()):
-                lines.append(f"  - {key}: {value}")
-        lines.append("")
-
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def render_badge(report: Mapping[str, object]) -> str:
-    status = report["status"]
-    color = "#2e8540" if status == "PASS" else "#c92a2a"
-    return (
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"180\" height=\"40\">"
-        f"<rect width=\"180\" height=\"40\" fill=\"{color}\" rx=\"6\"/>"
-        "<text x=\"90\" y=\"25\" text-anchor=\"middle\" fill=\"#ffffff\" font-size=\"20\""
-        f" font-family=\"Helvetica,Arial,sans-serif\">Q1 {status}</text>"
-def compute_bundle_hash(bundles: Dict[str, StageBundle]) -> str:
-    canonical = {
-        stage: {"status": bundle.status, "notes": bundle.notes}
-        for stage, bundle in sorted(bundles.items())
-    }
-    payload = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
-def build_report(bundles: Dict[str, StageBundle]) -> dict:
-    timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    overall = "PASS" if all(bundle.status == "PASS" for bundle in bundles.values()) else "FAIL"
-    sprints = {stage: {"status": bundle.status, "notes": bundle.notes} for stage, bundle in bundles.items()}
-    bundle_hash = compute_bundle_hash(bundles)
-    return {
-        "schema_version": 1,
-        "timestamp_utc": timestamp,
-        "status": overall,
-        "sprints": sprints,
-        "bundle_sha256": bundle_hash,
-    }
-
-
-def render_report_md(report: dict) -> str:
-    lines: List[str] = ["# Q1 Boss Final", ""]
-    lines.append(f"- Timestamp (UTC): {report['timestamp_utc']}")
-    lines.append(f"- Overall status: **{report['status']}**")
-    lines.append(f"- Bundle SHA-256: `{report['bundle_sha256']}`")
+    lines.append(f"- Relatório gerado em: {artifacts.report['timestamp_utc']}")
+    if "release_tag" in artifacts.report:
+        lines.append(f"- Release tag: {artifacts.report['release_tag']}")
+    lines.append(f"- Bundle SHA-256: `{artifacts.bundle_sha256}`")
     lines.append("")
-    lines.append("## Stage breakdown")
-    lines.append("| Stage | Status | Notes |")
+    lines.append("| Stage | Status | Notas |")
     lines.append("| --- | --- | --- |")
     for stage in STAGES:
-        entry = report["sprints"][stage]
-        notes = entry["notes"].replace("\n", "<br>")
-        lines.append(f"| {stage.upper()} | {entry['status']} | {notes} |")
+        summary = artifacts.stage_summaries[stage]
+        stage_emoji = "✅" if summary.status == "PASS" else "❌"
+        lines.append(f"| {stage.upper()} | {stage_emoji} {summary.status} | {summary.notes} |")
+    lines.append("")
+    lines.append("## Governança")
+    lines.append("- Cada estágio deve publicar bundles para `primary` e `clean`.")
+    lines.append("- O status global é FAIL se qualquer estágio falhar em qualquer variante.")
+    lines.append("")
     return "\n".join(lines) + "\n"
 
 
-def render_badge(report: dict) -> str:
-    status = report["status"]
-        try:
-            stages.append(load_stage(stage))
-        except AggregationFailure as exc:
-            fail(exc.code, exc.message)
-    return stages
-
-
-def compute_summary(stages: List[Dict[str, object]]) -> Dict[str, object]:
-    if not stages:
-        return {"status": "PASS", "aggregate_ratio": "0", "failing_stages": 0}
-    scores = [entry["score"] for entry in stages]
-    failing = sum(1 for entry in stages if entry["status"] != "PASS")
-    aggregate = (sum(scores) / Decimal(len(scores))).quantize(Decimal("0.0001"))
-    status = "PASS" if failing == 0 else "FAIL"
-    return {
-        "status": status,
-        "aggregate_ratio": f"{aggregate}",
-        "failing_stages": failing,
-    }
-
-
-def build_report(stages: List[Dict[str, object]], summary: Dict[str, object]) -> Dict[str, object]:
-    sprints: Dict[str, Dict[str, str]] = {}
-    for entry in stages:
-        notes = str(entry.get("notes", "")).strip()
-        sprints[entry["stage"]] = {
-            "status": entry["status"],
-            "notes": notes,
-        }
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "timestamp_utc": isoformat_utc(),
-        "status": summary["status"],
-        "sprints": sprints,
-    }
-
-
-def render_markdown(
-    report: Dict[str, object],
-    stages: List[Dict[str, object]],
-    summary: Dict[str, object],
-    bundle_sha256: str,
-) -> str:
-    lines = ["# Q1 Boss Final", ""]
-    lines.append(f"Status global: **{report['status']}**")
-    lines.append(f"- Failing stages: {summary['failing_stages']}")
-    lines.append(f"- Aggregate ratio: {summary['aggregate_ratio']}")
-    lines.append(f"- Timestamp UTC: {report['timestamp_utc']}")
-    lines.append(f"- Bundle SHA256: `{bundle_sha256}`")
+def render_pr_comment(artifacts: AggregateArtifacts) -> str:
+    emoji = "✅" if artifacts.report["status"] == "PASS" else "❌"
+    lines = [f"{emoji} [Q1 Boss Final report](./report.md)", ""]
+    lines.append("![Status](./badge.svg)")
     lines.append("")
-    lines.append("| Stage | Status | Score | Notes |")
-    lines.append("| --- | --- | --- | --- |")
-    for entry in stages:
-        notes = str(entry.get("notes", "")).replace("|", "\|")
-        lines.append(
-            f"| {entry['stage'].upper()} | {entry['status']} | {entry['formatted_score']} | {notes} |"
-        )
+    for stage in STAGES:
+        summary = artifacts.stage_summaries[stage]
+        stage_emoji = "✅" if summary.status == "PASS" else "❌"
+        lines.append(f"- {stage.upper()}: {stage_emoji} {summary.status} — {summary.notes}")
     lines.append("")
-    return "
-".join(lines) + "
-"
+    lines.append(f"Bundle SHA-256: `{artifacts.bundle_sha256}`")
+    lines.append("")
+    lines.append("Relatório completo disponível em [report.md](./report.md).")
+    return "\n".join(lines) + "\n"
 
 
 def render_badge(status: str) -> str:
-    color = "#2e8540" if status == "PASS" else "#c92a2a"
+    color = "4c9a2a" if status == "PASS" else "cc3300"
     return (
-        "<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40">"
-        f"<rect width="200" height="40" fill="{color}" rx="6"/>"
-        f"<text x="100" y="25" text-anchor="middle" fill="#ffffff" font-size="20""
-        " font-family="Helvetica,Arial,sans-serif">Q1 {status}</text>"
-        "</svg>"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"20\" role=\"img\">"
+        "<linearGradient id=\"b\" x2=\"0\" y2=\"100%\"><stop offset=\"0\" stop-color=\"#bbb\" stop-opacity=\".1\"/>"
+        "<stop offset=\"1\" stop-opacity=\".1\"/></linearGradient>"
+        "<mask id=\"a\"><rect width=\"160\" height=\"20\" rx=\"3\" fill=\"#fff\"/></mask>"
+        "<g mask=\"url(#a)\">"
+        "<rect width=\"80\" height=\"20\" fill=\"#555\"/>"
+        f"<rect x=\"80\" width=\"80\" height=\"20\" fill=\"#{color}\"/>"
+        "<rect width=\"160\" height=\"20\" fill=\"url(#b)\"/></g>"
+        "<g fill=\"#fff\" text-anchor=\"middle\" font-family=\"DejaVu Sans,Verdana,Geneva,sans-serif\" font-size=\"11\">"
+        "<text x=\"40\" y=\"15\">Q1 Boss</text>"
+        f"<text x=\"120\" y=\"15\">{status}</text>"
+        "</g></svg>"
     )
 
 
-def render_dag(report: Mapping[str, object]) -> str:
-    width = 120 * len(STAGES)
-    height = 120
-    svg = [
-        f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\">",
-        "<defs><marker id=\"arrow\" markerWidth=\"10\" markerHeight=\"7\" refX=\"10\" refY=\"3.5\" orient=\"auto\"><polygon points=\"0 0, 10 3.5, 0 7\" fill=\"#1f2933\"/></marker></defs>",
-def render_dag(stages: List[Dict[str, object]]) -> str:
-    width = 140 * len(stages)
-    height = 120
-    svg = [
-        f"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">",
-        f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"120\">",
-        "<style>text{font-family:Helvetica,Arial,sans-serif;font-size:14px;}</style>",
-        "<defs><marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#1f2933"/></marker></defs>",
-    ]
-    for index, stage in enumerate(stages):
-        cx = 70 + index * 140
+def render_dag(stage_summaries: Dict[str, StageSummary], status: str) -> str:
+    height = 40 + len(STAGES) * 25
+    nodes = []
     for index, stage in enumerate(STAGES):
-        entry = report["sprints"][stage]
-        x = 60 + index * 120
-        status = entry["status"]
-        color = "#2e8540" if status == "PASS" else "#c92a2a"
-        svg.append(f"<circle cx=\"{x}\" cy=\"40\" r=\"30\" fill=\"{color}\" />")
-        svg.append(
-            f"<text x=\"{x}\" y=\"45\" text-anchor=\"middle\" fill=\"#ffffff\">{stage.upper()}</text>"
+        summary = stage_summaries[stage]
+        y = 40 + index * 25
+        color = "#4c9a2a" if summary.status == "PASS" else "#cc3300"
+        nodes.append(
+            f"<rect x=\"20\" y=\"{y}\" width=\"120\" height=\"20\" rx=\"4\" fill=\"{color}\"/>"
+            f"<text x=\"80\" y=\"{y + 15}\" fill=\"#fff\" font-size=\"12\" text-anchor=\"middle\">{stage.upper()} — {summary.status}</text>"
         )
-        if index < len(STAGES) - 1:
-        status_color = "#2e8540" if stage["status"] == "PASS" else "#c92a2a"
-        svg.append(f"<circle cx="{cx}" cy="50" r="32" fill="{status_color}" />")
-        svg.append(f"<text x="{cx}" y="55" text-anchor="middle" fill="#ffffff">{stage['stage'].upper()}</text>")
-        if index < len(stages) - 1:
-            next_cx = 70 + (index + 1) * 140
-            svg.append(
-                f"<line x1="{cx + 32}" y1="50" x2="{next_cx - 32}" y2="50" stroke="#1f2933" stroke-width="2" marker-end="url(#arrow)" />"
-                f"<line x1=\"{x + 35}\" y1=\"50\" x2=\"{next_x - 35}\" y2=\"50\" stroke=\"#1f2933\" stroke-width=\"2\" marker-end=\"url(#arrow)\" />"
-            )
-    svg.append("</svg>")
-    return "".join(svg)
+    connector = "".join(nodes)
+    header_color = "#4c9a2a" if status == "PASS" else "#cc3300"
+    return (
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"" + str(height) + "\">"
+        f"<rect width=\"320\" height=\"30\" fill=\"{header_color}\" rx=\"4\"/>"
+        "<text x=\"20\" y=\"20\" font-size=\"16\" fill=\"#fff\">Q1 Boss Final</text>"
+        f"{connector}</svg>"
+    )
 
 
-def render_pr_comment(
-    report: Dict[str, object],
-    stages: List[Dict[str, object]],
-    summary: Dict[str, object],
-    bundle_sha256: str,
-) -> str:
-def build_pr_comment(report: Mapping[str, object]) -> str:
-    emoji = "✅" if report["status"] == "PASS" else "❌"
-    lines = [f"{emoji} **Q1 Boss Final** — {report['status']}"]
-    lines.append(f"- Timestamp (UTC): {report['timestamp_utc']}")
+def ensure_output_dir() -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def write_outputs(artifacts: AggregateArtifacts) -> None:
+    ensure_output_dir()
+    (OUTPUT_DIR / "report.json").write_text(json.dumps(artifacts.report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (OUTPUT_DIR / "report.md").write_text(render_markdown(artifacts), encoding="utf-8")
+    (OUTPUT_DIR / "badge.svg").write_text(render_badge(artifacts.report["status"]), encoding="utf-8")
+    (OUTPUT_DIR / "dag.svg").write_text(render_dag(artifacts.stage_summaries, artifacts.report["status"]), encoding="utf-8")
+    (OUTPUT_DIR / "pr_comment.md").write_text(render_pr_comment(artifacts), encoding="utf-8")
+    (OUTPUT_DIR / "bundle.sha256").write_text(artifacts.bundle_sha256 + "\n", encoding="utf-8")
+    (OUTPUT_DIR / "guard_status.txt").write_text(f"{artifacts.report['status']}\n", encoding="utf-8")
+
+
+def aggregate(release_tag: str | None = None) -> AggregateArtifacts:
+    stage_summaries: Dict[str, StageSummary] = {}
     for stage in STAGES:
-        entry = report["sprints"][stage]
-        stage_emoji = "✅" if entry["status"] == "PASS" else "❌"
-        notes = entry["notes"] or "n/a"
-        lines.append(f"- {stage.upper()}: {stage_emoji} {notes}")
-    return "\n".join(lines) + "\n"
+        stage_summaries[stage] = summarise_stage(stage)
+    bundle_sha = compute_bundle_sha(stage_summaries)
+    report = build_report(stage_summaries, bundle_sha, release_tag)
+    artifacts = AggregateArtifacts(report=report, stage_summaries=stage_summaries, bundle_sha256=bundle_sha)
+    write_outputs(artifacts)
+    if artifacts.report["status"] != "PASS":
+        raise SystemExit(1)
+    return artifacts
 
 
-def write_outputs(report: Dict[str, object], stages: Iterable[StagePayload]) -> str:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    bundle_hash = compute_bundle_hash(report)
-def build_pr_comment(report: dict) -> str:
-    lines = [f"### Q1 Boss Final — {report['status']}"]
-def render_pr_comment(report: Dict[str, object], stages: List[Dict[str, object]], bundle_hash: str) -> str:
-    emoji = "✅" if report["status"] == "PASS" else "❌"
-    lines = [f"{emoji} [Q1 Boss Final report](./report.md)"]
-    lines.append("")
-    lines.append("![Status](./badge.svg)")
-    lines.append("")
-    lines.append("## Resumo")
-    lines.append(f"- Status global: **{report['status']}**")
-    lines.append(f"- Aggregate ratio: {summary['aggregate_ratio']}")
-    lines.append(f"- Failing stages: {summary['failing_stages']}")
-    lines.append("")
-    lines.append("## O que fazer agora")
-    failing = [entry for entry in stages if entry["status"] != "PASS"]
-    if failing:
-        for entry in failing:
-            action = entry.get("on_fail", "Ação corretiva pendente.")
-            lines.append(f"- {entry['stage'].upper()}: {action}")
-    else:
-        lines.append("- Nenhuma ação pendente. Continuar monitoramento diário.")
-    lines.append("")
-    lines.append(f"Bundle SHA-256: `{bundle_sha256}`")
-    lines.append("")
-    lines.append("Relatório completo disponível em [report.md](./report.md).")
-    return "
-".join(lines) + "
-"
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Aggregate Q1 Boss Final stages")
+    parser.add_argument("--release-tag", default=None)
+    return parser.parse_args(argv)
 
 
-def _serialise_stages_for_hash(stages: List[Dict[str, object]]) -> str:
-    serialisable: List[Dict[str, object]] = []
-    for entry in stages:
-        item = {
-            "stage": entry["stage"],
-            "status": entry["status"],
-            "score": f"{entry['score']}",
-            "formatted_score": entry["formatted_score"],
-            "generated_at": entry["generated_at"],
-        }
-        for key in ("notes", "on_fail", "report_path", "bundle_sha256"):
-            if key in entry:
-                item[key] = entry[key]
-        serialisable.append(item)
-    serialisable.sort(key=lambda item: item["stage"])
-    return json.dumps(serialisable, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-
-
-def write_outputs(
-    report: Dict[str, object],
-    stages: List[Dict[str, object]],
-    summary: Dict[str, object],
-    bundle_sha256: str,
-) -> None:
-    lines.append("| Stage | Status | Notes |")
-    lines.append("| --- | --- | --- |")
-    for stage in STAGES:
-        entry = report["sprints"][stage]
-        notes = entry["notes"].replace("\n", "<br>")
-        lines.append(f"| {stage.upper()} | {entry['status']} | {notes} |")
-    lines.append("")
-    lines.append(f"Bundle SHA-256: `{report['bundle_sha256']}`")
-    return "\n".join(lines) + "\n"
-
-
-def write_outputs(report: dict) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / "report.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    (OUTPUT_DIR / "report.md").write_text(
-        render_markdown(report, stages, bundle_hash),
-        encoding="utf-8",
-    )
-    (OUTPUT_DIR / "bundle.sha256").write_text(bundle_hash + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "badge.svg").write_text(render_badge(report) + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "dag.svg").write_text(render_dag(report) + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "pr_comment.md").write_text(build_pr_comment(report), encoding="utf-8")
-    (OUTPUT_DIR / GUARD_FILENAME).write_text(report["status"] + "\n", encoding="utf-8")
-    return bundle_hash
-
-
-def main(argv: Iterable[str] | None = None) -> int:
-    stages = load_all_stages()
-    report = build_report(stages)
-    write_outputs(report, stages)
-    print(f"{report['status']} Q1 Boss Final")
-    (OUTPUT_DIR / "report.md").write_text(render_report_md(report), encoding="utf-8")
-    (OUTPUT_DIR / "badge.svg").write_text(render_badge(report) + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "dag.svg").write_text(render_dag(report) + "\n", encoding="utf-8")
-    (OUTPUT_DIR / "pr_comment.md").write_text(build_pr_comment(report), encoding="utf-8")
-    (OUTPUT_DIR / "guard_status.txt").write_text(report["status"] + "\n", encoding="utf-8")
-
-
-def main() -> int:
-    bundles = load_all_stages()
-    report = build_report(bundles)
-    write_outputs(report)
-    if report["status"] != "PASS":
-        print(f"{ERROR_PREFIX}-AGG-FAIL:One or more stages failed", file=sys.stderr)
-        return 1
-    print("PASS Q1 Boss Final")
-    lines.append(f"Bundle SHA256: `{bundle_hash}`")
-    lines.append("Detalhes completos em [report.md](./report.md).")
-    return "\n".join(lines) + "\n"
-
-
-def write_outputs(report: Dict[str, object], stages: List[Dict[str, object]]) -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / "report.json").write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "
-",
-        encoding="utf-8",
-    )
-    markdown = render_markdown(report, stages, summary, bundle_sha256)
-    (OUTPUT_DIR / "report.md").write_text(markdown, encoding="utf-8")
-    (OUTPUT_DIR / "badge.svg").write_text(render_badge(report["status"]) + "
-", encoding="utf-8")
-    (OUTPUT_DIR / "dag.svg").write_text(render_dag(stages) + "
-", encoding="utf-8")
-    pr_comment = render_pr_comment(report, stages, summary, bundle_sha256)
-    (OUTPUT_DIR / "pr_comment.md").write_text(pr_comment, encoding="utf-8")
-    (OUTPUT_DIR / "bundle.sha256").write_text(bundle_sha256 + "
-", encoding="utf-8")
-    (OUTPUT_DIR / "guard_status.txt").write_text(report["status"] + "
-", encoding="utf-8")
-
-
-def generate_report() -> BossArtifacts:
-    try:
-        stages = load_all_stages()
-    except AggregationFailure:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        (OUTPUT_DIR / "guard_status.txt").write_text("FAIL
-", encoding="utf-8")
-        raise
-    summary = compute_summary(stages)
-    report = build_report(stages, summary)
-    bundle_payload = _serialise_stages_for_hash(stages)
-    bundle_sha = sha256(bundle_payload.encode("utf-8")).hexdigest()
-    report_with_bundle = dict(report)
-    report_with_bundle["bundle"] = {"sha256": bundle_sha}
-    write_outputs(report_with_bundle, stages, summary, bundle_sha)
-    return BossArtifacts(report=report_with_bundle, stages=stages, summary=summary, bundle_sha256=bundle_sha)
-
-
-def main() -> int:
-    try:
-        artifacts = generate_report()
-    except AggregationFailure as exc:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        (OUTPUT_DIR / "guard_status.txt").write_text("FAIL
-", encoding="utf-8")
-        print(f"FAIL {ERROR_PREFIX}-{exc.code}:{exc.message}")
-        return 1
-    else:
-        print(f"{artifacts.summary['status']} Q1 Boss Final")
-        return 0
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv or sys.argv[1:])
+    aggregate(args.release_tag or None)
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

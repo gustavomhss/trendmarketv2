@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -19,8 +18,7 @@ METRICS_SRC = BASE_DIR / "s6_validation" / "metrics_static.json"
 
 
 def _write_json(path: Path, content: dict) -> None:
-    path.write_text(json.dumps(content, indent=2, ensure_ascii=False) + "
-", encoding="utf-8")
+    path.write_text(json.dumps(content, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def test_threshold_validation_rejects_ratio_above_one(tmp_path: Path) -> None:
@@ -69,31 +67,30 @@ def test_scorecard_report_schema_version_enforced(tmp_path: Path, monkeypatch: p
         validator.validate(report)
 
 
-def test_boss_report_schema_version_enforced() -> None:
-    stages = [
-        {
-            "stage": "s1",
-            "status": "PASS",
-            "score": Decimal("1.0"),
-            "formatted_score": "1.0000",
-            "generated_at": "2024-01-01T00:00:00Z",
-        },
-        {
-            "stage": "s2",
-            "status": "FAIL",
-            "score": Decimal("0.0"),
-            "formatted_score": "0.0000",
-            "generated_at": "2024-01-01T00:00:00Z",
-        },
-    ]
+def test_boss_report_schema_version_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    stages_dir = tmp_path / "stages"
+    for stage in aggregate_q1.STAGES:
+        for variant in ("primary", "clean"):
+            variant_dir = stages_dir / stage / variant
+            variant_dir.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "stage": stage,
+                "variant": variant,
+                "status": "PASS",
+                "notes": f"{variant} ok",
+                "timestamp_utc": "2024-01-01T00:00:00Z",
+            }
+            (variant_dir / "result.json").write_text(json.dumps(payload), encoding="utf-8")
+            (variant_dir / "guard_status.txt").write_text("PASS\n", encoding="utf-8")
 
-    summary = aggregate_q1.compute_summary(stages)
-    report = aggregate_q1.build_report(stages, summary)
+    monkeypatch.setattr(aggregate_q1, "OUTPUT_DIR", tmp_path)
+    monkeypatch.setattr(aggregate_q1, "STAGES_DIR", stages_dir)
 
+    artifacts = aggregate_q1.aggregate("v1.0.0")
     schema = json.loads(Path(BASE_DIR / "schemas" / "q1_boss_report.schema.json").read_text(encoding="utf-8"))
     validator = Draft7Validator(schema)
-    validator.validate(report)
+    validator.validate(artifacts.report)
 
-    report["schema_version"] = aggregate_q1.SCHEMA_VERSION + 1
+    artifacts.report["schema_version"] = aggregate_q1.SCHEMA_VERSION + 1
     with pytest.raises(ValidationError):
-        validator.validate(report)
+        validator.validate(artifacts.report)
