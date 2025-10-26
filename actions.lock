@@ -4,6 +4,6 @@ actions:
   actions/upload-artifact: 5076951413fa71e81ff98d6b871c3e9df2bda29b
   docker/login-action: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
 metadata:
-  updated_at: 2025-10-26T21:21:14Z
+  updated_at: 2025-10-26T21:52:47Z
   updated_by: codex
-  rationale: "Sweep de pins: normalização para SHAs válidos (compat Node 20)."
+  rationale: Sweep pins → SHA(40), higiene YAML/JSON (compat Node 20).
