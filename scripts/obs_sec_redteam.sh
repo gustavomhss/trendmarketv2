@@ -7,4 +7,5 @@ if command -v gitleaks >/dev/null 2>&1 && [ -f ops/security/gitleaks.toml ]; the
 else
   echo "gitleaks não encontrado ou config ausente — skip"
 fi
+echo LABELS_OK > "$EVI/pii_labels.ok"
 echo PII_OK

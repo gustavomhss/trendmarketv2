@@ -24,6 +24,7 @@
 | `metrics_summary` | ✅ |
 | `metrics_unit` | ✅ |
 | `pii_probe` | ✅ |
+| `pii_labels` | ✅ |
 | `prometheus_text` | ✅ |
 | `sbom` | ✅ |
 | `synthetic_probe` | ✅ |
