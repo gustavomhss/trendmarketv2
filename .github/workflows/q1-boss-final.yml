@@ -214,6 +214,59 @@ PY
               core.warning(`Falha ao publicar comentário do estágio ${stage}: ${apiError.message}`);
             }
 
+      - name: Upload stage bundle
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-${{ matrix.stage }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}
+
+      - name: Comment on PR
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        env:
+          STAGE_NAME: ${{ matrix.stage }}
+          STAGE_DIR: out/q1_boss_final/stages/${{ matrix.stage }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const stage = process.env.STAGE_NAME;
+            const stageDir = path.join(process.cwd(), process.env.STAGE_DIR || '');
+            let body = `⚠️ Stage ${stage.toUpperCase()} — resultados indisponíveis. Consulte o GITHUB_STEP_SUMMARY.`;
+
+            try {
+              const resultPath = path.join(stageDir, 'result.json');
+              const raw = fs.readFileSync(resultPath, 'utf8');
+              const data = JSON.parse(raw);
+              const status = String(data.status || 'UNKNOWN').toUpperCase();
+              const notes = data.notes ? String(data.notes) : 'Sem observações registradas.';
+              const emoji = status === 'PASS' ? '✅' : '❌';
+              body = `${emoji} Stage ${stage.toUpperCase()} — ${status}\n\n${notes}`;
+            } catch (error) {
+              core.warning(`Falha ao preparar comentário do estágio ${stage}: ${error.message}`);
+            }
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
+            }
+
+            try {
+              core.summary.addHeading(`Stage ${stage.toUpperCase()}`);
+              core.summary.addRaw(body);
+              await core.summary.write();
+            } catch (summaryError) {
+              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+            }
+
   boss:
     name: Boss aggregator
     runs-on: ubuntu-latest
@@ -246,6 +299,12 @@ PY
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
+      - name: Download stage bundles
+        if: always()
+        uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
+        with:
+          path: out/q1_boss_final/stages
+          merge-multiple: true
       - name: Download stage artifacts
         if: always()
         env:
@@ -307,6 +366,7 @@ PY
         continue-on-error: true
         run: python scripts/boss_final/aggregate_q1.py
 
+      - name: Upload artifacts
       - name: Upload aggregated artifacts
         if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
@@ -329,6 +389,8 @@ PY
             exit 1
           fi
 
+      - name: Comment on PR
+        if: ${{ always() && github.event_name == 'pull_request' }}
       - name: Boss summary
         if: always()
         run: |
@@ -355,6 +417,18 @@ PY
           script: |
             const fs = require('fs');
             const path = require('path');
+
+            const reportDir = process.env.REPORT_DIR || '';
+            let body = '⚠️ Relatório não encontrado. Veja o GITHUB_STEP_SUMMARY para detalhes.';
+
+            try {
+              const commentPath = path.join(process.cwd(), reportDir, 'pr_comment.md');
+              const raw = fs.readFileSync(commentPath, 'utf8');
+              body = raw;
+            } catch (error) {
+              core.warning(`Falha ao ler comentário agregado: ${error.message}`);
+            }
+
             const reportDir = process.env.REPORT_DIR || path.join(process.cwd(), 'out', 'q1_boss_final');
             const commentPath = path.join(reportDir, 'pr_comment.md');
             let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
@@ -388,6 +462,16 @@ PY
                 repo: context.repo.repo,
                 body,
               });
+            } catch (error) {
+              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+            }
+
+            try {
+              core.summary.addHeading('Q1 Boss Final');
+              core.summary.addRaw(body);
+              await core.summary.write();
+            } catch (summaryError) {
+              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
             } catch (apiError) {
               core.warning(`Falha ao publicar comentário do boss: ${apiError.message}`);
             } catch (error) {
