@@ -17,37 +17,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > .github/verify_pins.py <<'PY'
-import re,sys,os
-pat_inline=re.compile(r'^\s*uses:\s*(['"\']?)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^"'\s#]+)\1\s*$')
-pat_key=re.compile(r'^\s*uses:\s*$')
-pat_val=re.compile(r'^\s*(['"\']?)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^"'\s#]+)\1\s*$')
-files=[]
-for d,_,fs in os.walk('.github'):
-  for f in fs:
-    if f.endswith(('.yml','.yaml')): files.append(os.path.join(d,f))
-files.sort()
-for f in files:
-  with open(f,'r',encoding='utf-8',errors='ignore') as h: L=h.readlines()
-  i=0
-  while i<len(L):
-    ln=L[i]
-    m=pat_inline.match(ln)
-    if m:
-      q,a,r=m.groups()
-      if not (a.startswith('./') or a.startswith('docker://')):
-        print(f"{f}\t{a}\t{r}")
-      i+=1; continue
-    if pat_key.match(ln) and i+1<len(L):
-      v=L[i+1]; m2=pat_val.match(v)
-      if m2:
-        q,a,r=m2.groups()
-        if not (a.startswith('./') or a.startswith('docker://')):
-          print(f"{f}\t{a}\t{r}")
-        i+=2; continue
-    i+=1
-PY
-          python .github/verify_pins.py > .pins
+          python .github/scripts/verify_pins.py > .pins
           : > .summary || true
           FAIL=0
           while IFS=$'\t' read -r file action ref; do
