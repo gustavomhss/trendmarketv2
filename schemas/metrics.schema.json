@@ -1,13 +1,17 @@
 {
-  "$id": "https://ce.local/schemas/metrics.schema.json",
+  "$id": "https://trendmarketv2.local/schemas/metrics.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "S6 Metrics Static",
+  "title": "Sprint 6 Metrics Static",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "version",
     "timestamp_utc",
-    "metrics"
+    "quorum_ratio",
+    "failover_time_p95_s",
+    "staleness_p95_s",
+    "cdc_lag_p95_s",
+    "divergence_pct"
   ],
   "properties": {
     "version": {
@@ -18,118 +22,26 @@
       "type": "string",
       "format": "date-time"
     },
-    "metrics": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "quorum_ratio",
-        "failover_time_p95_s",
-        "staleness_p95_s",
-        "cdc_lag_p95_s",
-        "divergence_pct"
-      ],
-      "properties": {
-        "quorum_ratio": {
-          "$ref": "#/definitions/ratioMetric"
-        },
-        "failover_time_p95_s": {
-          "$ref": "#/definitions/secondsMetric"
-        },
-        "staleness_p95_s": {
-          "$ref": "#/definitions/secondsMetric"
-        },
-        "cdc_lag_p95_s": {
-          "$ref": "#/definitions/secondsMetric"
-        },
-        "divergence_pct": {
-          "$ref": "#/definitions/percentMetric"
-        }
-      }
-    }
-  },
-  "definitions": {
-    "metric": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "observed",
-        "unit",
-        "sample_size",
-        "window"
-      ],
-      "properties": {
-        "observed": {
-          "type": "number"
-        },
-        "unit": {
-          "type": "string",
-          "enum": [
-            "percent",
-            "ratio",
-            "seconds"
-          ]
-        },
-        "sample_size": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "window": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
+    "quorum_ratio": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
     },
-    "ratioMetric": {
-      "allOf": [
-        {
-          "$ref": "#/definitions/metric"
-        },
-        {
-          "properties": {
-            "observed": {
-              "minimum": 0.0,
-              "maximum": 1.0
-            },
-            "unit": {
-              "const": "ratio"
-            }
-          }
-        }
-      ]
+    "failover_time_p95_s": {
+      "type": "number",
+      "minimum": 0.0
     },
-    "secondsMetric": {
-      "allOf": [
-        {
-          "$ref": "#/definitions/metric"
-        },
-        {
-          "properties": {
-            "observed": {
-              "minimum": 0.0
-            },
-            "unit": {
-              "const": "seconds"
-            }
-          }
-        }
-      ]
+    "staleness_p95_s": {
+      "type": "number",
+      "minimum": 0.0
     },
-    "percentMetric": {
-      "allOf": [
-        {
-          "$ref": "#/definitions/metric"
-        },
-        {
-          "properties": {
-            "observed": {
-              "minimum": 0.0
-            },
-            "unit": {
-              "const": "percent"
-            }
-          }
-        }
-      ]
+    "cdc_lag_p95_s": {
+      "type": "number",
+      "minimum": 0.0
+    },
+    "divergence_pct": {
+      "type": "number",
+      "minimum": 0.0
     }
   }
 }

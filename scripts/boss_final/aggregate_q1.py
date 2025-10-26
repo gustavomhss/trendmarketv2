@@ -29,6 +29,10 @@ class VariantResult:
     status: str
     notes: str
     failure_code: str | None
+STAGES = ["s1", "s2", "s3", "s4", "s5", "s6"]
+STAGE_GUARD_SUFFIX = "_guard_status.txt"
+
+SCHEMA_VERSION = 1
 
 
 def fail(code: str, message: str) -> None:
@@ -97,6 +101,35 @@ def load_stage(stage: str) -> Dict[str, object]:
 
 def load_all_stages() -> List[Dict[str, object]]:
     stages: List[Dict[str, object]] = []
+        fail("STAGE-INVALID", f"JSON inválido em {path}: {exc}")
+    required = {"schema_version", "stage", "status", "score", "formatted_score", "generated_at"}
+    if not required.issubset(data):
+        fail("STAGE-SCHEMA", f"Campos ausentes para {stage}: {sorted(required - set(data))}")
+    if data["stage"].lower() != stage:
+        fail("STAGE-MISMATCH", f"ID do estágio divergente em {stage}")
+    guard_status = load_stage_guard_status(stage)
+    if guard_status == "FAIL" and data["status"] != "fail":
+        data["status"] = "fail"
+    if guard_status == "PASS" and data["status"] == "fail":
+        fail("STAGE-GUARD-DIVERGENCE", f"Guard status PASS mas estágio falhou: {stage}")
+    return data
+
+
+def load_stage_guard_status(stage: str) -> str:
+    path = STAGES_DIR / f"{stage}{STAGE_GUARD_SUFFIX}"
+    if not path.exists():
+        fail("STAGE-GUARD-MISSING", f"Guard status ausente para {stage}: {path}")
+    try:
+        status = path.read_text(encoding="utf-8").strip().upper()
+    except OSError as exc:
+        fail("STAGE-GUARD-IO", f"Falha ao ler guard status de {stage}: {exc}")
+    if status not in {"PASS", "FAIL"}:
+        fail("STAGE-GUARD-INVALID", f"Valor inválido em guard status de {stage}: {status}")
+    return status
+
+
+def load_all_stages() -> List[Dict[str, str]]:
+    results: List[Dict[str, str]] = []
     for stage in STAGES:
         try:
             stages.append(load_stage(stage))
@@ -184,6 +217,45 @@ def render_pr_comment(report: Dict[str, object], stages: List[Dict[str, object]]
     for stage in stages:
         notes = stage["notes"].replace("|", "\\|")
         lines.append(f"| {stage['stage'].upper()} | {stage['status']} | {notes} |")
+        entry = {
+            "stage": stage["stage"],
+            "status": stage["status"],
+            "score": stage["score"],
+            "formatted_score": stage["formatted_score"],
+            "generated_at": stage["generated_at"],
+        }
+        if "on_fail" in stage:
+            entry["on_fail"] = stage["on_fail"]
+        if "report_path" in stage:
+            entry["report_path"] = stage["report_path"]
+        if "bundle_sha256" in stage:
+            entry["bundle_sha256"] = stage["bundle_sha256"]
+        items.append(entry)
+    bundle_content = json.dumps(items, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    bundle_hash = __import__("hashlib").sha256(bundle_content).hexdigest()
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "summary": summary,
+        "stages": items,
+        "bundle_sha256": bundle_hash,
+    }
+
+
+def build_pr_comment(report: Dict[str, object]) -> str:
+    summary = report["summary"]
+    emoji = "✅" if summary["status"] == "pass" else "❌"
+    lines = [f"{emoji} [Q1 Boss Final report](./report.md)"]
+    lines.append("")
+    lines.append("![Status](./badge.svg)")
+    lines.append("")
+    lines.append("## O que fazer agora")
+    failing = [stage for stage in report["stages"] if stage["status"] != "pass"]
+    if failing:
+        for stage in failing:
+            lines.append(f"- {stage['stage'].upper()}: {stage.get('on_fail', 'Ação corretiva pendente.')}")
+    else:
+        lines.append("- Nenhuma ação pendente. Avançar com checklist de release.")
     lines.append("")
     lines.append(f"Bundle SHA256: `{bundle_hash}`")
     lines.append("Detalhes completos em [report.md](./report.md).")

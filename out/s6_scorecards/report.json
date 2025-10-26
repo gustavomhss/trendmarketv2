@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "timestamp_utc": "2025-10-26T00:59:49+00:00",
+  "status": "PASS",
+  "metrics": {
+    "quorum_ratio": {
+      "observed": 0.92,
+      "target": 0.6667,
+      "ok": true
+    },
+    "failover_time_p95_s": {
+      "observed": 7.8,
+      "target": 60.0,
+      "ok": true
+    },
+    "staleness_p95_s": {
+      "observed": 12.0,
+      "target": 30.0,
+      "ok": true
+    },
+    "cdc_lag_p95_s": {
+      "observed": 45.0,
+      "target": 120.0,
+      "ok": true
+    },
+    "divergence_pct": {
+      "observed": 0.4,
+      "target": 1.0,
+      "ok": true
+    }
+  },
+  "inputs": {
+    "thresholds": {
+      "version": 1,
+      "timestamp_utc": "2024-09-01T06:00:00Z"
+    },
+    "metrics": {
+      "version": 1,
+      "timestamp_utc": "2024-09-01T05:55:00Z"
+    }
+  },
+  "bundle": {
+    "sha256": "167136eea19ab6ef6a41465d234c248b3740c8d85656cf910b04942bba4207b4"
+  }
+}
