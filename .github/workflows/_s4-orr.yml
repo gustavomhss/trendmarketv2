@@ -433,74 +433,27 @@ jobs:
           dbt run --profiles-dir "$HOME/.dbt" --profile ce_profile
           dbt test --profiles-dir "$HOME/.dbt" --profile ce_profile
 
-      - name: Empacotar evidências (S4)
+      - name: Empacotar evidências (S5)
         if: ${{ always() && !inputs.run_tla }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out
-          TS=$(date +%Y%m%d_%H%M%S)
-          BUNDLE="out/s4_evidence_bundle_${TS}"
-
-          if [ -x scripts/orr_s4_bundle.sh ]; then
-            echo "[bundle] Executando scripts/orr_s4_bundle.sh"
-            bash scripts/orr_s4_bundle.sh
+          if [ -x scripts/orr_s5_run.sh ]; then
+            echo "[bundle] Executando scripts/orr_s5_run.sh"
+            ./scripts/orr_s5_run.sh
           else
-            echo "[bundle] Script de bundle ausente; usando fallback"
-            mkdir -p "${BUNDLE}"
-            copy_if_exists() {
-              local path="$1"
-              local dest="$2"
-              if [ -e "$path" ]; then
-                echo "[bundle] Incluindo $path"
-                cp -r "$path" "$dest/" || true
-              else
-                echo "[bundle] Ausente: $path (ok)"
-              fi
-            }
-
-            echo "[bundle] Coletando diretórios alvo"
-            copy_if_exists out/s4_orr "${BUNDLE}"
-            copy_if_exists out/pip-audit "${BUNDLE}"
-
-            if TARGETS=$(find analytics -type d -name target -print -quit 2>/dev/null) && [ -n "${TARGETS:-}" ]; then
-              echo "[bundle] Incluindo analytics/**/target"
-              while IFS= read -r -d '' target; do
-                rel_path="${target#analytics/}"
-                dest_dir="${BUNDLE}/analytics/${rel_path%/target}"
-                mkdir -p "$dest_dir"
-                cp -r "$target" "$dest_dir/" || true
-              done < <(find analytics -type d -name target -print0)
-            else
-              echo "[bundle] Ausente: analytics/**/target (ok)"
-            fi
-
-            copy_if_exists docs/ADRs "${BUNDLE}"
-            copy_if_exists docs/runbooks "${BUNDLE}"
-            copy_if_exists ops/watchers.yml "${BUNDLE}"
-            copy_if_exists scripts/microbench_dec.sh "${BUNDLE}"
-            copy_if_exists benches "${BUNDLE}"
-            copy_if_exists out/sut.log "${BUNDLE}"
-
-            if command -v zip >/dev/null 2>&1; then
-              echo "[bundle] Compactando em zip"
-              (cd out && zip -r "$(basename "${BUNDLE}").zip" "$(basename "${BUNDLE}")")
-              rm -rf "${BUNDLE}"
-            else
-              echo "[bundle] zip ausente; usando tar.gz"
-              tar -C out -czf "${BUNDLE}.tar.gz" "$(basename "${BUNDLE}")"
-              rm -rf "${BUNDLE}"
-            fi
+            echo "[bundle] Script de ORR S5 ausente" >&2
+            exit 1
           fi
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
-          name: s4-bundle
+          name: s5-bundle
           path: |
-            out/s4_evidence_bundle_*.zip
-            out/s4_evidence_bundle_*.tar.gz
+            out/obs_gatecheck/bundle_*.zip
+            out/obs_gatecheck/bundle.sha256.txt
           if-no-files-found: ignore
 
       - name: Upload auditoria pip
@@ -511,11 +464,11 @@ jobs:
           path: out/pip-audit
           if-no-files-found: ignore
 
-      - name: Upload s4-orr evidence
+      - name: Upload s5-orr evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: s4-orr-evidence
+          name: s5-orr-evidence
           path: |
             out/**
             out/dbt/**

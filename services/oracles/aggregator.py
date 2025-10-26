@@ -7,13 +7,48 @@ median (quorum price) and scored for divergence.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, List, Optional
 import math
 import statistics
 import time
 
+from services.telemetry import TelemetryManager, TelemetrySettings
+
 STALENESS_THRESHOLD_MS = 30_000
 DIVERGENCE_THRESHOLD = 0.01
+
+_TELEMETRY = TelemetryManager(TelemetrySettings(service_name="oracle-aggregator"))
+_AGG_LATENCY = _TELEMETRY.histogram(
+    "mbp_oracle_aggregate_duration_seconds",
+    "Latency of oracle aggregation operations.",
+    buckets=(
+        0.001,
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.1,
+        0.25,
+        0.5,
+        1.0,
+    ),
+    labelnames=("symbol",),
+)
+_AGG_COUNTER = _TELEMETRY.counter(
+    "mbp_oracle_aggregate_total",
+    "Total oracle aggregation evaluations grouped by quorum result.",
+    labelnames=("symbol", "quorum_ok"),
+)
+_AGG_DIVERGENCE = _TELEMETRY.gauge(
+    "mbp_oracle_divergence_pct",
+    "Latest divergence ratio produced by the oracle aggregator.",
+    labelnames=("symbol",),
+)
+_EVENT_LOG = _TELEMETRY.event_log(
+    "MBP_ORACLE_EVENT_LOG",
+    Path("out/oracles/quorum_events.jsonl"),
+)
 
 
 @dataclass(frozen=True)
@@ -60,70 +95,80 @@ def aggregate_quorum(
     *,
     now_ms: Optional[int] = None,
 ) -> AggregateResult:
-    """Aggregate a collection of quotes using quorum/median logic.
-
-    Parameters
-    ----------
-    symbol:
-        Market symbol for the aggregation.
-    quotes:
-        Iterable of :class:`Quote` objects.
-    now_ms:
-        Optional timestamp (epoch milliseconds) used for staleness
-        calculations. Defaults to ``time.time()`` when omitted.
-
-    Returns
-    -------
-    AggregateResult
-        Summary of the aggregation outcome.
-    """
+    """Aggregate a collection of quotes using quorum/median logic."""
 
     resolved_now = now_ms if now_ms is not None else int(time.time() * 1000)
+    started = time.perf_counter()
+
     quotes_list = list(quotes)
-    valid: List[Quote] = []
-    staleness_values: List[int] = []
+    span_attributes = {"oracle.symbol": symbol, "oracle.total_quotes": len(quotes_list)}
 
-    for quote in quotes_list:
-        staleness = quote.staleness_ms(resolved_now)
-        if staleness <= STALENESS_THRESHOLD_MS and math.isfinite(quote.price):
-            valid.append(quote)
-            staleness_values.append(staleness)
+    with _TELEMETRY.span("oracle.aggregate", attributes=span_attributes):
+        valid: List[Quote] = []
+        staleness_values: List[int] = []
 
-    total = len(quotes_list)
-    if not valid:
-        return AggregateResult(
-            symbol=symbol,
-            agg_price=None,
-            quorum_ok=False,
-            divergence_pct=None,
-            max_staleness_ms=None,
-            total_quotes=total,
-            valid_sources=[],
-            quorum_ratio=0.0,
-        )
+        for quote in quotes_list:
+            staleness = quote.staleness_ms(resolved_now)
+            if staleness <= STALENESS_THRESHOLD_MS and math.isfinite(quote.price):
+                valid.append(quote)
+                staleness_values.append(staleness)
 
-    prices = sorted(q.price for q in valid)
-    median_price = statistics.median(prices)
+        total = len(quotes_list)
+        if not valid:
+            result = AggregateResult(
+                symbol=symbol,
+                agg_price=None,
+                quorum_ok=False,
+                divergence_pct=None,
+                max_staleness_ms=None,
+                total_quotes=total,
+                valid_sources=[],
+                quorum_ratio=0.0,
+            )
+        else:
+            prices = sorted(q.price for q in valid)
+            median_price = statistics.median(prices)
 
-    if median_price == 0:
-        divergence = math.inf
-    else:
-        divergence = abs(max(prices) - min(prices)) / median_price
+            if median_price == 0:
+                divergence = math.inf
+            else:
+                divergence = abs(max(prices) - min(prices)) / median_price
 
-    quorum_needed = max(2, math.ceil((2 * total) / 3))
-    quorum_ratio = len(valid) / total if total else 0.0
-    quorum_ok = len(valid) >= quorum_needed and divergence <= DIVERGENCE_THRESHOLD
+            quorum_needed = max(2, math.ceil((2 * total) / 3))
+            quorum_ratio = len(valid) / total if total else 0.0
+            quorum_ok = len(valid) >= quorum_needed and divergence <= DIVERGENCE_THRESHOLD
 
-    return AggregateResult(
-        symbol=symbol,
-        agg_price=median_price,
-        quorum_ok=quorum_ok,
-        divergence_pct=divergence,
-        max_staleness_ms=max(staleness_values) if staleness_values else None,
-        total_quotes=total,
-        valid_sources=[q.source for q in valid],
-        quorum_ratio=quorum_ratio,
+            result = AggregateResult(
+                symbol=symbol,
+                agg_price=median_price,
+                quorum_ok=quorum_ok,
+                divergence_pct=divergence,
+                max_staleness_ms=max(staleness_values) if staleness_values else None,
+                total_quotes=total,
+                valid_sources=[q.source for q in valid],
+                quorum_ratio=quorum_ratio,
+            )
+
+    duration = time.perf_counter() - started
+    _AGG_LATENCY.labels(symbol=symbol).observe(duration)
+    _AGG_COUNTER.labels(symbol=symbol, quorum_ok=str(result.quorum_ok).lower()).inc()
+    if result.divergence_pct is not None and math.isfinite(result.divergence_pct):
+        _AGG_DIVERGENCE.labels(symbol=symbol).set(result.divergence_pct)
+    _EVENT_LOG.emit(
+        "oracle.aggregate",
+        {
+            "symbol": symbol,
+            "quorum_ok": result.quorum_ok,
+            "quorum_ratio": result.quorum_ratio,
+            "valid_sources": result.valid_sources,
+            "divergence_pct": result.divergence_pct,
+            "agg_price": result.agg_price,
+            "max_staleness_ms": result.max_staleness_ms,
+            "total_quotes": result.total_quotes,
+            "duration_seconds": duration,
+        },
     )
+    return result
 
 
 __all__ = [
@@ -131,4 +176,3 @@ __all__ = [
     "Quote",
     "aggregate_quorum",
 ]
-
