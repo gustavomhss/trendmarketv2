@@ -19,7 +19,7 @@ jobs:
   toggle:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd719072671a5b573d8ee83c61156b598640ef
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a52a8b00c2
       - name: Atualizar configs/shadow.env
         run: |
           mkdir -p configs
