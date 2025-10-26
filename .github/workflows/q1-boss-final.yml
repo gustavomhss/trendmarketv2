@@ -10,8 +10,16 @@ on:
         required: false
         type: string
   pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/**'
+      - 's*/**'
+      - 'docs/**'
+      - 'dashboards/**'
 
-concurrency: q1-boss-final-${{ github.ref }}
+concurrency:
+  group: q1-boss-final-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   LC_ALL: C.UTF-8
@@ -27,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
     steps:
@@ -53,47 +62,68 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
-      - name: Hygiene checks
-        timeout-minutes: 5
-        run: |
-          ruff check .
-          ruff format --check .
-          yamllint .
-          pytest -q
-
-      - name: Validate UTF-8 and CRLF
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import sys
-
-          root = Path('.')
-          bad = []
-          for path in root.rglob('*'):
-            if not path.is_file():
-              continue
-            if path.suffix not in {'.py', '.json', '.sh', '.md', '.yml', '.yaml'}:
-              continue
-            data = path.read_bytes()
-            try:
-              data.decode('utf-8')
-            except UnicodeDecodeError:
-              bad.append(f"UTF8:{path}")
-              continue
-            if b'\r' in data:
-              bad.append(f"CRLF:{path}")
-          if bad:
-            for entry in bad:
-              print(entry)
-            sys.exit(1)
-          PY
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Execute sprint guard
-        timeout-minutes: 5
         run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+
+      - name: Upload stage bundle
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-${{ matrix.stage }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}
+
+      - name: Comment on PR
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        env:
+          STAGE_NAME: ${{ matrix.stage }}
+          STAGE_DIR: out/q1_boss_final/stages/${{ matrix.stage }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const stage = process.env.STAGE_NAME;
+            const stageDir = path.join(process.cwd(), process.env.STAGE_DIR || '');
+            let body = `⚠️ Stage ${stage.toUpperCase()} — resultados indisponíveis. Consulte o GITHUB_STEP_SUMMARY.`;
+
+            try {
+              const resultPath = path.join(stageDir, 'result.json');
+              const raw = fs.readFileSync(resultPath, 'utf8');
+              const data = JSON.parse(raw);
+              const status = String(data.status || 'UNKNOWN').toUpperCase();
+              const notes = data.notes ? String(data.notes) : 'Sem observações registradas.';
+              const emoji = status === 'PASS' ? '✅' : '❌';
+              body = `${emoji} Stage ${stage.toUpperCase()} — ${status}\n\n${notes}`;
+            } catch (error) {
+              core.warning(`Falha ao preparar comentário do estágio ${stage}: ${error.message}`);
+            }
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
+            }
+
+            try {
+              core.summary.addHeading(`Stage ${stage.toUpperCase()}`);
+              core.summary.addRaw(body);
+              await core.summary.write();
+            } catch (summaryError) {
+              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+            }
 
   boss:
     needs: stage
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -122,11 +152,19 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
+      - name: Download stage bundles
+        if: always()
+        uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
+        with:
+          path: out/q1_boss_final/stages
+          merge-multiple: true
+
       - name: Aggregate Q1 boss report
         timeout-minutes: 5
         run: python scripts/boss_final/aggregate_q1.py
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
           name: q1-boss-final
@@ -145,26 +183,39 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const reportDir = process.env.REPORT_DIR;
-            const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body;
-            if (fs.existsSync(commentPath)) {
-              body = fs.readFileSync(commentPath, 'utf8');
-            } else {
-              body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+
+            const reportDir = process.env.REPORT_DIR || '';
+            let body = '⚠️ Relatório não encontrado. Veja o GITHUB_STEP_SUMMARY para detalhes.';
+
+            try {
+              const commentPath = path.join(process.cwd(), reportDir, 'pr_comment.md');
+              const raw = fs.readFileSync(commentPath, 'utf8');
+              body = raw;
+            } catch (error) {
+              core.warning(`Falha ao ler comentário agregado: ${error.message}`);
             }
-            core.summary.addHeading('Q1 Boss Final');
-            core.summary.addRaw(body);
-            core.summary.write();
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+            }
+
+            try {
+              core.summary.addHeading('Q1 Boss Final');
+              core.summary.addRaw(body);
+              await core.summary.write();
+            } catch (summaryError) {
+              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+            }

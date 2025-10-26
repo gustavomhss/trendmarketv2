@@ -9,6 +9,11 @@ actions:
     date: 2024-09-15
     author: GitHub Actions
     rationale: Garante Python 3.11 com cache de pip e mitigação de supply-chain.
+  actions/download-artifact:
+    sha: 9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
+    date: 2024-09-15
+    author: GitHub Actions
+    rationale: Download consolidado dos bundles por estágio do Boss Final.
   actions/upload-artifact:
     sha: 89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
     date: 2024-09-15

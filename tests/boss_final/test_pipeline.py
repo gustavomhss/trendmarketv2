@@ -1,4 +1,3 @@
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -16,72 +15,74 @@ except ValueError:
     pass
 
 
-def _stage_entry(stage: str, status: str, score: Decimal) -> dict[str, str]:
-    formatted = score.quantize(Decimal("0.0001"))
-    entry: dict[str, str] = {
-        "schema_version": 1,
+def _payload(stage: str, status: str, notes: str) -> pipeline.StagePayload:
+    raw = {
+        "schema_version": pipeline.SCHEMA_VERSION,
         "stage": stage,
         "status": status,
-        "score": str(score),
-        "formatted_score": f"{formatted}",
-        "generated_at": "2024-01-01T00:00:00Z",
+        "notes": notes,
+        "checks": [
+            {
+                "name": "sanity",
+                "status": status,
+                "detail": f"Stage {stage} returned {status}",
+            }
+        ],
+        "metadata": {"stage": stage},
     }
-    if status != "pass":
-        entry["on_fail"] = "Investigate pipeline regressions."
-    if stage == "s6":
-        entry["report_path"] = "out/s6_scorecards"
-        entry["bundle_sha256"] = "deadbeef"
-    return entry
+    return pipeline.StagePayload(stage=stage, status=status, notes=notes, raw=raw)
 
 
 @given(st.lists(st.booleans(), min_size=len(pipeline.STAGES), max_size=len(pipeline.STAGES)))
 @hp_settings(profile="ci")
 @seed(12345)
-def test_compute_summary_propagates_failures(statuses: list[bool]) -> None:
-    stage_entries = []
-    scores: list[Decimal] = []
+def test_build_report_reflects_failures(statuses: list[bool]) -> None:
+    stage_payloads: list[pipeline.StagePayload] = []
     for stage, ok in zip(pipeline.STAGES, statuses, strict=True):
-        score_value = Decimal("1.0") if ok else Decimal("0.5")
-        stage_entries.append(_stage_entry(stage, "pass" if ok else "fail", score_value))
-        scores.append(score_value)
-    summary = pipeline.compute_summary(stage_entries)
-    expected_status = "pass" if all(statuses) else "fail"
-    assert summary["status"] == expected_status
-    assert summary["failing_stages"] == len([flag for flag in statuses if not flag])
-    aggregate = Decimal(summary["aggregate_ratio"])
-    expected_ratio = sum(scores) / Decimal(len(scores))
-    assert aggregate == expected_ratio.quantize(Decimal("0.0001"))
+        status = "PASS" if ok else "FAIL"
+        note = "Checks verdes" if ok else "Revisar regressões"
+        stage_payloads.append(_payload(stage, status, note))
+
+    report = pipeline.build_report(stage_payloads)
+
+    expected_status = "PASS" if all(statuses) else "FAIL"
+    assert report["status"] == expected_status
+
+    for payload in stage_payloads:
+        sprint = report["sprints"][payload.stage]
+        assert sprint["status"] == payload.status
+        assert sprint["notes"] == payload.notes
 
 
 def test_write_outputs_generates_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages = [_stage_entry(stage, "pass", Decimal("0.9820")) for stage in pipeline.STAGES]
-    report = pipeline.build_report(stages)
+    stage_payloads = [_payload(stage, "PASS", f"{stage} ok") for stage in pipeline.STAGES]
+    report = pipeline.build_report(stage_payloads)
     output_dir = tmp_path / "boss"
     monkeypatch.setattr(pipeline, "OUTPUT_DIR", output_dir)
 
-    pipeline.write_outputs(report)
+    bundle_hash = pipeline.write_outputs(report, stage_payloads)
 
     badge = (output_dir / "badge.svg").read_text(encoding="utf-8")
     dag = (output_dir / "dag.svg").read_text(encoding="utf-8")
     guard = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
+    bundle = (output_dir / "bundle.sha256").read_text(encoding="utf-8").strip()
 
     assert "Q1 PASS" in badge
     for stage in pipeline.STAGES:
         assert stage.upper() in dag
     assert guard == "PASS\n"
-    assert (output_dir / "bundle.sha256").read_text(encoding="utf-8").strip()
+    assert bundle == bundle_hash
 
 
 def test_guard_status_reflects_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages = [_stage_entry(stage, "pass", Decimal("0.9820")) for stage in pipeline.STAGES]
-    stages[2]["status"] = "fail"
-    stages[2]["score"] = str(Decimal("0.1000"))
-    stages[2]["formatted_score"] = "0.1000"
-    report = pipeline.build_report(stages)
+    stage_payloads = [_payload(stage, "PASS", f"{stage} ok") for stage in pipeline.STAGES]
+    failing_stage = pipeline.STAGES[2]
+    stage_payloads[2] = _payload(failing_stage, "FAIL", "Investigate pipeline regressions.")
+    report = pipeline.build_report(stage_payloads)
     output_dir = tmp_path / "boss_fail"
     monkeypatch.setattr(pipeline, "OUTPUT_DIR", output_dir)
 
-    pipeline.write_outputs(report)
+    pipeline.write_outputs(report, stage_payloads)
 
     badge = (output_dir / "badge.svg").read_text(encoding="utf-8")
     guard = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
@@ -96,4 +97,4 @@ def test_load_stage_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     with pytest.raises(SystemExit) as excinfo:
         pipeline.load_stage("s1")
-    assert "BOSS-E-STAGE-MISSING" in str(excinfo.value)
+    assert "BOSS-E-STAGE-RESULT-MISSING" in str(excinfo.value)
