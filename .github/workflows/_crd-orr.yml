@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
 
 
 
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload ORR bundle
 
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: obs-bundle-${{ inputs.profile }}-${{ inputs.environment }}
           path: |

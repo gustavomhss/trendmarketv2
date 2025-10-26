@@ -45,7 +45,7 @@ jobs:
       CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
 
       - name: Install Python 3.11
         run: |
@@ -206,7 +206,7 @@ jobs:
         run: python scripts/scorecards/s6_scorecards.py
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s6-scorecards
           path: ${{ env.REPORT_DIR }}
@@ -234,7 +234,7 @@ jobs:
 
       - name: Publish scorecard summary
         if: always()
-        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        uses: ./.github/actions/github-script
         with:
           script: |
             const fs = require('fs');

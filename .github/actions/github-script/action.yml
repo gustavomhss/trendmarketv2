@@ -1,0 +1,10 @@
+name: Local GitHub Script
+description: Run inline JavaScript with minimal GitHub context.
+author: TrendMarket Automation Team
+inputs:
+  script:
+    description: JavaScript to execute.
+    required: true
+runs:
+  using: node20
+  main: index.js

@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -198,7 +198,7 @@ jobs:
 
       - name: Security | Upload findings
         if: ${{ always() && inputs.run_security }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: security-findings
           path: out/security/**
@@ -346,7 +346,7 @@ jobs:
           exit "$RC"
 
       - name: Upload TLA report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
           name: tla-report
@@ -485,7 +485,7 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s4-dbt-docs
           path: analytics/dbt/target
@@ -493,7 +493,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s5-bundle
           path: |
@@ -506,7 +506,7 @@ jobs:
 
       - name: Upload auditoria pip
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: pip-audit
           path: out/pip-audit
@@ -514,7 +514,7 @@ jobs:
 
       - name: Upload s5-orr evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s5-orr-evidence
           path: |
