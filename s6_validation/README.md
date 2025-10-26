@@ -19,6 +19,23 @@ The metric list and semantics must stay aligned between the two fixtures and in 
 1. Edit the JSON fixtures in a feature branch, keeping identifiers stable unless the spec introduces a new metric.
 2. Format them deterministically (`python -m json.tool --sort-keys`) to preserve canonical ordering and UTF‑8 newline encoding.
 3. Validate against the schemas:
+| File | Purpose |
+| --- | --- |
+| `thresholds.json` | Declares the contract for each monitored metric (identifier, ordering, comparator, target value, units and the remediation note that the on-call follows when the metric fails). These entries define the structure that downstream reports must respect when presenting scorecards. |
+| `metrics_static.json` | Captures the latest approved measurements that are compared against the thresholds. Each record mirrors a thresholded metric, providing the collected value, unit, sampling window and sample size used by the deterministically generated report. |
+
+## Schemas and versioning
+
+- Both files conform to Draft-07 JSON Schemas committed under `schemas/thresholds.schema.json` and `schemas/metrics.schema.json`.
+- Validation in CI and local runs relies on the upstream [`jsonschema`](https://pypi.org/project/jsonschema/) package pinned at `4.23.0` (see `requirements.lock`).
+- The `schema_version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
+- Timestamps (`generated_at`, `collected_at`) use RFC 3339 and should reflect the source extraction moment.
+
+## Update workflow
+
+1. Propose the content edits inside a dedicated branch; keep metric identifiers stable unless the spec introduces new ones.
+2. Format each JSON via `python -m json.tool --sort-keys <file>` (or an equivalent formatter) so keys remain canonical, UTF-8 encoded and terminated by a single trailing newline.
+3. Validate the files against their schemas:
    ```bash
    python -m jsonschema --instance s6_validation/thresholds.json --schema schemas/thresholds.schema.json
    python -m jsonschema --instance s6_validation/metrics_static.json --schema schemas/metrics.schema.json

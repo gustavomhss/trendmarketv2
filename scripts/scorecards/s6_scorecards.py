@@ -7,13 +7,15 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_EVEN, getcontext
+from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, Iterable, List
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
 
-import jsonschema  # noqa: E402
+from jsonschema import Draft7Validator, ValidationError
+import jsonschema  
 
 getcontext().prec = 28
 getcontext().rounding = ROUND_HALF_EVEN
@@ -24,6 +26,7 @@ METRICS_PATH = BASE_DIR / "s6_validation" / "metrics_static.json"
 SCHEMAS_DIR = BASE_DIR / "schemas"
 OUTPUT_DIR = BASE_DIR / "out" / "s6_scorecards"
 ERROR_PREFIX = "S6"
+SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -200,6 +203,20 @@ def fail(code: str, message: str) -> None:
     raise RuntimeError(f"{ERROR_PREFIX}-E-{code}:{message}")
 
 
+@lru_cache(maxsize=None)
+def _load_schema(schema_key: str) -> Dict[str, Any]:
+    schema_path = SCHEMA_FILES[schema_key]
+    with schema_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+@lru_cache(maxsize=None)
+def _get_validator(schema_key: str) -> Draft7Validator:
+    schema = _load_schema(schema_key)
+    return Draft7Validator(schema)
+
+
+def load_json(path: Path, schema_key: str) -> Dict:
 def load_json(path: Path, schema_key: str) -> Dict[str, object]:
     if not path.exists():
         fail("MISSING", f"Arquivo obrigatório ausente: {path}")
@@ -216,8 +233,9 @@ def load_json(path: Path, schema_key: str) -> Dict[str, object]:
     schema_path = SCHEMA_FILES[schema_key]
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     try:
-        jsonschema.validate(instance=content, schema=schema)
-    except jsonschema.ValidationError as exc:
+        validator = _get_validator(schema_key)
+        validator.validate(content)
+    except ValidationError as exc:
         fail("SCHEMA", f"Violação de schema em {path}: {exc.message}")
     return content
 
@@ -372,7 +390,7 @@ def build_report(
         }
     status = "PASS" if all(evaluation.ok for evaluation in evaluations) else "FAIL"
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "timestamp_utc": generated_at,
         "status": status,
         "metrics": metrics_block,
