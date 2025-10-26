@@ -22,7 +22,7 @@ Gerar scorecards determinísticos com contratos DbC explícitos, validação por
   - Tempos: três casas decimais + `s` (ex.: `2.103s`).
 - **Ordenação**: métricas sempre avaliadas na ordem fixa `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct`.
 - **Entradas**:
-  - `thresholds.json`: objeto plano com `version`, `timestamp_utc` e chaves de limite (`*_min`/`*_max`) para cada métrica mandatória.
+  - `thresholds.json`: objeto plano com `version`, `timestamp_utc` e chaves fixas `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct` representando os alvos.
   - `metrics_static.json`: objeto plano com `version`, `timestamp_utc` e valores observados para as cinco métricas mandatórias.
 - **Saída (`report.json`)**: contém `timestamp_utc`, `status` em maiúsculas e bloco `metrics.<metric>.{observed,target,ok}` para cada métrica.
 - **DbC**: entradas ausentes ou inválidas geram erros `S6-E-*` ou `BOSS-E-*` e encerram com `guard_status=FAIL`.
@@ -35,7 +35,7 @@ As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e docum
 2. Validar hash/assinatura do commit da action.
 3. Atualizar a entrada `actions.<slug>` em `actions.lock` garantindo o objeto `{sha, date, author, rationale}`.
 
-O arquivo `actions.lock` deve mapear cada slug de action em `actions:` para um objeto com os campos `sha`, `pinned_at`, `author`
+O arquivo `actions.lock` deve mapear cada slug de action em `actions:` para um objeto com os campos `sha`, `date`, `author`
 e `rationale`, garantindo leitura determinística por ferramentas automatizadas.
 
 ## Troubleshooting
@@ -56,7 +56,7 @@ Os relatórios devem ficar em `out/s6_scorecards/` e `out/q1_boss_final/`. Ambos
 - `s6_validation/thresholds.json`
 
   ```json
-  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","quorum_ratio_min":0.6667,"failover_time_p95_s_max":60.0,"staleness_p95_s_max":30.0,"cdc_lag_p95_s_max":120.0,"divergence_pct_max":1.0}
+  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","quorum_ratio":0.6667,"failover_time_p95_s":60.0,"staleness_p95_s":30.0,"cdc_lag_p95_s":120.0,"divergence_pct":1.0}
   ```
 
 - `s6_validation/metrics_static.json`

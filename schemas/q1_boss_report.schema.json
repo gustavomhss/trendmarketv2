@@ -1,4 +1,5 @@
 {
+  "$id": "https://ce.local/schemas/q1_boss_report.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Q1 Boss Final Report",
   "type": "object",
@@ -13,7 +14,7 @@
   "properties": {
     "schema_version": {
       "type": "integer",
-      "minimum": 1
+      "const": 1
     },
     "timestamp_utc": {
       "type": "string",
@@ -34,11 +35,65 @@
         "s4": { "$ref": "#/$defs/stage" },
         "s5": { "$ref": "#/$defs/stage" },
         "s6": { "$ref": "#/$defs/stage" }
+        "s1": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        },
+        "s2": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        },
+        "s3": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        },
+        "s4": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        },
+        "s5": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        },
+        "s6": {
+          "type": "object",
+          "required": ["status", "notes"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
+          }
+        }
       }
     },
-    "bundle_sha256": {
+    "status": {
       "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
+      "enum": ["PASS", "FAIL"]
     }
   },
   "$defs": {
