@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sprint 6 scorecard report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "status",
+    "summary",
+    "metrics",
+    "bundle_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passing", "failing"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failing": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quorum_ratio",
+        "failover_time_p95_s",
+        "staleness_p95_s",
+        "cdc_lag_p95_s",
+        "divergence_pct"
+      ],
+      "properties": {
+        "quorum_ratio": {
+          "$ref": "#/definitions/metricEntry"
+        },
+        "failover_time_p95_s": {
+          "$ref": "#/definitions/metricEntry"
+        },
+        "staleness_p95_s": {
+          "$ref": "#/definitions/metricEntry"
+        },
+        "cdc_lag_p95_s": {
+          "$ref": "#/definitions/metricEntry"
+        },
+        "divergence_pct": {
+          "$ref": "#/definitions/metricEntry"
+        }
+      }
+    },
+    "bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "definitions": {
+    "metricEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observed",
+        "target",
+        "delta",
+        "comparison",
+        "unit",
+        "sample_size",
+        "window",
+        "ok",
+        "formatted_observed",
+        "formatted_target",
+        "guidance"
+      ],
+      "properties": {
+        "observed": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "comparison": {
+          "type": "string",
+          "enum": ["gte", "lte"]
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["ratio", "seconds", "percent"]
+        },
+        "sample_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "formatted_observed": {
+          "type": "string"
+        },
+        "formatted_target": {
+          "type": "string"
+        },
+        "guidance": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

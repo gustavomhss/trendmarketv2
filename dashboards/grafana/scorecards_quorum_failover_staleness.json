@@ -1,0 +1,80 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": "9.5.2"
+    }
+  ],
+  "title": "Sprint 6 Scorecard Metrics",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Quorum ratio",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(scorecard_quorum_ratio)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Failover time p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(scorecard_failover_time_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Replica staleness p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(scorecard_replica_staleness_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "CDC lag p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(scorecard_cdc_lag_seconds_bucket[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Oracle divergence (%)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 5, "x": 20, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(scorecard_oracle_divergence_percent)"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 2
+}

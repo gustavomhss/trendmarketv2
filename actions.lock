@@ -1,0 +1,21 @@
+actions:
+  actions/checkout:
+    sha: b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+    date: 2024-09-15
+    author: GitHub Actions
+    rationale: Versão 4.1.0 auditada para hardening de fetch determinístico.
+  actions/setup-python:
+    sha: 57ded73d95736b4867d21e0da0f2e054fea0f6e7
+    date: 2024-09-15
+    author: GitHub Actions
+    rationale: Garante Python 3.11 com cache de pip e mitigação de supply-chain.
+  actions/upload-artifact:
+    sha: 89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+    date: 2024-09-15
+    author: GitHub Actions
+    rationale: Publicação de artefatos com suporte a SHA256.
+  actions/github-script:
+    sha: 11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+    date: 2024-09-15
+    author: GitHub Actions
+    rationale: Comentário de PR com fallback para GITHUB_STEP_SUMMARY.

@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Q1 Boss Final report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "status",
+    "sprints",
+    "bundle_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "sprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["s1", "s2", "s3", "s4", "s5", "s6"],
+      "properties": {
+        "s1": {"$ref": "#/definitions/stage"},
+        "s2": {"$ref": "#/definitions/stage"},
+        "s3": {"$ref": "#/definitions/stage"},
+        "s4": {"$ref": "#/definitions/stage"},
+        "s5": {"$ref": "#/definitions/stage"},
+        "s6": {"$ref": "#/definitions/stage"}
+      }
+    },
+    "bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "definitions": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "notes"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

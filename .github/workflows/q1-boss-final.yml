@@ -1,0 +1,199 @@
+name: Q1 Boss Final
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Optional release tag to annotate the report
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - '.github/workflows/q1-boss-final.yml'
+      - 'scripts/boss_final/**'
+      - 'schemas/q1_boss_report.schema.json'
+      - 'scripts/scorecards/**'
+      - 's6_validation/**'
+      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
+
+concurrency:
+  group: q1-boss-final-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LC_ALL: C.UTF-8
+  LANG: C.UTF-8
+  PYTHONHASHSEED: '0'
+  PYTHONUTF8: '1'
+  HYPOTHESIS_PROFILE: ci
+  HYPOTHESIS_SEED: '12345'
+
+jobs:
+  stage:
+    name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [s1, s2, s3, s4, s5, s6]
+        clean_runner: [false, true]
+    env:
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Set up Python
+        uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Upgrade packaging toolchain
+        run: |
+          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install \
+            -r requirements.lock \
+            ruff==0.6.8 \
+            yamllint==1.35.1 \
+            pytest==8.3.3 \
+            hypothesis==6.103.0 \
+            jsonschema==4.23.0
+
+      - name: Ensure clean workspace
+        if: ${{ matrix.clean_runner }}
+        run: |
+          rm -rf "$HOME/.cache/pip"
+          rm -rf "$HOME/.cache/pytest"
+
+      - name: Execute sprint guard
+        timeout-minutes: 5
+        run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+
+      - name: Upload guard artifacts
+        if: ${{ !matrix.clean_runner }}
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-${{ matrix.stage }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}
+
+  boss:
+    needs: stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      REPORT_DIR: out/q1_boss_final
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Set up Python
+        uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Upgrade packaging toolchain
+        run: |
+          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install \
+            -r requirements.lock \
+            ruff==0.6.8 \
+            yamllint==1.35.1 \
+            pytest==8.3.3 \
+            hypothesis==6.103.0 \
+            jsonschema==4.23.0
+
+      - name: Download stage artifacts
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s1
+          path: out/q1_boss_final/stages/s1
+
+      - name: Download stage artifacts s2
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s2
+          path: out/q1_boss_final/stages/s2
+
+      - name: Download stage artifacts s3
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s3
+          path: out/q1_boss_final/stages/s3
+
+      - name: Download stage artifacts s4
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s4
+          path: out/q1_boss_final/stages/s4
+
+      - name: Download stage artifacts s5
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s5
+          path: out/q1_boss_final/stages/s5
+
+      - name: Download stage artifacts s6
+        uses: actions/download-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: boss-stage-s6
+          path: out/q1_boss_final/stages/s6
+
+      - name: Aggregate Q1 boss report
+        timeout-minutes: 5
+        run: python scripts/boss_final/aggregate_q1.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-final
+          path: ${{ env.REPORT_DIR }}
+
+      - name: Validate report schema
+        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
+
+      - name: Evaluate guard status
+        id: guard
+        run: |
+          status=$(cat "$REPORT_DIR/guard_status.txt")
+          echo "guard_status=$status" >> $GITHUB_OUTPUT
+          if [ "$status" != "PASS" ]; then
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const reportDir = process.env.REPORT_DIR;
+            const commentPath = path.join(reportDir, 'pr_comment.md');
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            if (fs.existsSync(commentPath)) {
+              body = fs.readFileSync(commentPath, 'utf8');
+            }
+            core.summary.addHeading('Q1 Boss Final');
+            core.summary.addRaw(body);
+            await core.summary.write();
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body
+              });
+            } catch (error) {
+              core.warning(`Falha ao comentar no PR: ${error.message}`);
+            }
