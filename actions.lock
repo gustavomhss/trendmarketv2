@@ -14,6 +14,11 @@ actions:
     pinned_at: 2024-09-15
     author: GitHub Actions
     rationale: Publicação de artefatos com suporte a SHA256.
+  - name: actions/download-artifact
+    sha: fa9b9c1d8b545e8885f3db3cc333a8d5a1cb544a
+    pinned_at: 2024-09-15
+    author: GitHub Actions
+    rationale: Consumo determinístico dos artefatos de cada estágio do Boss Final.
   - name: actions/github-script
     sha: 11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
     pinned_at: 2024-09-15

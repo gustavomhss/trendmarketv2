@@ -1,107 +1,78 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ce.local/schemas/q1_boss_report.schema.json",
   "title": "Q1 Boss Final Report",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "generated_at",
-    "summary",
-    "stages",
-    "bundle_sha256"
+    "timestamp_utc",
+    "sprints",
+    "status"
   ],
   "properties": {
     "schema_version": {
       "type": "integer",
-      "minimum": 1
+      "const": 1
     },
-    "generated_at": {
+    "timestamp_utc": {
       "type": "string",
       "format": "date-time"
     },
-    "summary": {
+    "sprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6"
+      ],
+      "properties": {
+        "s1": {
+          "$ref": "#/definitions/stage"
+        },
+        "s2": {
+          "$ref": "#/definitions/stage"
+        },
+        "s3": {
+          "$ref": "#/definitions/stage"
+        },
+        "s4": {
+          "$ref": "#/definitions/stage"
+        },
+        "s5": {
+          "$ref": "#/definitions/stage"
+        },
+        "s6": {
+          "$ref": "#/definitions/stage"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    }
+  },
+  "definitions": {
+    "stage": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "status",
-        "passing_stages",
-        "failing_stages",
-        "aggregate_ratio",
-        "formatted_ratio",
-        "total_stages"
+        "notes"
       ],
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["pass", "fail"]
+          "enum": ["PASS", "FAIL"]
         },
-        "passing_stages": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "failing_stages": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "aggregate_ratio": {
+        "notes": {
           "type": "string"
-        },
-        "formatted_ratio": {
-          "type": "string"
-        },
-        "total_stages": {
-          "type": "integer",
-          "minimum": 1
         }
       }
-    },
-    "stages": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "stage",
-          "status",
-          "score",
-          "formatted_score",
-          "generated_at"
-        ],
-        "properties": {
-          "stage": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": ["pass", "fail"]
-          },
-          "score": {
-            "type": "string"
-          },
-          "formatted_score": {
-            "type": "string"
-          },
-          "generated_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "on_fail": {
-            "type": "string"
-          },
-          "report_path": {
-            "type": "string"
-          },
-          "bundle_sha256": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
-          }
-        }
-      }
-    },
-    "bundle_sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
     }
   }
 }

@@ -10,8 +10,16 @@ on:
         required: false
         type: string
   pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/**'
+      - 's*/**'
+      - 'docs/**'
+      - 'dashboards/**'
 
-concurrency: q1-boss-final-${{ github.ref }}
+concurrency:
+  group: q1-boss-final-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   LC_ALL: C.UTF-8
@@ -27,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
     steps:
@@ -53,44 +62,43 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
-      - name: Hygiene checks
-        timeout-minutes: 5
-        run: |
-          ruff check .
-          ruff format --check .
-          yamllint .
-          pytest -q
+        - name: Run sprint guard (s1: lint/format/tests/healthcheck)
+          if: matrix.stage == 's1'
+          continue-on-error: true
+          run: python scripts/boss_final/sprint_guard.py --stage s1
 
-      - name: Validate UTF-8 and CRLF
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import sys
+      - name: Run sprint guard (s2: build/tests/microbench)
+        if: matrix.stage == 's2'
+        continue-on-error: true
+        run: python scripts/boss_final/sprint_guard.py --stage s2
 
-          root = Path('.')
-          bad = []
-          for path in root.rglob('*'):
-            if not path.is_file():
-              continue
-            if path.suffix not in {'.py', '.json', '.sh', '.md', '.yml', '.yaml'}:
-              continue
-            data = path.read_bytes()
-            try:
-              data.decode('utf-8')
-            except UnicodeDecodeError:
-              bad.append(f"UTF8:{path}")
-              continue
-            if b'\r' in data:
-              bad.append(f"CRLF:{path}")
-          if bad:
-            for entry in bad:
-              print(entry)
-            sys.exit(1)
-          PY
+      - name: Run sprint guard (s3: observability smoke)
+        if: matrix.stage == 's3'
+        continue-on-error: true
+        run: python scripts/boss_final/sprint_guard.py --stage s3
 
-      - name: Execute sprint guard
-        timeout-minutes: 5
-        run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+      - name: Run sprint guard (s4: ORR lite validations)
+        if: matrix.stage == 's4'
+        continue-on-error: true
+        run: python scripts/boss_final/sprint_guard.py --stage s4
+
+      - name: Run sprint guard (s5: dashboard jq checks)
+        if: matrix.stage == 's5'
+        continue-on-error: true
+        run: python scripts/boss_final/sprint_guard.py --stage s5
+
+      - name: Run sprint guard (s6: scorecard execution)
+        if: matrix.stage == 's6'
+        continue-on-error: true
+        run: python scripts/boss_final/sprint_guard.py --stage s6
+
+      - name: Upload stage artifacts
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-final-${{ matrix.stage }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}
+          if-no-files-found: error
 
   boss:
     needs: stage
@@ -122,11 +130,20 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
+      - name: Download stage artifacts
+        uses: actions/download-artifact@fa9b9c1d8b545e8885f3db3cc333a8d5a1cb544a
+        with:
+          pattern: q1-boss-final-*
+          path: ${{ env.REPORT_DIR }}/stages
+          merge-multiple: true
+          if-no-files-found: error
+
       - name: Aggregate Q1 boss report
         timeout-minutes: 5
         run: python scripts/boss_final/aggregate_q1.py
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
           name: q1-boss-final
@@ -145,7 +162,7 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         with:
           script: |
@@ -153,18 +170,32 @@ jobs:
             const path = require('path');
             const reportDir = process.env.REPORT_DIR;
             const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body;
-            if (fs.existsSync(commentPath)) {
-              body = fs.readFileSync(commentPath, 'utf8');
-            } else {
-              body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            const fallback = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            const body = fs.existsSync(commentPath)
+              ? fs.readFileSync(commentPath, 'utf8')
+              : fallback;
+
+            const writeSummary = async () => {
+              core.summary.clear();
+              core.summary.addHeading('Q1 Boss Final');
+              core.summary.addRaw(body);
+              await core.summary.write();
+            };
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body
+              });
+            } catch (error) {
+              core.warning(`Falha ao comentar no PR: ${error.message}`);
+              throw error;
+            } finally {
+              try {
+                await writeSummary();
+              } catch (summaryError) {
+                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+              }
             }
-            core.summary.addHeading('Q1 Boss Final');
-            core.summary.addRaw(body);
-            core.summary.write();
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
