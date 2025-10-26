@@ -22,6 +22,8 @@ Gerar scorecards determinísticos com contratos DbC explícitos, validação por
   - Tempos: três casas decimais + `s` (ex.: `2.103s`).
 - **Ordenação**: métricas sempre avaliadas na ordem fixa `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct`.
 - **Entradas**:
+  - `thresholds.json`: declara `version`, `timestamp_utc` e o bloco `metrics.<metric>.{version,comparison,target}` para as cinco métricas em ordem fixa.
+  - `metrics_static.json`: declara `version`, `timestamp_utc` e o bloco `metrics.<metric>.{version,observed}` espelhando os mesmos identificadores.
   - `thresholds.json`: objeto plano com `version`, `timestamp_utc` e chaves fixas `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct` representando os alvos.
   - `metrics_static.json`: objeto plano com `version`, `timestamp_utc` e valores observados para as cinco métricas mandatórias.
 - **Saída (`report.json`)**: contém `timestamp_utc`, `status` em maiúsculas e bloco `metrics.<metric>.{observed,target,ok}` para cada métrica.
@@ -56,13 +58,14 @@ Os relatórios devem ficar em `out/s6_scorecards/` e `out/q1_boss_final/`. Ambos
 - `s6_validation/thresholds.json`
 
   ```json
+  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","metrics":{"quorum_ratio":{"version":1,"comparison":"gte","target":0.6667},"failover_time_p95_s":{"version":1,"comparison":"lte","target":60.0},"staleness_p95_s":{"version":1,"comparison":"lte","target":30.0},"cdc_lag_p95_s":{"version":1,"comparison":"lte","target":120.0},"divergence_pct":{"version":1,"comparison":"lte","target":1.0}}}
   {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","quorum_ratio":0.6667,"failover_time_p95_s":60.0,"staleness_p95_s":30.0,"cdc_lag_p95_s":120.0,"divergence_pct":1.0}
   ```
 
 - `s6_validation/metrics_static.json`
 
   ```json
-  {"version":1,"timestamp_utc":"2024-09-01T05:55:00Z","quorum_ratio":0.92,"failover_time_p95_s":7.8,"staleness_p95_s":12.0,"cdc_lag_p95_s":45.0,"divergence_pct":0.4}
+  {"version":1,"timestamp_utc":"2024-09-01T05:55:00Z","metrics":{"quorum_ratio":{"version":1,"observed":0.92},"failover_time_p95_s":{"version":1,"observed":7.8},"staleness_p95_s":{"version":1,"observed":12.0},"cdc_lag_p95_s":{"version":1,"observed":45.0},"divergence_pct":{"version":1,"observed":0.4}}}
   ```
 
 ## Rotação e fallback

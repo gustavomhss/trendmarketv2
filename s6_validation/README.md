@@ -2,6 +2,9 @@
 
 This directory stores the immutable inputs that back the Sprint 6 scorecard gate defined in the [Sprint 6 (Q1) specification](../docs/DNA/quarters/Q1/Sprint%206%20(Q1).md). The spec’s governance rules (§2, §9, §12) require these fixtures to remain deterministic, schema-valid, and reviewable so every rerun of the scorecard pipeline yields the same bundle hash and PASS/FAIL verdict.
 
+## Schema contracts and versions
+- Both files must comply with their Draft-07 JSON Schemas and declare `version: 1`, matching the v1 contracts referenced by the Sprint 6 specification.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L65-L123】【F:s6_validation/thresholds.json†L1-L22】【F:s6_validation/metrics_static.json†L1-L20】
+- Introducing a new schema version requires an accompanying schema update under `schemas/`, validation coverage, and explicit mention in the sprint scorecard documentation per the governance policy.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L65-L123】【F:docs/scorecards/S6_SCORECARDS.md†L1-L40】
 ## Fixture summary
 # Sprint 6 Validation Inputs
 
@@ -37,6 +40,7 @@ Both files must advance in lockstep so that downstream automation receives a coh
 - Bumping the schema version requires a paired schema update, refreshed validation coverage, and documentation of the contract change in the Sprint 6 scorecard runbook before merge.
 - Timestamps (`generated_at`, `collected_at`) must use RFC 3339 to satisfy the provenance rules in the specification.
 - Both files conform to Draft-07 JSON Schemas committed under `schemas/thresholds.schema.json` and `schemas/metrics.schema.json`.
+- The `version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
 - Validation in CI and local runs relies on the upstream [`jsonschema`](https://pypi.org/project/jsonschema/) package pinned at `4.23.0` (see `requirements.lock`).
 - The `schema_version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
 - Timestamps (`generated_at`, `collected_at`) use RFC 3339 and should reflect the source extraction moment.
