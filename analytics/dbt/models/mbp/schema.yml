@@ -40,6 +40,8 @@ models:
           - accepted_values:
               values: ['active', 'expired', 'cancelled']
     tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['market_id', 'quote_ts']
       - dbt_utils.expression_is_true:
           expression: "status != 'active' or {{ ref('mbp_markets') }}.status != 'closed'"
   - name: mbp_resolutions
@@ -55,6 +57,9 @@ models:
           - relationships:
               to: ref('mbp_markets')
               field: market_id
+      - name: resolved_at
+        tests:
+          - not_null
       - name: twap_divergence_percent
         tests:
           - not_null
@@ -77,3 +82,6 @@ models:
         tests:
           - accepted_values:
               values: ['low', 'medium', 'high']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['market_id', 'detected_at']

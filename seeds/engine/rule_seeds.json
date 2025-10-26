@@ -1,0 +1,15 @@
+[
+  {
+    "rule_id": "RS-YESNO-001",
+    "payload": {"question_id": "Q-001"}
+  },
+  {
+    "rule_id": "RS-CONT-001",
+    "payload": {"market_id": "MKT-42"}
+  },
+  {
+    "rule_id": "RS-YESNO-001",
+    "payload": {"question_id": "Q-404"},
+    "manual": {"approver": "pm@trend", "ticket": "MBP-404"}
+  }
+]
