@@ -1,9 +1,9 @@
 actions:
   actions/checkout: 11bd71901bbe5b1630ceea73d27597364c9af683
-  actions/download-artifact: 65d8626b53fa662845d786fc8c2cd0a76f1b38f1
-  actions/upload-artifact: 5076951413fa71e81ff98d6b871c3e9df2bda29b
+  actions/download-artifact: d3f86a106a0bac45b974a628896c90dbdf5c8093
+  actions/upload-artifact: ea165f8d65b6e75b540449e92b4886f43607fa02
   docker/login-action: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
 metadata:
-  updated_at: 2025-10-26T21:52:47Z
+  updated_at: 2025-10-26T22:49:46Z
   updated_by: codex
   rationale: Sweep pins → SHA(40), higiene YAML/JSON (compat Node 20).
