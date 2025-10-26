@@ -109,6 +109,7 @@ class ReleaseManifestTests(unittest.TestCase):
             self.assertTrue(manifest["evidence_checks"]["pii_labels"])
             self.assertEqual(manifest["synthetic_probe"]["ok_ratio"], 1.0)
             self.assertEqual(manifest["watchers"]["alerts_count"], 1)
+            self.assertTrue(manifest["evidence_checks"]["pii_labels"])
             self.assertEqual(
                 manifest["drills"]["trace_log_smoke"]["observability_level"],
                 "full",
