@@ -13,7 +13,11 @@ from typing import Dict
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
 
-from scripts.scorecards.s6_scorecards import generate_report, OUTPUT_DIR as S6_OUTPUT_DIR  # noqa: E402
+from scripts.scorecards.s6_scorecards import (  # noqa: E402
+    ScorecardArtifacts,
+    generate_report,
+    OUTPUT_DIR as S6_OUTPUT_DIR,
+)
 
 getcontext().prec = 28
 getcontext().rounding = ROUND_HALF_EVEN
@@ -65,6 +69,12 @@ def run_stage(stage: str) -> Dict[str, str]:
     if stage in STATIC_STAGES:
         return run_static_stage(STATIC_STAGES[stage])
     if stage == "s6":
+        artifacts: ScorecardArtifacts = generate_report()
+        passing = sum(1 for result in artifacts.results if result.ok)
+        total = len(artifacts.results)
+        ratio = Decimal(passing) / Decimal(max(total, 1))
+        formatted_ratio = f"{ratio.quantize(Decimal('0.0001'))}"
+        status = "pass" if artifacts.report["status"] == "PASS" else "fail"
         report = generate_report()
         metrics = report["metrics"]
         passing = sum(1 for metric in metrics.values() if metric["ok"])
@@ -81,6 +91,7 @@ def run_stage(stage: str) -> Dict[str, str]:
             "formatted_score": formatted_ratio,
             "generated_at": now,
             "report_path": str(S6_OUTPUT_DIR.relative_to(BASE_DIR)),
+            "bundle_sha256": artifacts.bundle_sha256,
             "bundle_sha256": report["bundle"]["sha256"],
             "on_fail": "Executar playbook de estabilização da Sprint 6 e rodar watchers.",
         }
