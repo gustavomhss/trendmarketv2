@@ -8,20 +8,16 @@ import json
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import ROUND_HALF_EVEN, Decimal, getcontext
+from decimal import Decimal, ROUND_HALF_EVEN, getcontext
+from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterable, List
-
+from typing import Any, Dict, Iterable, List
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
 
-import jsonschema
-THRESHOLD_PATH = BASE_DIR / "s6_validation" / "thresholds.json"
-METRICS_PATH = BASE_DIR / "s6_validation" / "metrics_static.json"
-SCHEMAS_DIR = BASE_DIR / "schemas"
-OUTPUT_DIR = BASE_DIR / "out" / "s6_scorecards"
-
+from jsonschema import Draft7Validator, ValidationError
+import jsonschema  
 
 getcontext().prec = 28
 getcontext().rounding = ROUND_HALF_EVEN
@@ -29,6 +25,7 @@ getcontext().rounding = ROUND_HALF_EVEN
 
 EPSILON = Decimal("1e-12")
 ERROR_PREFIX = "S6"
+SCHEMA_VERSION = 1
 
 
 SCHEMA_FILES = {
@@ -143,6 +140,20 @@ def fail(code_suffix: str, message: str) -> None:
     raise ScorecardError(f"{ERROR_PREFIX}-E-{code_suffix}", message)
 
 
+@lru_cache(maxsize=None)
+def _load_schema(schema_key: str) -> Dict[str, Any]:
+    schema_path = SCHEMA_FILES[schema_key]
+    with schema_path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+@lru_cache(maxsize=None)
+def _get_validator(schema_key: str) -> Draft7Validator:
+    schema = _load_schema(schema_key)
+    return Draft7Validator(schema)
+
+
+def load_json(path: Path, schema_key: str) -> Dict:
 def load_json(path: Path, schema_key: str) -> Dict[str, object]:
     if not path.exists():
         fail("MISSING", f"Arquivo obrigatório ausente: {path}")
@@ -160,8 +171,9 @@ def load_json(path: Path, schema_key: str) -> Dict[str, object]:
     schema_path = SCHEMA_FILES[schema_key]
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     try:
-        jsonschema.validate(instance=content, schema=schema)
-    except jsonschema.ValidationError as exc:
+        validator = _get_validator(schema_key)
+        validator.validate(content)
+    except ValidationError as exc:
         fail("SCHEMA", f"Violação de schema em {path}: {exc.message}")
     return content
 
@@ -228,7 +240,7 @@ def build_report(
         for result in results
     }
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "timestamp_utc": generated_at,
         "status": compute_status(results),
         "metrics": metrics_block,
