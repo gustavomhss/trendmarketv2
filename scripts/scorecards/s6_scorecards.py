@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, getcontext, ROUND_HALF_EVEN
+from decimal import Decimal, ROUND_HALF_EVEN, getcontext
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
@@ -26,21 +26,27 @@ SCHEMAS_DIR = BASE_DIR / "schemas"
 OUTPUT_DIR = BASE_DIR / "out" / "s6_scorecards"
 ERROR_PREFIX = "S6"
 
+METRIC_ORDER = [
+    "quorum_ratio",
+    "failover_time_p95_s",
+    "staleness_p95_s",
+    "cdc_lag_p95_s",
+    "divergence_pct",
+]
 
-class ScorecardError(RuntimeError):
-    def __init__(self, code: str, message: str) -> None:
-        super().__init__(f"{code}:{message}")
-        self.code = code
-        self.message = message
+FORMATTERS = {
+    "percent": lambda value: f"{value.quantize(Decimal('0.1'))}%",
+    "ratio": lambda value: f"{value.quantize(Decimal('0.0001'))}",
+    "seconds": lambda value: f"{value.quantize(Decimal('0.001'))}s",
+}
 
 
 @dataclass(frozen=True)
 class Threshold:
     metric_id: str
-    order: int
     display_name: str
     comparison: str
-    target_value: Decimal
+    target: Decimal
     unit: str
     description: str
     on_fail: str
@@ -49,17 +55,18 @@ class Threshold:
 @dataclass(frozen=True)
 class Measurement:
     metric_id: str
-    value: Decimal
+    observed: Decimal
     unit: str
     sample_size: int
-    measurement: str
+    window: str
 
 
 @dataclass(frozen=True)
 class Evaluation:
+    metric_id: str
     threshold: Threshold
     measurement: Measurement
-    status: str
+    ok: bool
     delta: Decimal
 
 
@@ -71,7 +78,7 @@ SCHEMA_FILES = {
 
 
 def fail(code: str, message: str) -> None:
-    raise ScorecardError(f"{ERROR_PREFIX}-E-{code}", message)
+    raise RuntimeError(f"{ERROR_PREFIX}-E-{code}:{message}")
 
 
 def load_json(path: Path, schema_key: str) -> Dict:
@@ -91,52 +98,48 @@ def load_json(path: Path, schema_key: str) -> Dict:
     return content
 
 
-def decimal_from(value: str) -> Decimal:
+def decimal_from(value: object) -> Decimal:
     try:
-        return Decimal(value)
+        return Decimal(str(value))
     except Exception as exc:  # pragma: no cover
         fail("DECIMAL", f"Valor inválido para Decimal: {value} ({exc})")
         raise
 
 
-def parse_thresholds(data: Dict) -> List[Threshold]:
-    thresholds: List[Threshold] = []
-    seen_ids: set[str] = set()
-    for entry in data.get("metrics", []):
-        metric_id = entry["id"]
-        if metric_id in seen_ids:
-            fail("DUPLICATE-TH", f"Threshold duplicado para {metric_id}")
-        seen_ids.add(metric_id)
-        thresholds.append(
-            Threshold(
-                metric_id=metric_id,
-                order=int(entry["order"]),
-                display_name=entry["display_name"],
-                comparison=entry["comparison"],
-                target_value=decimal_from(entry["target_value"]),
-                unit=entry["unit"],
-                description=entry["description"],
-                on_fail=entry["on_fail"],
-            )
+def parse_thresholds(data: Dict) -> Dict[str, Threshold]:
+    metrics = data.get("metrics", {})
+    thresholds: Dict[str, Threshold] = {}
+    for metric_id in METRIC_ORDER:
+        entry = metrics.get(metric_id)
+        if entry is None:
+            fail("MISSING-THRESHOLD", f"Threshold ausente para {metric_id}")
+        threshold = Threshold(
+            metric_id=metric_id,
+            display_name=entry["display_name"],
+            comparison=entry["comparison"],
+            target=decimal_from(entry["target"]),
+            unit=entry["unit"],
+            description=entry["description"],
+            on_fail=entry["on_fail"],
         )
-    thresholds.sort(key=lambda item: item.order)
+        thresholds[metric_id] = threshold
     return thresholds
 
 
 def parse_measurements(data: Dict) -> Dict[str, Measurement]:
-    metrics: Dict[str, Measurement] = {}
-    for entry in data.get("metrics", []):
-        metric_id = entry["id"]
-        if metric_id in metrics:
-            fail("DUPLICATE-MEASUREMENT", f"Métrica duplicada: {metric_id}")
-        metrics[metric_id] = Measurement(
+    metrics = data.get("metrics", {})
+    measurements: Dict[str, Measurement] = {}
+    for metric_id, entry in metrics.items():
+        if metric_id in measurements:
+            fail("DUPLICATE-METRIC", f"Métrica duplicada: {metric_id}")
+        measurements[metric_id] = Measurement(
             metric_id=metric_id,
-            value=decimal_from(entry["value"]),
+            observed=decimal_from(entry["observed"]),
             unit=entry["unit"],
             sample_size=int(entry["sample_size"]),
-            measurement=entry["measurement"],
+            window=entry["window"],
         )
-    return metrics
+    return measurements
 
 
 def assert_units(thresholds: Iterable[Threshold], measurements: Dict[str, Measurement]) -> None:
@@ -151,173 +154,171 @@ def assert_units(thresholds: Iterable[Threshold], measurements: Dict[str, Measur
             )
 
 
-def compare(threshold: Threshold, measurement: Measurement) -> Tuple[str, Decimal]:
-    value = measurement.value
-    target = threshold.target_value
+def compare(threshold: Threshold, measurement: Measurement) -> Evaluation:
+    value = measurement.observed
+    target = threshold.target
     comparison = threshold.comparison
     if comparison == "gte":
         delta = value - target
-        status = "pass" if value + EPSILON >= target else "fail"
+        ok = value + EPSILON >= target
     elif comparison == "lte":
         delta = target - value
-        status = "pass" if value - EPSILON <= target else "fail"
+        ok = value - EPSILON <= target
     else:
         fail("COMPARISON", f"Operador desconhecido: {comparison}")
         delta = Decimal("0")
-        status = "fail"
-    return status, delta
+        ok = False
+    return Evaluation(
+        metric_id=threshold.metric_id,
+        threshold=threshold,
+        measurement=measurement,
+        ok=ok,
+        delta=delta,
+    )
 
 
-def format_value(value: Decimal, unit: str) -> str:
-    if unit == "percent":
-        return f"{value.quantize(Decimal('0.1'))}%"
-    if unit == "ratio":
-        return f"{value.quantize(Decimal('0.0001'))}"
-    if unit == "seconds":
-        return f"{value.quantize(Decimal('0.001'))}s"
-    return str(value)
-
-
-def evaluate(thresholds: List[Threshold], measurements: Dict[str, Measurement]) -> List[Evaluation]:
+def evaluate(thresholds: Dict[str, Threshold], measurements: Dict[str, Measurement]) -> List[Evaluation]:
+    assert_units(thresholds.values(), measurements)
     evaluations: List[Evaluation] = []
-    assert_units(thresholds, measurements)
-    for threshold in thresholds:
-        measurement = measurements[threshold.metric_id]
-        status, delta = compare(threshold, measurement)
-        evaluations.append(
-            Evaluation(
-                threshold=threshold,
-                measurement=measurement,
-                status=status,
-                delta=delta,
-            )
-        )
+    for metric_id in METRIC_ORDER:
+        threshold = thresholds[metric_id]
+        measurement = measurements.get(metric_id)
+        if measurement is None:
+            fail("MISSING-METRIC", f"Métrica sem coleta: {metric_id}")
+        evaluation = compare(threshold, measurement)
+        evaluations.append(evaluation)
     return evaluations
 
 
-def make_summary(evaluations: List[Evaluation]) -> Dict[str, object]:
-    total = len(evaluations)
-    passing = sum(1 for evaluation in evaluations if evaluation.status == "pass")
-    failing = total - passing
-    status = "pass" if failing == 0 else "fail"
-    return {
-        "status": status,
-        "total_metrics": total,
-        "passing": passing,
-        "failing": failing,
-    }
+def format_value(value: Decimal, unit: str) -> str:
+    formatter = FORMATTERS.get(unit)
+    if formatter is None:  # pragma: no cover
+        return str(value)
+    return formatter(value)
 
 
-def ensure_output_dir(path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
+def canonical_dump(data: Dict) -> str:
+    return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
 
 
-def write_file(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8")
+def compute_bundle_sha(thresholds_raw: Dict, metrics_raw: Dict) -> str:
+    payload = canonical_dump(thresholds_raw) + canonical_dump(metrics_raw)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def build_report(evaluations: List[Evaluation], generated_at: str, thresholds_meta: Dict, metrics_meta: Dict) -> Dict[str, object]:
-    items: List[Dict[str, object]] = []
+def build_report(
+    evaluations: List[Evaluation],
+    generated_at: str,
+    thresholds_meta: Dict,
+    metrics_meta: Dict,
+    bundle_hash: str,
+) -> Dict[str, object]:
+    metrics_block: Dict[str, Dict[str, object]] = {}
     for evaluation in evaluations:
         threshold = evaluation.threshold
         measurement = evaluation.measurement
-        items.append(
-            {
-                "id": threshold.metric_id,
-                "display_name": threshold.display_name,
-                "status": evaluation.status,
-                "comparison": threshold.comparison,
-                "value": str(measurement.value),
-                "formatted_value": format_value(measurement.value, threshold.unit),
-                "threshold_value": str(threshold.target_value),
-                "formatted_threshold": format_value(threshold.target_value, threshold.unit),
-                "unit": threshold.unit,
-                "delta": str(evaluation.delta),
-                "sample_size": measurement.sample_size,
-                "measurement_window": measurement.measurement,
-                "description": threshold.description,
-                "on_fail": threshold.on_fail,
-            }
-        )
-    summary = make_summary(evaluations)
-    bundle_content = json.dumps(items, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    bundle_hash = hashlib.sha256(bundle_content).hexdigest()
+        metrics_block[evaluation.metric_id] = {
+            "observed": float(measurement.observed),
+            "target": float(threshold.target),
+            "ok": evaluation.ok,
+            "comparison": threshold.comparison,
+            "unit": threshold.unit,
+            "sample_size": measurement.sample_size,
+            "window": measurement.window,
+            "delta": float(evaluation.delta),
+        }
+    status = "PASS" if all(evaluation.ok for evaluation in evaluations) else "FAIL"
     return {
         "schema_version": 1,
-        "generated_at": generated_at,
-        "summary": summary,
-        "thresholds_version": thresholds_meta.get("schema_version"),
-        "metrics_version": metrics_meta.get("schema_version"),
-        "metrics_collected_at": metrics_meta.get("collected_at"),
-        "items": items,
-        "bundle_sha256": bundle_hash,
+        "timestamp_utc": generated_at,
+        "status": status,
+        "metrics": metrics_block,
+        "inputs": {
+            "thresholds": {
+                "version": thresholds_meta["version"],
+                "timestamp_utc": thresholds_meta["timestamp_utc"],
+            },
+            "metrics": {
+                "version": metrics_meta["version"],
+                "timestamp_utc": metrics_meta["timestamp_utc"],
+            },
+        },
+        "bundle": {
+            "sha256": bundle_hash,
+        },
     }
 
 
-def render_markdown(report: Dict[str, object]) -> str:
+def render_markdown(report: Dict[str, object], evaluations: List[Evaluation]) -> str:
     lines = ["# Sprint 6 Scorecards", ""]
-    summary = report["summary"]
-    status_emoji = "✅" if summary["status"] == "pass" else "❌"
-    lines.append(f"{status_emoji} Status geral: **{summary['status'].upper()}**")
+    status_emoji = "✅" if report["status"] == "PASS" else "❌"
+    lines.append(f"{status_emoji} Status geral: **{report['status']}**")
     lines.append("")
-    lines.append("| Métrica | Valor | Limite | Status | Janela | Amostras |")
+    lines.append("| Métrica | Observado | Limite | Status | Janela | Amostras |")
     lines.append("| --- | --- | --- | --- | --- | --- |")
-    for item in report["items"]:
-        status = "✅" if item["status"] == "pass" else "❌"
+    for evaluation in evaluations:
+        threshold = evaluation.threshold
+        measurement = evaluation.measurement
+        status = "✅" if evaluation.ok else "❌"
         lines.append(
-            f"| {item['display_name']} | {item['formatted_value']} | {item['formatted_threshold']} | {status} | "
-            f"{item['measurement_window']} | {item['sample_size']} |"
+            "| {name} | {observed} | {target} | {status} | {window} | {sample} |".format(
+                name=threshold.display_name,
+                observed=format_value(measurement.observed, threshold.unit),
+                target=format_value(threshold.target, threshold.unit),
+                status=status,
+                window=measurement.window,
+                sample=measurement.sample_size,
+            )
         )
     lines.append("")
     lines.append("## O que fazer agora")
-    failing = [item for item in report["items"] if item["status"] != "pass"]
+    failing = [evaluation for evaluation in evaluations if not evaluation.ok]
     if failing:
-        for item in failing:
-            lines.append(f"- {item['display_name']}: {item['on_fail']}")
+        for evaluation in failing:
+            lines.append(f"- {evaluation.threshold.display_name}: {evaluation.threshold.on_fail}")
     else:
         lines.append("- Todas as métricas atendidas. Continuar monitoramento e revisar novamente em 24h.")
     lines.append("")
     lines.append("## Metadados")
-    lines.append(f"- Gerado em: {report['generated_at']}")
-    lines.append(f"- SHA do bundle: `{report['bundle_sha256']}`")
+    lines.append(f"- Thresholds: v{report['inputs']['thresholds']['version']} @ {report['inputs']['thresholds']['timestamp_utc']}")
+    lines.append(f"- Métricas: v{report['inputs']['metrics']['version']} @ {report['inputs']['metrics']['timestamp_utc']}")
+    lines.append(f"- Gerado em: {report['timestamp_utc']}")
+    lines.append(f"- SHA do bundle: `{report['bundle']['sha256']}`")
     return "\n".join(lines) + "\n"
 
 
-def build_pr_comment(report: Dict[str, object]) -> str:
-    summary = report["summary"]
-    badge_line = "✅" if summary["status"] == "pass" else "❌"
-    badge_line += " [Sprint 6 report](./report.md)"
-    lines = [badge_line]
+def build_pr_comment(report: Dict[str, object], evaluations: List[Evaluation]) -> str:
+    emoji = "✅" if report["status"] == "PASS" else "❌"
+    lines = [f"{emoji} [Sprint 6 report](./report.md)"]
     lines.append("")
     lines.append("![Status](./badge.svg)")
     lines.append("")
     lines.append("## O que fazer agora")
-    failing = [item for item in report["items"] if item["status"] != "pass"]
+    failing = [evaluation for evaluation in evaluations if not evaluation.ok]
     if failing:
-        for item in failing:
-            lines.append(f"- {item['display_name']}: {item['on_fail']}")
+        for evaluation in failing:
+            lines.append(f"- {evaluation.threshold.display_name}: {evaluation.threshold.on_fail}")
     else:
         lines.append("- Nenhuma ação imediata necessária.")
     lines.append("")
-    lines.append("Relatório completo disponível em [report.md](./report.md).")
+    lines.append("Detalhes completos em [report.md](./report.md).")
     return "\n".join(lines) + "\n"
 
 
 def render_svg_badge(report: Dict[str, object]) -> str:
-    status = report["summary"]["status"]
-    label_color = "#2e8540" if status == "pass" else "#c92a2a"
-    status_text = "PASS" if status == "pass" else "FAIL"
+    status = report["status"]
+    label_color = "#2e8540" if status == "PASS" else "#c92a2a"
     return (
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"40\">"
         f"<rect width=\"160\" height=\"40\" fill=\"{label_color}\" rx=\"6\"/>"
         "<text x=\"80\" y=\"25\" text-anchor=\"middle\" fill=\"#ffffff\" font-size=\"20\""
-        " font-family=\"Helvetica,Arial,sans-serif\">S6 {status}</text>".format(status=status_text)
-        + "</svg>"
+        " font-family=\"Helvetica,Arial,sans-serif\">S6 {status}</text>"
+        "</svg>"
     )
 
 
-def render_scorecard_svg(report: Dict[str, object]) -> str:
-    rows = len(report["items"])
+def render_scorecard_svg(evaluations: List[Evaluation]) -> str:
+    rows = len(evaluations)
     height = 60 + 30 * rows
     header = (
         f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"520\" height=\"{height}\">"
@@ -327,13 +328,15 @@ def render_scorecard_svg(report: Dict[str, object]) -> str:
     )
     lines = [header]
     y = 60
-    for item in report["items"]:
-        status_color = "#2e8540" if item["status"] == "pass" else "#c92a2a"
-        status_text = "PASS" if item["status"] == "pass" else "FAIL"
+    for evaluation in evaluations:
+        threshold = evaluation.threshold
+        measurement = evaluation.measurement
+        status_color = "#2e8540" if evaluation.ok else "#c92a2a"
+        status_text = "PASS" if evaluation.ok else "FAIL"
         lines.append(
-            f"<text x=\"20\" y=\"{y}\">{item['display_name']}</text>"
-            f"<text x=\"260\" y=\"{y}\">{item['formatted_value']}</text>"
-            f"<text x=\"360\" y=\"{y}\">{item['formatted_threshold']}</text>"
+            f"<text x=\"20\" y=\"{y}\">{threshold.display_name}</text>"
+            f"<text x=\"260\" y=\"{y}\">{format_value(measurement.observed, threshold.unit)}</text>"
+            f"<text x=\"360\" y=\"{y}\">{format_value(threshold.target, threshold.unit)}</text>"
             f"<text x=\"460\" y=\"{y}\" fill=\"{status_color}\">{status_text}</text>"
         )
         y += 30
@@ -341,43 +344,51 @@ def render_scorecard_svg(report: Dict[str, object]) -> str:
     return "".join(lines)
 
 
-def write_outputs(report: Dict[str, object]) -> None:
-    ensure_output_dir(OUTPUT_DIR)
+def write_file(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+
+
+def write_outputs(report: Dict[str, object], evaluations: List[Evaluation]) -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     write_file(OUTPUT_DIR / "report.json", json.dumps(report, indent=2, ensure_ascii=False) + "\n")
-    markdown = render_markdown(report)
+    markdown = render_markdown(report, evaluations)
     write_file(OUTPUT_DIR / "report.md", markdown)
-    write_file(OUTPUT_DIR / "pr_comment.md", build_pr_comment(report))
+    write_file(OUTPUT_DIR / "pr_comment.md", build_pr_comment(report, evaluations))
     badge_svg = render_svg_badge(report)
     write_file(OUTPUT_DIR / "badge.svg", badge_svg + "\n")
-    scorecard_svg = render_scorecard_svg(report)
+    scorecard_svg = render_scorecard_svg(evaluations)
     write_file(OUTPUT_DIR / "scorecard.svg", scorecard_svg + "\n")
-    write_file(OUTPUT_DIR / "guard_status.txt", ("PASS" if report["summary"]["status"] == "pass" else "FAIL") + "\n")
-    write_file(OUTPUT_DIR / "bundle.sha256", report["bundle_sha256"] + "\n")
+    write_file(OUTPUT_DIR / "guard_status.txt", report["status"] + "\n")
+    write_file(OUTPUT_DIR / "bundle.sha256", report["bundle"]["sha256"] + "\n")
 
 
 def generate_report(threshold_path: Path = THRESHOLD_PATH, metrics_path: Path = METRICS_PATH) -> Dict[str, object]:
-    thresholds_raw = load_json(threshold_path, "thresholds")
-    metrics_raw = load_json(metrics_path, "metrics")
-    thresholds = parse_thresholds(thresholds_raw)
-    measurements = parse_measurements(metrics_raw)
-    evaluations = evaluate(thresholds, measurements)
-    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-    report = build_report(evaluations, generated_at, thresholds_raw, metrics_raw)
-    write_outputs(report)
-    return report
+    try:
+        thresholds_raw = load_json(threshold_path, "thresholds")
+        metrics_raw = load_json(metrics_path, "metrics")
+        thresholds = parse_thresholds(thresholds_raw)
+        measurements = parse_measurements(metrics_raw)
+        evaluations = evaluate(thresholds, measurements)
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        bundle_hash = compute_bundle_sha(thresholds_raw, metrics_raw)
+        report = build_report(evaluations, generated_at, thresholds_raw, metrics_raw, bundle_hash)
+        write_outputs(report, evaluations)
+    except RuntimeError as exc:
+        print(f"FAIL {exc}")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        write_file(OUTPUT_DIR / "guard_status.txt", "FAIL\n")
+        raise
+    else:
+        print("PASS Sprint 6 scorecards")
+        return report
 
 
 def main() -> int:
     try:
-        report = generate_report()
-    except ScorecardError as exc:
-        print(f"FAIL {exc}")
-        ensure_output_dir(OUTPUT_DIR)
-        write_file(OUTPUT_DIR / "guard_status.txt", "FAIL\n")
+        generate_report()
+    except RuntimeError:
         return 1
-    else:
-        print("PASS Sprint 6 scorecards")
-        return 0
+    return 0
 
 
 if __name__ == "__main__":

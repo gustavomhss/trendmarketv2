@@ -13,6 +13,9 @@
     "from": "now-24h",
     "to": "now"
   },
+  "templating": {
+    "list": []
+  },
   "panels": [
     {
       "id": 1,
@@ -23,6 +26,13 @@
         {
           "refId": "A",
           "expr": "mbp:oracle:quorum_ratio"
+      "title": "Quorum Ratio",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quorum_ratio"
         }
       ]
     },
@@ -35,6 +45,13 @@
         {
           "refId": "A",
           "expr": "mbp:oracle:failover_time_p95_s"
+      "title": "Failover Time p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "failover_time_p95_s"
         }
       ]
     },
@@ -47,6 +64,13 @@
         {
           "refId": "A",
           "expr": "mbp:oracle:staleness_p95_ms / 1000"
+      "title": "Staleness p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "staleness_p95_s"
         }
       ]
     },
@@ -59,6 +83,13 @@
         {
           "refId": "A",
           "expr": "quantile_over_time(0.95, cdc_lag_seconds{service=\"trendmarket-amm\", env=\"prod\"}[5m])"
+      "title": "CDC Lag p95 (s)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cdc_lag_p95_s"
         }
       ]
     },
@@ -71,6 +102,13 @@
         {
           "refId": "A",
           "expr": "mbp:oracle:divergence_p95"
+      "title": "Divergence (%)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "divergence_pct"
         }
       ]
     }
