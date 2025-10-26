@@ -22,6 +22,7 @@ EVIDENCE_REQUIRED: Sequence[Path] = [
     Path("evidence/sbom.cdx.json"),
     Path("evidence/synthetic_probe.json"),
     Path("evidence/pii_probe.json"),
+    Path("evidence/pii_labels.ok"),
     Path("evidence/chaos_summary.json"),
     Path("evidence/baseline_perf.json"),
     Path("evidence/golden_traces.json"),

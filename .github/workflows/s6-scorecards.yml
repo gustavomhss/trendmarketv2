@@ -23,6 +23,17 @@ jobs:
   scorecards:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+concurrency: { group: s6-scorecards-${{ github.ref }}, cancel-in-progress: true }
+
+jobs:
+  scorecards:
+    name: Scorecards (clean=${{ matrix.clean_runner }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        clean_runner: [false, true]
     env:
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
@@ -31,6 +42,7 @@ jobs:
       HYPOTHESIS_PROFILE: ci
       HYPOTHESIS_SEED: '12345'
       REPORT_DIR: out/s6_scorecards
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
@@ -56,6 +68,7 @@ jobs:
             jsonschema==4.23.0
 
       - name: Install jq
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Lint YAML
@@ -91,12 +104,54 @@ jobs:
           ' dashboards/grafana/scorecards_quorum_failover_staleness.json
 
       - name: Validate existing report schema
+        run: ruff scripts/
+
+      - name: Ruff format check
+        timeout-minutes: 5
+        run: ruff format --check scripts/
+
+      - name: Validate Grafana dashboard structure (jq)
+        timeout-minutes: 5
+        run: |
+          jq -e '
+            def has_panel(id; title; expr):
+              any(
+                .panels[];
+                .id == id and
+                .title == title and
+                .type == "stat" and
+                (.targets | length == 1) and
+                .targets[0].expr == expr
+              );
+
+            (.title == "Scorecards Quorum Failover Staleness") and
+            (.time.from == "now-24h") and
+            (.time.to == "now") and
+            (.templating.list == []) and
+            (.schemaVersion == 40) and
+            (.version == 1) and
+            (.panels | length == 5) and
+            has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\"prod\"})") and
+            has_panel(2; "Failover p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})") and
+            has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})") and
+            has_panel(4; "CDC Lag p95 (s)"; "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})") and
+            has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_pct{env=\"prod\"})")
+          ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null \
+            || { echo 'Dashboard structure mismatch' >&2; exit 1; }
+
+      - name: Run pytest
+        timeout-minutes: 10
+        run: pytest -q
+
+      - name: Validate existing report schema
+        timeout-minutes: 3
         run: |
           if [ -f "$REPORT_DIR/report.json" ]; then
             python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json || exit 1
           fi
 
       - name: UTF-8 and CRLF hygiene
+        timeout-minutes: 5
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -121,6 +176,22 @@ jobs:
               for entry in bad:
                   print(entry)
               sys.exit(1)
+            if not path.is_file():
+              continue
+            if path.suffix not in {'.py', '.json', '.sh', '.md', '.yml', '.yaml'}:
+              continue
+            data = path.read_bytes()
+            try:
+              data.decode('utf-8')
+            except UnicodeDecodeError:
+              bad.append(f"UTF8:{path}")
+              continue
+            if b'\r' in data:
+              bad.append(f"CRLF:{path}")
+          if bad:
+            for entry in bad:
+              print(entry)
+            sys.exit(1)
           PY
 
       - name: Generate S6 scorecards
@@ -138,6 +209,11 @@ jobs:
 
       - name: Evaluate guard status
         id: guard
+        timeout-minutes: 3
+        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json
+
+      - name: Evaluate guard status
+        timeout-minutes: 2
         run: |
           status=$(cat "$REPORT_DIR/guard_status.txt")
           echo "guard_status=$status" >> $GITHUB_OUTPUT
@@ -147,27 +223,56 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
+        id: guard
+
+      - name: Publish scorecard summary
+        if: always()
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
+
             const reportDir = process.env.REPORT_DIR;
-            const commentPath = path.join(reportDir, 'pr_comment.md');
+            const commentPath = reportDir ? path.join(reportDir, 'pr_comment.md') : undefined;
             let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
-            if (fs.existsSync(commentPath)) {
-              body = fs.readFileSync(commentPath, 'utf8');
+
+            if (!reportDir) {
+              core.warning('Variável de ambiente REPORT_DIR não definida; usando mensagem padrão.');
+            } else {
+              try {
+                if (fs.existsSync(commentPath)) {
+                  body = fs.readFileSync(commentPath, 'utf8');
+                }
+              } catch (fileError) {
+                core.warning(`Falha ao ler comentário gerado: ${fileError.message}`);
+              }
             }
-            core.summary.addHeading('S6 Scorecards');
-            core.summary.addRaw(body);
-            await core.summary.write();
+
+            const writeSummary = async () => {
+              try {
+                core.summary.addHeading('S6 Scorecards');
+                core.summary.addRaw(body);
+                core.summary.addEOL();
+                await core.summary.write();
+              } catch (summaryError) {
+                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+              }
+            };
+
             try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body
-              });
-            } catch (error) {
-              core.warning(`Falha ao comentar no PR: ${error.message}`);
+              if (context.eventName === 'pull_request') {
+                try {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body,
+                  });
+                } catch (error) {
+                  core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+                }
+              }
+            } finally {
+              await writeSummary();
             }

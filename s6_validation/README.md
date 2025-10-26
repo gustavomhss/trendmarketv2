@@ -1,23 +1,56 @@
-# Sprint 6 validation bundle
+# Sprint 6 Validation Bundle
 
-Os arquivos deste diretório sustentam a geração determinística dos scorecards da Sprint 6.
+The fixtures in this directory are the canonical inputs for the Sprint 6 scorecard
+pipeline described in the [Sprint 6 (Q1) specification](../docs/DNA/quarters/Q1/Sprint%206%20(Q1).md)
+ and the [scorecard runbook](../docs/scorecards/S6_SCORECARDS.md). They are versioned
+artefacts governed by the sprint’s change-control policy: every edit must keep the
+contracts in lockstep, regenerate the downstream outputs, and include reviewer
+approval from the scorecard and observability maintainers.
 
-- `thresholds.json` define os limites oficiais (versão 1) para as cinco métricas mandatórias: `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s` e `divergence_pct`. Os valores são mantidos como strings decimais para preservar precisão.
-- `metrics_static.json` fornece uma captura de referência com as mesmas métricas observadas, usada em testes determinísticos e validações locais.
+## Files and schema contracts
 
-## Governança
+| File | Purpose |
+| --- | --- |
+| `thresholds.json` | Declares the guard-rail targets for the Sprint 6 metrics. |
+| `metrics_static.json` | Provides the deterministic measurement snapshot that the scorecard evaluates. |
 
-1. Toda alteração deve manter `version: 1` até que um novo conjunto de limites seja aprovado formalmente.
-2. As chaves das métricas são fixas; alterações exigem revisão do schema correspondente em `schemas/` e aprovação de governança.
-3. Os arquivos devem permanecer em UTF-8 com newline final e chaves ordenadas conforme `json.dumps(..., sort_keys=True)` para garantir hashing determinístico.
-4. Atualizações requerem PR com evidências de validação (`scripts/scorecards/s6_scorecards.py`) e referência ao runbook em `docs/scorecards/S6_SCORECARDS.md`.
+Both JSON documents:
 
-## Regeneração
+- follow the Draft‑07 schemas in `schemas/thresholds.schema.json` and
+  `schemas/metrics.schema.json` (flat objects with the five metric keys);
+- declare immutable `schema` identifiers and `schema_version: 2` guards using
+  JSON Schema `const`; and
+- include `timestamp_utc` values using RFC 3339 in UTC.
 
-Para gerar um novo bundle determinístico:
+## Deterministic regeneration flow
 
-```bash
-python scripts/scorecards/s6_scorecards.py
-```
+1. Update the JSON payloads while preserving the five required metric keys:
+   `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, and
+   `divergence_pct`.
+2. Format using a canonical serializer (`sort_keys=true`, `ensure_ascii=false`,
+   `separators=(",", ":")`) and ensure `thresholds.json` precede
+   `metrics_static.json` quando concatenados; o script calcula
+   `bundle.sha256` sobre essa ordem canônica.
+3. Validate against the schemas:
+   ```bash
+   python -m jsonschema --instance s6_validation/thresholds.json --schema schemas/thresholds.schema.json
+   python -m jsonschema --instance s6_validation/metrics_static.json --schema schemas/metrics.schema.json
+   ```
+4. Regenerate the scorecard artefacts via `make s6-scorecards` and commit the
+   refreshed outputs under `out/s6_scorecards/`, including `bundle.sha256`.
 
-O comando valida `thresholds.json` e `metrics_static.json`, produz `out/s6_scorecards/report.json` e atualiza `bundle.sha256`. Execute `pytest tests/scorecards` para garantir cobertura de regressão.
+## Review and governance
+
+- All changes must reference the Sprint 6 specification sections motivating the
+  update and include regenerated artefacts with matching bundle hashes.
+- At least one scorecard maintainer and one observability reviewer must approve
+  the change after verifying schema compliance, deterministic formatting, and
+  guard status.
+- `actions.lock` updates and workflow changes triggered by scorecard revisions
+  must follow the governance rules documented in the runbook.
+
+## Provenance and audits
+
+The fixtures serve as the reproducible evidence for automation and manual audits.
+Their history should demonstrate the rationale for every revision and link back to
+spec clauses or incident reviews that required the update.

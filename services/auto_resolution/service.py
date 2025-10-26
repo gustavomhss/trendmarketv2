@@ -8,6 +8,8 @@ import json
 import time
 import uuid
 
+from .telemetry import telemetry
+
 
 ALLOWED_AUTO_ROLES = {"operator", "resolver", "admin", "system"}
 ALLOWED_MANUAL_ROLES = {"admin", "resolver_lead"}
@@ -390,6 +392,7 @@ class AutoResolutionService:
     # Modern Sprint 5 interface
     # ------------------------------------------------------------------
     def _apply_modern(self, ctx: Mapping[str, Any]) -> ResolutionRecord:
+        started = time.perf_counter()
         quorum_votes = ctx["quorum_votes"]
         if quorum_votes is None:
             raise ValueError("quorum_votes is required")
@@ -455,9 +458,17 @@ class AutoResolutionService:
                 "divergence_pct": divergence,
                 "truth_source": truth_source.to_event_payload() if truth_source else None,
                 "truth_rule_ok": truth_used or quorum_ok,
+                "agreement_threshold": AGREEMENT_THRESHOLD,
                 "metadata": extra_metadata if extra_metadata else None,
             },
             status=status,
+        )
+        duration_ms = (time.perf_counter() - started) * 1000
+        telemetry.record_success(
+            mode="modern",
+            duration_ms=duration_ms,
+            outcome=record.outcome or "unknown",
+            truth_source_used=truth_used,
         )
         return record
 
@@ -516,7 +527,11 @@ class AutoResolutionService:
 
         majority_outcome = max(tally.items(), key=lambda item: item[1])[0]
         agreement_score = tally[majority_outcome] / total_weight
-        quorum_ok = bool(normalized) and divergence <= self.divergence_threshold
+        quorum_ok = (
+            bool(normalized)
+            and divergence <= self.divergence_threshold
+            and agreement_score >= AGREEMENT_THRESHOLD
+        )
         return normalized, agreement_score, majority_outcome, quorum_ok, divergence
 
     # ------------------------------------------------------------------
@@ -603,6 +618,7 @@ class AutoResolutionService:
             "manual_override": record.manual_override,
             "quorum_ok": record.quorum_ok,
             "agreement_score": record.agreement_score,
+            "agreement_threshold": AGREEMENT_THRESHOLD,
             "truth_rule_ok": record.metadata.get("truth_rule_ok", record.truth_source_used or record.quorum_ok),
         }
         self.metrics.emit(metrics_payload)

@@ -4,6 +4,13 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+  "$id": "https://trendmarketv2.local/schemas/q1_boss_report.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Q1 Boss Final Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
     "schema_version",
     "timestamp_utc",
     "status",
@@ -14,6 +21,16 @@
     "schema_version": {
       "type": "integer",
       "const": 1
+    "bundle"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trendmarketv2.q1.boss.report"
+    },
+    "schema_version": {
+      "type": "integer",
+      "const": 2
     },
     "timestamp_utc": {
       "type": "string",
@@ -43,6 +60,31 @@
   },
   "definitions": {
     "stage": {
+        "s1": { "$ref": "#/definitions/stage_result" },
+        "s2": { "$ref": "#/definitions/stage_result" },
+        "s3": { "$ref": "#/definitions/stage_result" },
+        "s4": { "$ref": "#/definitions/stage_result" },
+        "s5": { "$ref": "#/definitions/stage_result" },
+        "s6": { "$ref": "#/definitions/stage_result" }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "release_tag": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "stage_result": {
       "type": "object",
       "additionalProperties": false,
       "required": ["status", "notes"],

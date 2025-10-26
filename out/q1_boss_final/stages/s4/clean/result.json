@@ -1,0 +1,8 @@
+{
+  "stage": "s4",
+  "variant": "clean",
+  "status": "FAIL",
+  "notes": "BOSS-E-S4-YAML:Comando ausente: yamllint",
+  "timestamp_utc": "2025-10-26T03:23:26Z",
+  "checks": []
+}

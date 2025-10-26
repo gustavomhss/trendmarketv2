@@ -1,0 +1,48 @@
+{
+  "schema": "trendmarketv2.sprint6.report",
+  "schema_version": 2,
+  "timestamp_utc": "2025-10-26T03:27:34Z",
+  "status": "PASS",
+  "metrics": {
+    "quorum_ratio": {
+      "observed": 0.7025,
+      "target": 0.6667,
+      "ok": true
+    },
+    "failover_time_p95_s": {
+      "observed": 42.5,
+      "target": 60.0,
+      "ok": true
+    },
+    "staleness_p95_s": {
+      "observed": 18.1,
+      "target": 30.0,
+      "ok": true
+    },
+    "cdc_lag_p95_s": {
+      "observed": 88.2,
+      "target": 120.0,
+      "ok": true
+    },
+    "divergence_pct": {
+      "observed": 0.4,
+      "target": 1.0,
+      "ok": true
+    }
+  },
+  "inputs": {
+    "thresholds": {
+      "schema": "trendmarketv2.sprint6.thresholds",
+      "schema_version": 2,
+      "timestamp_utc": "2024-09-01T06:00:00Z"
+    },
+    "metrics": {
+      "schema": "trendmarketv2.sprint6.metrics",
+      "schema_version": 2,
+      "timestamp_utc": "2024-09-02T06:00:00Z"
+    }
+  },
+  "bundle": {
+    "sha256": "f02a7eeaa3c07407a2f5cd414fe0afa834ef6df78c2a139ba185d6393d99288d"
+  }
+}

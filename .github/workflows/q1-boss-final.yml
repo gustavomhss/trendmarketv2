@@ -17,6 +17,14 @@ on:
       - 'scripts/scorecards/**'
       - 's6_validation/**'
       - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
+      - 'scripts/scorecards/**'
+      - 'schemas/**'
+      - 's6_validation/**'
+      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
+      - 'docs/scorecards/**'
+      - 'Makefile'
+      - 'tests/**'
+      - 'actions.lock'
 
 concurrency:
   group: q1-boss-final-${{ github.ref }}
@@ -35,12 +43,14 @@ jobs:
     name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
         clean_runner: [false, true]
     env:
+      STAGE: ${{ matrix.stage }}
       CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
@@ -53,10 +63,11 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        timeout-minutes: 5
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
+        timeout-minutes: 5
         run: |
           python -m pip install \
             -r requirements.lock \
@@ -89,6 +100,49 @@ jobs:
     timeout-minutes: 60
     env:
       REPORT_DIR: out/q1_boss_final
+            pytest==8.3.3 \
+            hypothesis==6.103.0 \
+            yamllint==1.35.1 \
+            jsonschema==4.23.0
+
+      - name: Execute sprint guard
+        id: stage
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.clean_runner }}" = "true" ]; then
+            variant="clean"
+          else
+            variant="primary"
+          fi
+          echo "variant=$variant" >> "$GITHUB_OUTPUT"
+          python scripts/boss_final/sprint_guard.py --stage "$STAGE" --variant "$variant"
+
+      - name: Upload guard bundle
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-final-${{ matrix.stage }}-${{ steps.stage.outputs.variant }}
+          path: out/q1_boss_final/stages/${{ matrix.stage }}/${{ steps.stage.outputs.variant }}
+          if-no-files-found: error
+
+      - name: Enforce guard status
+        if: ${{ always() && steps.stage.outcome == 'success' }}
+        run: |
+          status=$(cat out/q1_boss_final/stages/${{ matrix.stage }}/${{ steps.stage.outputs.variant }}/guard_status.txt)
+          if [ "$status" != "PASS" ]; then
+            echo "stage_guard=$status" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+  aggregate:
+    name: Aggregate Boss Final
+    needs: stage
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
@@ -100,15 +154,14 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        timeout-minutes: 5
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
+        timeout-minutes: 5
         run: |
           python -m pip install \
             -r requirements.lock \
-            ruff==0.6.8 \
-            yamllint==1.35.1 \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
@@ -173,6 +226,40 @@ jobs:
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
+      - name: Download stage bundles
+        if: always()
+        uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
+        with:
+          pattern: q1-boss-final-*
+          path: out/q1_boss_final/stages
+          merge-multiple: true
+
+      - name: Aggregate stages
+        id: aggregate
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          if [ -n "$RELEASE_TAG" ]; then
+            python scripts/boss_final/aggregate_q1.py --release-tag "$RELEASE_TAG"
+          else
+            python scripts/boss_final/aggregate_q1.py
+          fi
+
+      - name: Validate aggregated report schema
+        if: always()
+        timeout-minutes: 3
+        run: python -m jsonschema --instance out/q1_boss_final/report.json --schema schemas/q1_boss_report.schema.json
+
+      - name: Upload aggregate bundle
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-final-aggregate
+          path: out/q1_boss_final
+
+      - name: Publish Boss Final summary
+        if: always()
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         with:
           script: |
@@ -197,3 +284,50 @@ jobs:
             } catch (error) {
               core.warning(`Falha ao comentar no PR: ${error.message}`);
             }
+            const base = path.join(process.cwd(), 'out', 'q1_boss_final');
+            const commentPath = path.join(base, 'pr_comment.md');
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+
+            try {
+              if (fs.existsSync(commentPath)) {
+                body = fs.readFileSync(commentPath, 'utf8');
+              }
+            } catch (error) {
+              core.warning(`Falha ao ler pr_comment.md: ${error.message}`);
+            }
+
+            const writeSummary = async () => {
+              try {
+                core.summary.addHeading('Q1 Boss Final');
+                core.summary.addRaw(body);
+                core.summary.addEOL();
+                await core.summary.write();
+              } catch (error) {
+                core.warning(`Falha ao escrever summary: ${error.message}`);
+              }
+            };
+
+            try {
+              if (context.eventName === 'pull_request') {
+                try {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body,
+                  });
+                } catch (error) {
+                  core.warning(`Falha ao comentar no PR: ${error.message}`);
+                }
+              }
+            } finally {
+              await writeSummary();
+            }
+
+      - name: Enforce aggregate status
+        if: ${{ steps.aggregate.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Fail when any stage guard failed
+        if: ${{ needs.stage.result == 'failure' }}
+        run: exit 1

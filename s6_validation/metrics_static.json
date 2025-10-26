@@ -33,4 +33,12 @@
       "window": "24h"
     }
   }
+  "schema": "trendmarketv2.sprint6.metrics",
+  "schema_version": 2,
+  "timestamp_utc": "2024-09-02T06:00:00Z",
+  "quorum_ratio": 0.7025,
+  "failover_time_p95_s": 42.5,
+  "staleness_p95_s": 18.1,
+  "cdc_lag_p95_s": 88.2,
+  "divergence_pct": 0.4
 }

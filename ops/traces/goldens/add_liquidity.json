@@ -1,0 +1,17 @@
+{
+  "operation": "add_liquidity",
+  "span_name": "add_liquidity",
+  "service": "trendmarket-amm",
+  "required_tags": {
+    "service.name": "trendmarket-amm",
+    "service.version": "v0.1.0",
+    "net.peer.env": "dev",
+    "amm.operation": "add_liquidity",
+    "http.route": "/add_liquidity",
+    "otel.status_code": "OK",
+    "amm.delta_k_ratio": {
+      "value": 0.0,
+      "tolerance": 1.5e-9
+    }
+  }
+}

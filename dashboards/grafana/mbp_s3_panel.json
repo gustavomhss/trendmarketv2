@@ -1,0 +1,52 @@
+{
+  "title": "MBP S3 Panel",
+  "timezone": "browser",
+  "schemaVersion": 37,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Preço vs Probabilidade",
+      "datasource": "Prometheus",
+      "targets": [
+        {"expr": "mbp_price"},
+        {"expr": "mbp_probability"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "TWAP",
+      "targets": [
+        {"expr": "twap_compute_minutes{window='1'}"},
+        {"expr": "twap_compute_minutes{window='5'}"},
+        {"expr": "twap_compute_minutes{window='15'}"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Depth",
+      "targets": [
+        {"expr": "mbp_depth_2pct"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Últimos eventos",
+      "transformations": [
+        {"id": "labelsToFields"}
+      ],
+      "targets": [
+        {"expr": "abuse_detect_total"},
+        {"expr": "market_created_template_total"}
+      ]
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "links": []
+}

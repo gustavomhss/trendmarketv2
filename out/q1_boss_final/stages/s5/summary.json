@@ -1,0 +1,16 @@
+{
+  "stage": "s5",
+  "status": "PASS",
+  "notes": "primary:PASS PASS:S5 primary guard completado | clean:PASS PASS:S5 clean guard completado",
+  "variants": {
+    "primary": {
+      "status": "PASS",
+      "notes": "PASS:S5 primary guard completado"
+    },
+    "clean": {
+      "status": "PASS",
+      "notes": "PASS:S5 clean guard completado"
+    }
+  },
+  "timestamp_utc": "2025-10-26T03:23:26Z"
+}

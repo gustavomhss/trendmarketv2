@@ -1,0 +1,5 @@
+arch,level,observability_level,timestamp,p95_ms,mean_ms,median_ms,success_ratio,requests_total,success_count,error_count,latency_samples,throughput_rps,cpu_seconds,wall_seconds,cpu_pct
+x86_64,min,min,2025-01-15T12:34:40.000000+00:00,1.05,0.92,0.9,1.0,80,80,0,80,1000.0,0.031,0.08,38.75
+x86_64,full,full,2025-01-15T12:34:48.000000+00:00,1.1,0.95,0.92,1.0,80,80,0,80,975.61,0.0318,0.082,38.78
+arm64,min,min,2025-01-16T08:15:26.000000+00:00,1.12,0.97,0.94,1.0,80,80,0,80,941.18,0.028,0.085,32.94
+arm64,full,full,2025-01-16T08:15:34.000000+00:00,1.17,1.0,0.97,1.0,80,80,0,80,909.09,0.0288,0.088,32.73

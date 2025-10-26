@@ -37,4 +37,12 @@
       "on_fail": "Acionar comitê de risco e revisar fontes de mercado divergentes."
     }
   }
+  "schema": "trendmarketv2.sprint6.thresholds",
+  "schema_version": 2,
+  "timestamp_utc": "2024-09-01T06:00:00Z",
+  "quorum_ratio": 0.6667,
+  "failover_time_p95_s": 60.0,
+  "staleness_p95_s": 30.0,
+  "cdc_lag_p95_s": 120.0,
+  "divergence_pct": 1.0
 }

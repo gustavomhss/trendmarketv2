@@ -9,6 +9,12 @@
     }
   ],
   "title": "Sprint 6 Scorecard Metrics",
+  "title": "Scorecards Quorum Failover Staleness",
+  "uid": "s6-scorecards",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "5m",
   "time": {
     "from": "now-24h",
     "to": "now"
@@ -23,6 +29,19 @@
         {
           "refId": "A",
           "expr": "avg(scorecard_quorum_ratio)"
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Quorum Ratio",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:quorum_ratio{env=\"prod\"})"
         }
       ]
     },
@@ -35,6 +54,13 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(scorecard_failover_time_seconds_bucket[5m])) by (le))"
+      "type": "stat",
+      "title": "Failover p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})"
         }
       ]
     },
@@ -47,6 +73,13 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(scorecard_replica_staleness_seconds_bucket[5m])) by (le))"
+      "type": "stat",
+      "title": "Staleness p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})"
         }
       ]
     },
@@ -59,6 +92,13 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(scorecard_cdc_lag_seconds_bucket[5m])) by (le))"
+      "type": "stat",
+      "title": "CDC Lag p95 (s)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})"
         }
       ]
     },
@@ -77,4 +117,15 @@
   ],
   "schemaVersion": 38,
   "version": 2
+      "type": "stat",
+      "title": "Divergence (%)",
+      "datasource": null,
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(mbp:oracle:divergence_pct{env=\"prod\"})"
+        }
+      ]
+    }
+  ]
 }

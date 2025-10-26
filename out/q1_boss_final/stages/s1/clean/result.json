@@ -1,0 +1,18 @@
+{
+  "stage": "s1",
+  "variant": "clean",
+  "status": "FAIL",
+  "notes": "BOSS-E-S1-LINT:Ruff lint (exit 1)",
+  "timestamp_utc": "2025-10-26T03:23:24Z",
+  "checks": [
+    {
+      "name": "Ruff lint",
+      "command": "ruff check scripts/scorecards scripts/boss_final",
+      "status": "FAIL",
+      "returncode": 1,
+      "duration_seconds": 0.026965,
+      "stdout": "F402 Import `field` from line 13 shadowed by loop variable\n   --> scripts/boss_final/sprint_guard.py:245:13\n    |\n243 |         if len(sha) != 40:\n244 |             issues.append(f\"{action}: SHA inválido\")\n245 |         for field in (\"date\", \"author\", \"rationale\"):\n    |             ^^^^^\n246 |             if field not in meta or not str(meta[field]).strip():\n247 |                 issues.append(f\"{action}: campo {field} ausente\")\n    |\n\nE402 Module level import not at top of file\n  --> scripts/scorecards/s6_scorecards.py:19:1\n   |\n17 |     sys.path.insert(0, str(BASE_DIR))\n18 |\n19 | import jsonschema\n   | ^^^^^^^^^^^^^^^^^\n20 | from jsonschema import Draft7Validator\n   |\n\nE402 Module level import not at top of file\n  --> scripts/scorecards/s6_scorecards.py:20:1\n   |\n19 | import jsonschema\n20 | from jsonschema import Draft7Validator\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n21 |\n22 | SCHEMAS_DIR = BASE_DIR / \"schemas\"\n   |\n\nFound 3 errors.",
+      "stderr": ""
+    }
+  ]
+}
