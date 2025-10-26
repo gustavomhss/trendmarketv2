@@ -199,6 +199,62 @@ def _freeze_datetime(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(scorecards, "datetime", FrozenDateTime)
 
 
+def _valid_report_payload() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "timestamp_utc": "2024-01-01T00:00:00Z",
+        "status": "PASS",
+        "metrics": {
+            "quorum_ratio": {"observed": 0.9, "target": 0.9, "ok": True},
+            "failover_time_p95_s": {"observed": 7.0, "target": 10.0, "ok": True},
+            "staleness_p95_s": {"observed": 5.0, "target": 10.0, "ok": True},
+            "cdc_lag_p95_s": {"observed": 15.0, "target": 30.0, "ok": True},
+            "divergence_pct": {"observed": 0.5, "target": 1.0, "ok": True},
+        },
+        "inputs": {
+            "thresholds": {"version": 1, "timestamp_utc": "2024-01-01T00:00:00Z"},
+            "metrics": {"version": 1, "timestamp_utc": "2024-01-01T00:00:00Z"},
+        },
+        "bundle": {"sha256": "a" * 64},
+    }
+
+
+def test_load_json_rejects_metrics_outside_bounds(tmp_path: Path) -> None:
+    metrics_path = tmp_path / "metrics.json"
+    metrics_payload = {
+        "version": 1,
+        "timestamp_utc": "2024-01-01T00:00:00Z",
+        "quorum_ratio": 1.5,
+        "failover_time_p95_s": 7.0,
+        "staleness_p95_s": 5.0,
+        "cdc_lag_p95_s": 15.0,
+        "divergence_pct": 0.5,
+    }
+    metrics_path.write_text(json.dumps(metrics_payload), encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as exc:
+        scorecards.load_json(metrics_path, "metrics")
+
+    assert "SCHEMA" in str(exc.value)
+
+
+def test_load_json_enforces_report_schema_version_const(tmp_path: Path) -> None:
+    report_path = tmp_path / "report.json"
+    valid_report = _valid_report_payload()
+    report_path.write_text(json.dumps(valid_report), encoding="utf-8")
+
+    loaded = scorecards.load_json(report_path, "report")
+    assert loaded["schema_version"] == 1
+
+    invalid_report = {**valid_report, "schema_version": 2}
+    report_path.write_text(json.dumps(invalid_report), encoding="utf-8")
+
+    with pytest.raises(RuntimeError) as exc:
+        scorecards.load_json(report_path, "report")
+
+    assert "SCHEMA" in str(exc.value)
+
+
 def test_generate_report_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "out"
     monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
