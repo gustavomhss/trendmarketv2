@@ -53,7 +53,7 @@ jobs:
       CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
@@ -103,7 +103,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
