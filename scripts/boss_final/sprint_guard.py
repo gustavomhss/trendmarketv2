@@ -24,6 +24,7 @@ getcontext().rounding = ROUND_HALF_EVEN
 
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 ERROR_PREFIX = "BOSS-E"
+STAGE_GUARD_SUFFIX = "_guard_status.txt"
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,8 @@ def main() -> int:
     result = run_stage(stage)
     output_path = OUTPUT_DIR / f"{stage}.json"
     output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    guard_status = "PASS" if result["status"] == "pass" else "FAIL"
+    (OUTPUT_DIR / f"{stage}{STAGE_GUARD_SUFFIX}").write_text(guard_status + "\n", encoding="utf-8")
     print("PASS", stage)
     return 0
 
