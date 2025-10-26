@@ -1,7 +1,30 @@
 {
-  "version": 1,
+  "version": 2,
+  "validation": {
+    "min_liquidity_bounds": {
+      "binary": {"min": 500, "max": 50000},
+      "continuous": {"min": 1000, "max": 250000}
+    },
+    "allowed_truth_sources": {
+      "binary": ["RS-YESNO-001", "RS-YESNO-002"],
+      "continuous": ["RS-CONT-001", "RS-CONT-005"]
+    },
+    "resolution_window_h": {"min": 1, "max": 168}
+  },
   "templates": [
-    {"id": "TPL-YESNO-01", "category": "binary", "truth_source": "RS-YESNO-001", "min_liquidity": 1000, "resolution_window_h": 24},
-    {"id": "TPL-CONT-01", "category": "continuous", "truth_source": "RS-CONT-001", "min_liquidity": 5000, "resolution_window_h": 24}
+    {
+      "id": "TPL-YESNO-01",
+      "category": "binary",
+      "truth_source": "RS-YESNO-001",
+      "min_liquidity": 1500,
+      "resolution_window_h": 24
+    },
+    {
+      "id": "TPL-CONT-01",
+      "category": "continuous",
+      "truth_source": "RS-CONT-001",
+      "min_liquidity": 5000,
+      "resolution_window_h": 24
+    }
   ]
 }

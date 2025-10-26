@@ -22,6 +22,30 @@
       ]
     },
     {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Oracle Quorum Ratio",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mbp_oracle_aggregate_total{quorum_ok=\"true\"}[5m])) / sum(rate(mbp_oracle_aggregate_total[5m]))"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "TWAP Failover Events",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(mbp_oracle_fetch_total{source=\"secondary\"}[5m])"
+        }
+      ]
+    },
+    {
       "id": 2,
       "type": "timeseries",
       "title": "Oracle Divergence p95",

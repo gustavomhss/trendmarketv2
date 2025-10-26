@@ -1,10 +1,6 @@
 {{ config(materialized='table') }}
 
-with source_data as (
-    select *
-    from read_csv_auto('seeds/simulation_runs.csv', header=True)
-),
-typed_runs as (
+with typed_runs as (
     select
         cast(id as varchar) as run_id,
         lower(trim(scenario)) as scenario,
@@ -12,9 +8,8 @@ typed_runs as (
         cast(finished_at as timestamp) as finished_at,
         cast(p95_latency_ms as integer) as p95_latency_ms,
         trim(result_path) as result_path
-    from source_data
-),
-finalized_runs as (
+    from {{ ref('simulation_runs') }}
+), finalized_runs as (
     select
         run_id,
         scenario,

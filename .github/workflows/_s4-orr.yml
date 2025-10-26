@@ -464,7 +464,7 @@ jobs:
           set -euo pipefail
           make prega
 
-      - name: Empacotar evidências (S4)
+      - name: Empacotar evidências (S5)
         if: ${{ always() && !inputs.run_tla }}
         shell: bash
         run: |
@@ -475,6 +475,12 @@ jobs:
             ./scripts/s4_bundle.sh
           else
             echo "[bundle] bundle já disponível"
+          if [ -x scripts/orr_s5_run.sh ]; then
+            echo "[bundle] Executando scripts/orr_s5_run.sh"
+            ./scripts/orr_s5_run.sh
+          else
+            echo "[bundle] Script de ORR S5 ausente" >&2
+            exit 1
           fi
 
       - name: Upload dbt docs
@@ -489,11 +495,13 @@ jobs:
         if: ${{ always() && !inputs.run_tla }}
         uses: actions/upload-artifact@v4
         with:
-          name: s4-bundle
+          name: s5-bundle
           path: |
             out/s4_evidence_bundle_*.zip
             out/s4_evidence_bundle_*.tar.gz
             out/s4_evidence_bundle_*.zip.sha256
+            out/obs_gatecheck/bundle_*.zip
+            out/obs_gatecheck/bundle.sha256.txt
           if-no-files-found: ignore
 
       - name: Upload auditoria pip
@@ -504,11 +512,11 @@ jobs:
           path: out/pip-audit
           if-no-files-found: ignore
 
-      - name: Upload s4-orr evidence
+      - name: Upload s5-orr evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: s4-orr-evidence
+          name: s5-orr-evidence
           path: |
             out/**
             out/dbt/**
