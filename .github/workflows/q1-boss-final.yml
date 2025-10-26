@@ -11,7 +11,9 @@ on:
         type: string
   pull_request:
 
-concurrency: q1-boss-final-${{ github.ref }}
+concurrency:
+  group: q1-boss-final-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   LC_ALL: C.UTF-8
@@ -23,15 +25,22 @@ env:
 
 jobs:
   stage:
-    name: Stage ${{ matrix.stage }}
+    name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
+        clean_runner: [true, false]
+    env:
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Log clean runner mode
+        run: echo "clean_runner=${{ matrix.clean_runner }}"
 
       - name: Set up Python
         uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
@@ -40,8 +49,7 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
         run: |
@@ -96,11 +104,19 @@ jobs:
     needs: stage
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        clean_runner: [true, false]
     env:
       REPORT_DIR: out/q1_boss_final
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Log clean runner mode
+        run: echo "clean_runner=${{ matrix.clean_runner }}"
 
       - name: Set up Python
         uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
@@ -109,8 +125,7 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
         run: |
@@ -147,24 +162,42 @@ jobs:
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        env:
+          REPORT_DIR: ${{ env.REPORT_DIR }}
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
+
             const reportDir = process.env.REPORT_DIR;
-            const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body;
-            if (fs.existsSync(commentPath)) {
-              body = fs.readFileSync(commentPath, 'utf8');
-            } else {
-              body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            const commentPath = reportDir ? path.join(reportDir, 'pr_comment.md') : undefined;
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+
+            if (!reportDir) {
+              core.warning('Variável de ambiente REPORT_DIR não definida; usando mensagem padrão.');
+            } else if (commentPath && fs.existsSync(commentPath)) {
+              try {
+                body = fs.readFileSync(commentPath, 'utf8');
+              } catch (fileError) {
+                core.warning(`Falha ao ler comentário gerado: ${fileError.message}`);
+              }
             }
-            core.summary.addHeading('Q1 Boss Final');
-            core.summary.addRaw(body);
-            core.summary.write();
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
+            } finally {
+              try {
+                core.summary.addHeading('Q1 Boss Final');
+                core.summary.addRaw(body);
+                await core.summary.write();
+              } catch (summaryError) {
+                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+              }
+            }

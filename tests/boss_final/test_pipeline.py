@@ -2,6 +2,9 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from decimal import Decimal
+from pathlib import Path
+
 from hypothesis import HealthCheck, given, seed, strategies as st
 from hypothesis import settings as hp_settings
 
@@ -51,6 +54,30 @@ def test_compute_summary_propagates_failures(statuses: list[bool]) -> None:
     aggregate = Decimal(summary["aggregate_ratio"])
     expected_ratio = sum(scores) / Decimal(len(scores))
     assert aggregate == expected_ratio.quantize(Decimal("0.0001"))
+
+
+@given(st.lists(st.booleans(), min_size=len(pipeline.STAGES), max_size=len(pipeline.STAGES)))
+@hp_settings(profile="ci")
+@seed(67890)
+def test_guard_status_matches_any_stage_failure(statuses: list[bool], tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    stage_entries = []
+    for stage, ok in zip(pipeline.STAGES, statuses, strict=True):
+        value = Decimal("0.95") if ok else Decimal("0.40")
+        stage_entries.append(_stage_entry(stage, "pass" if ok else "fail", value))
+    report = pipeline.build_report(stage_entries)
+    output_dir = tmp_path / "boss_matrix"
+    monkeypatch.setattr(pipeline, "OUTPUT_DIR", output_dir)
+
+    pipeline.write_outputs(report)
+
+    guard_text = (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip()
+    expected = "PASS" if all(statuses) else "FAIL"
+    assert guard_text == expected
+    badge = (output_dir / "badge.svg").read_text(encoding="utf-8")
+    dag = (output_dir / "dag.svg").read_text(encoding="utf-8")
+    assert f"Q1 {expected}" in badge
+    for stage in pipeline.STAGES:
+        assert stage.upper() in dag
 
 
 def test_write_outputs_generates_artifacts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

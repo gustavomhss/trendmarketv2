@@ -15,12 +15,18 @@ on:
       - 'docs/scorecards/**'
       - 'Makefile'
 
-concurrency: { group: s6-scorecards-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: s6-scorecards-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   scorecards:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        clean_runner: [true, false]
     env:
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
@@ -29,9 +35,13 @@ jobs:
       HYPOTHESIS_PROFILE: ci
       HYPOTHESIS_SEED: '12345'
       REPORT_DIR: out/s6_scorecards
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Log clean runner mode
+        run: echo "clean_runner=${{ matrix.clean_runner }}"
 
       - name: Set up Python
         uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
@@ -40,8 +50,7 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
         run: |
@@ -71,16 +80,6 @@ jobs:
       - name: Validate Grafana dashboard structure (jq)
         run: |
           jq -e '
-            .title == "Scorecards Quorum Failover Staleness" and
-            .time.from == "now-24h" and
-            .time.to == "now" and
-            (.panels | length == 5) and
-            (.panels[0] | .title == "Guard Status" and .type == "stat" and .targets[0].expr == "avg(scorecard_guard_status)") and
-            (.panels[1] | .title == "Latency p50" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
-            (.panels[2] | .title == "Latency p95" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
-            (.panels[3] | .title == "Scorecard Freshness (m)" and .type == "stat" and .targets[0].expr == "(time() - max(scorecard_last_run_timestamp)) / 60") and
-            (.panels[4] | .title == "Boss Aggregate Ratio" and .type == "stat" and .targets[0].expr == "avg(q1_boss_final_ratio)")
-          ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null
             def has_panel(id; title; expr):
               any(
                 .panels[];
@@ -91,25 +90,19 @@ jobs:
                 .targets[0].expr == expr
               );
 
-            if
-              (.title == "Scorecards Quorum Failover Staleness") and
-              (.time.from == "now-24h") and
-              (.time.to == "now") and
-              (.templating.list == []) and
-              (.schemaVersion == 40) and
-              (.version == 1) and
-              (.panels | length == 5) and
-              has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\"prod\"})") and
-              has_panel(2; "Failover p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})") and
-              has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000") and
-              has_panel(4; "CDC Lag p95 (s)"; "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))") and
-              has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100")
-            then
-              empty
-            else
-              error("Dashboard structure mismatch")
-            end
-          ' dashboards/grafana/scorecards_quorum_failover_staleness.json
+            (.title == "Scorecards Quorum Failover Staleness") and
+            (.time.from == "now-24h") and
+            (.time.to == "now") and
+            (.templating.list == []) and
+            (.schemaVersion == 40) and
+            (.version == 1) and
+            (.panels | length == 5) and
+            has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\"prod\"})") and
+            has_panel(2; "Failover p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})") and
+            has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000") and
+            has_panel(4; "CDC Lag p95 (s)"; "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))") and
+            has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100")
+          ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null
 
       - name: Run pytest
         timeout-minutes: 5
@@ -162,17 +155,19 @@ jobs:
         run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json
 
       - name: Evaluate guard status
+        id: guard
         run: |
           status=$(cat "$REPORT_DIR/guard_status.txt")
           echo "guard_status=$status" >> $GITHUB_OUTPUT
           if [ "$status" != "PASS" ]; then
             exit 1
           fi
-        id: guard
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        env:
+          REPORT_DIR: ${{ env.REPORT_DIR }}
         with:
           script: |
             const fs = require('fs');
@@ -184,11 +179,9 @@ jobs:
 
             if (!reportDir) {
               core.warning('Variável de ambiente REPORT_DIR não definida; usando mensagem padrão.');
-            } else {
+            } else if (commentPath && fs.existsSync(commentPath)) {
               try {
-                if (fs.existsSync(commentPath)) {
-                  body = fs.readFileSync(commentPath, 'utf8');
-                }
+                body = fs.readFileSync(commentPath, 'utf8');
               } catch (fileError) {
                 core.warning(`Falha ao ler comentário gerado: ${fileError.message}`);
               }
@@ -200,10 +193,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body,
-              });
-            } catch (error) {
-              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
-                body
               });
             } catch (error) {
               core.warning(`Falha ao criar comentário no PR: ${error.message}`);
