@@ -2,8 +2,8 @@ SHELL := /usr/bin/env bash
 MAKEFLAGS += --warn-undefined-variables
 .DEFAULT_GOAL := prega
 
-OUT_DIR := out/s4_orr
-BUNDLE_DIR := out
+OUT_DIR := out/obs_gatecheck
+BUNDLE_DIR := out/obs_gatecheck
 
 .PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean
 
@@ -14,10 +14,10 @@ env.pin:
 	@set -euo pipefail; ./scripts/env_pin_check.sh
 
 orr:
-	@set -euo pipefail; ./scripts/orr_s4_run.sh
+        @set -euo pipefail; ./scripts/orr_s5_run.sh
 
 bundle:
-	@set -euo pipefail; ./scripts/s4_bundle.sh
+        @set -euo pipefail; ./scripts/s5_bundle.sh
 
 anchors:
 	@set -euo pipefail; ./scripts/anchor_integrity.sh
@@ -38,7 +38,7 @@ nb.perf:
 	@set -euo pipefail; python3 scripts/nb_perf_export.py
 
 clean:
-	rm -rf $(OUT_DIR) out/s4_evidence_bundle_*.zip out/s4_evidence_bundle_*.zip.sha256 || true
+        rm -rf $(OUT_DIR) $(BUNDLE_DIR)/bundle_*.zip $(BUNDLE_DIR)/bundle.sha256.txt || true
 
 .PHONY: dbt-ci sim-all orr-bundle
 
@@ -51,12 +51,12 @@ dbt-ci:
 	dbt test  --profiles-dir ~/.dbt --profile ce_profile
 
 sim-all:
-	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
-	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario gap   --out out/sim/gap.report.json
-	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
+        SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
+        SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario gap   --out out/sim/gap.report.json
+        SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
 orr-bundle:
-	mkdir -p out && zip -r out/s4-orr-evidence.zip out/** target/** logs/** || true
+        mkdir -p out && zip -r out/s5-orr-evidence.zip out/** target/** logs/** || true
 
 .PHONY: s6-scorecards q1-boss-final
 

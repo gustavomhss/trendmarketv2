@@ -328,6 +328,8 @@ class AMMObservability:
         return self.record_operation(op, latency, route=f"/{op}", synthetic=True)
 
     def simulate_unit_load(self) -> None:
+        if self._level == "off":
+            return
         for op, latencies in self._profile.items():
             for latency in latencies:
                 self.record_operation(op, latency, route=f"/{op}", synthetic=True)
@@ -335,6 +337,16 @@ class AMMObservability:
 
     # ----------------------------------------------------------------- exports
     def metrics_snapshot(self) -> Dict[str, object]:
+        if self._level == "off":
+            return {
+                "operations": {},
+                "supporting": {
+                    "synthetic": {
+                        "requests": 0,
+                        "latency_seconds": [],
+                    }
+                },
+            }
         operations: Dict[str, Dict[str, object]] = {}
         for op, values in self._latency_records.items():
             if not values:
@@ -375,6 +387,8 @@ class AMMObservability:
         return snapshot
 
     def export_prometheus(self) -> str:
+        if self._level == "off":
+            return "# Observability disabled (level=off)\n"
         lines = [
             "# HELP amm_op_latency_seconds AMM operation latency",
             "# TYPE amm_op_latency_seconds histogram",

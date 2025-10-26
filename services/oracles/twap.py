@@ -1,14 +1,44 @@
-"""Time weighted average price (TWAP) engine with failover semantics."""
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Deque, Dict, List, Optional
 import time
+
+from services.telemetry import TelemetryManager, TelemetrySettings
 
 WINDOW_SECONDS = 60
 WINDOW_MS = WINDOW_SECONDS * 1000
 FAILOVER_THRESHOLD_MS = 60_000
+
+_TELEMETRY = TelemetryManager(TelemetrySettings(service_name="oracle-twap"))
+_FETCH_COUNTER = _TELEMETRY.counter(
+    "mbp_oracle_fetch_total",
+    "Total quote ingestion events handled by the TWAP engine.",
+    labelnames=("symbol", "source"),
+)
+_FETCH_LATENCY = _TELEMETRY.histogram(
+    "mbp_oracle_fetch_latency_seconds",
+    "Latency between quote timestamp and ingestion time.",
+    buckets=(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0),
+    labelnames=("symbol", "source"),
+)
+_TWAP_COMPUTE = _TELEMETRY.histogram(
+    "mbp_oracle_twap_compute_seconds",
+    "Latency of TWAP window computations.",
+    buckets=(0.001, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0),
+    labelnames=("symbol",),
+)
+_TWAP_GAUGE = _TELEMETRY.gauge(
+    "mbp_oracle_twap_value",
+    "Latest TWAP output per symbol.",
+    labelnames=("symbol",),
+)
+_EVENT_LOG = _TELEMETRY.event_log(
+    "MBP_TWAP_EVENT_LOG",
+    Path("out/oracles/twap_events.jsonl"),
+)
 
 
 @dataclass
@@ -94,40 +124,82 @@ class TwapEngine:
     def ingest(self, source: str, price: float, ts_ms: int) -> None:
         if source not in self.sources:
             raise KeyError(f"Unknown source '{source}'")
-        self.sources[source].add(price, ts_ms)
+
+        now = int(time.time() * 1000)
+        lag_seconds = max(0.0, (now - ts_ms) / 1000.0)
+        _FETCH_COUNTER.labels(symbol=self.symbol, source=source).inc()
+        _FETCH_LATENCY.labels(symbol=self.symbol, source=source).observe(lag_seconds)
+
+        with _TELEMETRY.span(
+            "oracle.fetch",
+            attributes={"oracle.symbol": self.symbol, "oracle.source": source, "oracle.lag_seconds": lag_seconds},
+        ):
+            self.sources[source].add(price, ts_ms)
+            _EVENT_LOG.emit(
+                "oracle.fetch",
+                {
+                    "symbol": self.symbol,
+                    "source": source,
+                    "price": price,
+                    "ts_ms": ts_ms,
+                    "lag_seconds": lag_seconds,
+                },
+            )
 
     def compute(self, now_ms: Optional[int] = None) -> Dict[str, object]:
         resolved_now = now_ms if now_ms is not None else int(time.time() * 1000)
-        primary_staleness = self.sources[self.primary].staleness(resolved_now)
-        secondary_staleness = self.sources[self.secondary].staleness(resolved_now)
+        started = time.perf_counter()
 
-        failover_time_s: Optional[float] = None
-        chosen_source = self.primary
+        with _TELEMETRY.span(
+            "oracle.aggregate",
+            attributes={"oracle.symbol": self.symbol, "oracle.window_ms": WINDOW_MS},
+        ):
+            primary_staleness = self.sources[self.primary].staleness(resolved_now)
+            secondary_staleness = self.sources[self.secondary].staleness(resolved_now)
 
-        if primary_staleness is None or primary_staleness > FAILOVER_THRESHOLD_MS:
-            if secondary_staleness is not None and secondary_staleness <= FAILOVER_THRESHOLD_MS:
-                chosen_source = self.secondary
-                failover_time_s = round(secondary_staleness / 1000.0, 6)
-                if self.active_source != self.secondary:
-                    self.events.append(
-                        TwapEvent(
-                            ts_ms=resolved_now,
-                            kind="failover",
-                            details={
-                                "from": self.primary,
-                                "to": self.secondary,
-                                "failover_time_s": failover_time_s,
-                            },
+            failover_time_s: Optional[float] = None
+            chosen_source = self.primary
+
+            if primary_staleness is None or primary_staleness > FAILOVER_THRESHOLD_MS:
+                if secondary_staleness is not None and secondary_staleness <= FAILOVER_THRESHOLD_MS:
+                    chosen_source = self.secondary
+                    failover_time_s = round(secondary_staleness / 1000.0, 6)
+                    if self.active_source != self.secondary:
+                        self.events.append(
+                            TwapEvent(
+                                ts_ms=resolved_now,
+                                kind="failover",
+                                details={
+                                    "from": self.primary,
+                                    "to": self.secondary,
+                                    "failover_time_s": failover_time_s,
+                                },
+                            )
                         )
-                    )
-                self.active_source = self.secondary
+                    self.active_source = self.secondary
+                else:
+                    self.active_source = self.primary
             else:
                 self.active_source = self.primary
-        else:
-            self.active_source = self.primary
 
-        window = self.sources[chosen_source]
-        twap_value = window.compute(resolved_now)
+            window = self.sources[chosen_source]
+            twap_value = window.compute(resolved_now)
+
+        duration = time.perf_counter() - started
+        if twap_value is not None:
+            _TWAP_GAUGE.labels(symbol=self.symbol).set(twap_value)
+        _TWAP_COMPUTE.labels(symbol=self.symbol).observe(duration)
+        _EVENT_LOG.emit(
+            "oracle.twap",
+            {
+                "symbol": self.symbol,
+                "source": chosen_source,
+                "twap": twap_value,
+                "staleness_ms": window.staleness(resolved_now),
+                "failover_time_s": failover_time_s,
+                "duration_seconds": duration,
+            },
+        )
 
         return {
             "symbol": self.symbol,
@@ -143,6 +215,3 @@ class TwapEngine:
 
 
 __all__ = ["TwapEngine", "TwapEvent", "PriceWindow", "WINDOW_SECONDS", "FAILOVER_THRESHOLD_MS"]
-
-
-

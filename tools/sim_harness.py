@@ -1,6 +1,3 @@
-"""Deterministic simulation harness for MBP Sprint 5 scenarios."""
-from __future__ import annotations
-
 import argparse
 import csv
 import json
@@ -14,10 +11,29 @@ import time
 
 from services.oracles.aggregator import Quote, aggregate_quorum
 from services.oracles.twap import TwapEngine
+from services.telemetry import EventEmitter, TelemetryManager, TelemetrySettings
 
 SCENARIOS = {"spike", "gap", "burst"}
 REPORT_VERSION = 1
 DEFAULT_SYMBOL = "BRLUSD"
+
+_TELEMETRY = TelemetryManager(TelemetrySettings(service_name="simulation-harness"))
+_RUN_COUNTER = _TELEMETRY.counter(
+    "mbp_simulation_runs_total",
+    "Total deterministic simulations executed.",
+    labelnames=("scenario",),
+)
+_RUN_DURATION = _TELEMETRY.histogram(
+    "mbp_simulation_run_duration_seconds",
+    "Duration of simulation scenarios.",
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
+    labelnames=("scenario",),
+)
+def _event_log() -> EventEmitter:
+    return _TELEMETRY.event_log(
+        "MBP_SIM_EVENT_LOG",
+        Path("out/sim/events.jsonl"),
+    )
 
 
 @dataclass
@@ -57,39 +73,49 @@ def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) 
     agg_prices: List[float] = []
     last_ts_ms = 0
 
-    for idx, order in enumerate(orders):
-        ts_ms = int(order["ts"] * 1000)
-        last_ts_ms = ts_ms
-        quotes = []
-        base_price = order["price"]
-        for offset, source in enumerate(["alpha", "beta", "gamma"]):
-            adjustment = (offset - 1) * 0.0004 + rng.uniform(-0.0001, 0.0001)
-            quote_price = base_price * (1 + adjustment)
-            quote_ts = ts_ms - (offset * 5_000)
-            quotes.append(Quote(symbol=DEFAULT_SYMBOL, price=quote_price, ts_ms=quote_ts, source=source))
+    started = time.perf_counter()
 
-        result = aggregate_quorum(DEFAULT_SYMBOL, quotes, now_ms=ts_ms)
-        if result.quorum_ok:
-            quorum_hits += 1
-        if result.divergence_pct is not None:
-            divergence_max = max(divergence_max, result.divergence_pct)
-        if result.max_staleness_ms is not None:
-            staleness_max = max(staleness_max, result.max_staleness_ms)
-        if result.agg_price is not None:
-            agg_prices.append(result.agg_price)
+    with _TELEMETRY.span(
+        "sim.run",
+        attributes={"sim.scenario": scenario, "sim.seed": seed},
+    ):
+        for idx, order in enumerate(orders):
+            ts_ms = int(order["ts"] * 1000)
+            last_ts_ms = ts_ms
+            quotes = []
+            base_price = order["price"]
+            for offset, source in enumerate(["alpha", "beta", "gamma"]):
+                adjustment = (offset - 1) * 0.0004 + rng.uniform(-0.0001, 0.0001)
+                quote_price = base_price * (1 + adjustment)
+                quote_ts = ts_ms - (offset * 5_000)
+                quotes.append(Quote(symbol=DEFAULT_SYMBOL, price=quote_price, ts_ms=quote_ts, source=source))
 
-        if scenario == "gap" and idx > len(orders) // 2:
-            pass
-        else:
-            engine.ingest("primary", base_price, ts_ms)
+            result = aggregate_quorum(DEFAULT_SYMBOL, quotes, now_ms=ts_ms)
+            if result.quorum_ok:
+                quorum_hits += 1
+            if result.divergence_pct is not None:
+                divergence_max = max(divergence_max, result.divergence_pct)
+            if result.max_staleness_ms is not None:
+                staleness_max = max(staleness_max, result.max_staleness_ms)
+            if result.agg_price is not None:
+                agg_prices.append(result.agg_price)
 
-        engine.ingest("secondary", base_price * 1.0002, ts_ms)
+            if scenario == "gap" and idx > len(orders) // 2:
+                pass
+            else:
+                engine.ingest("primary", base_price, ts_ms)
 
-        if scenario == "burst" and idx % 5 == 0:
-            extra_ts = ts_ms + 200
-            engine.ingest("secondary", base_price * 1.0004, extra_ts)
+            engine.ingest("secondary", base_price * 1.0002, ts_ms)
 
-    twap_snapshot = engine.compute(now_ms=last_ts_ms + 1_000)
+            if scenario == "burst" and idx % 5 == 0:
+                extra_ts = ts_ms + 200
+                engine.ingest("secondary", base_price * 1.0004, extra_ts)
+
+        twap_snapshot = engine.compute(now_ms=last_ts_ms + 1_000)
+
+    duration = time.perf_counter() - started
+    _RUN_COUNTER.labels(scenario=scenario).inc()
+    _RUN_DURATION.labels(scenario=scenario).observe(duration)
 
     report = {
         "scenario": scenario,
@@ -125,10 +151,21 @@ def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) 
                 for event in engine.snapshot_events()
             ],
         },
+        "duration_seconds": duration,
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    _event_log().emit(
+        "sim.run",
+        {
+            "scenario": scenario,
+            "seed": seed,
+            "duration_seconds": duration,
+            "report_path": str(out_path),
+            "quorum_ratio": report["oracle"]["quorum_ratio"],
+        },
+    )
     return report
 
 
@@ -145,4 +182,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
