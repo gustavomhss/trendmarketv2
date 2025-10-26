@@ -5,7 +5,7 @@
 - **`metrics_static.json`** provides the deterministic input sample that the offline scorecard pipeline consumes to render `report.json`, `report.md`, badges, and gate files. These observed values are compared against the thresholds to compute PASS/FAIL status, keeping the bundle self-contained and reproducible without external data fetches.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L34-L83】【F:s6_validation/metrics_static.json†L1-L22】
 
 ## Schema contracts and versions
-- Both files must comply with their Draft-07 JSON Schemas and declare `schema_version: 1`, matching the v1 contracts referenced by the Sprint 6 specification.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L65-L123】【F:s6_validation/thresholds.json†L1-L4】【F:s6_validation/metrics_static.json†L1-L7】
+- Both files must comply with their Draft-07 JSON Schemas and declare `version: 1`, matching the v1 contracts referenced by the Sprint 6 specification.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L65-L123】【F:s6_validation/thresholds.json†L1-L22】【F:s6_validation/metrics_static.json†L1-L20】
 - Introducing a new schema version requires an accompanying schema update under `schemas/`, validation coverage, and explicit mention in the sprint scorecard documentation per the governance policy.【F:docs/DNA/quarters/Q1/Sprint 6 (Q1).md†L65-L123】【F:docs/scorecards/S6_SCORECARDS.md†L1-L40】
 
 ## Regenerating the bundle
@@ -35,7 +35,7 @@ This directory stores the static inputs that power the Sprint 6 scorecard gate d
 ## Schemas and versioning
 
 - Both files conform to Draft-07 JSON Schemas committed under `schemas/thresholds.schema.json` and `schemas/metrics.schema.json`.
-- The `schema_version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
+- The `version` field in each document tracks compatibility. The current bundle is on version `1`. Any change that bumps this value requires an accompanying schema migration note in the scorecards documentation and alignment with the specification above.
 - Timestamps (`generated_at`, `collected_at`) use RFC 3339 and should reflect the source extraction moment.
 
 ## Update workflow

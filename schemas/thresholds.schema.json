@@ -7,41 +7,145 @@
   "required": [
     "version",
     "timestamp_utc",
-    "quorum_ratio_min",
-    "failover_time_p95_s_max",
-    "staleness_p95_s_max",
-    "cdc_lag_p95_s_max",
-    "divergence_pct_max"
+    "metrics"
   ],
   "properties": {
     "version": {
       "type": "integer",
-      "minimum": 1
+      "const": 1
     },
     "timestamp_utc": {
       "type": "string",
       "format": "date-time"
     },
-    "quorum_ratio_min": {
-      "type": "number",
-      "minimum": 0.0,
-      "maximum": 1.0
-    },
-    "failover_time_p95_s_max": {
-      "type": "number",
-      "minimum": 0.0
-    },
-    "staleness_p95_s_max": {
-      "type": "number",
-      "minimum": 0.0
-    },
-    "cdc_lag_p95_s_max": {
-      "type": "number",
-      "minimum": 0.0
-    },
-    "divergence_pct_max": {
-      "type": "number",
-      "minimum": 0.0
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quorum_ratio",
+        "failover_time_p95_s",
+        "staleness_p95_s",
+        "cdc_lag_p95_s",
+        "divergence_pct"
+      ],
+      "properties": {
+        "quorum_ratio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "comparison",
+            "target"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparison": {
+              "type": "string",
+              "const": "gte"
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            }
+          }
+        },
+        "failover_time_p95_s": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "comparison",
+            "target"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparison": {
+              "type": "string",
+              "const": "lte"
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0.0
+            }
+          }
+        },
+        "staleness_p95_s": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "comparison",
+            "target"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparison": {
+              "type": "string",
+              "const": "lte"
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0.0
+            }
+          }
+        },
+        "cdc_lag_p95_s": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "comparison",
+            "target"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparison": {
+              "type": "string",
+              "const": "lte"
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0.0
+            }
+          }
+        },
+        "divergence_pct": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "comparison",
+            "target"
+          ],
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparison": {
+              "type": "string",
+              "const": "lte"
+            },
+            "target": {
+              "type": "number",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
     }
   }
 }
