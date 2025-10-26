@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_EVEN, getcontext
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
@@ -25,22 +25,11 @@ SCHEMAS_DIR = BASE_DIR / "schemas"
 OUTPUT_DIR = BASE_DIR / "out" / "s6_scorecards"
 ERROR_PREFIX = "S6"
 
-METRIC_ORDER = [
-    "quorum_ratio",
-    "failover_time_p95_s",
-    "staleness_p95_s",
-    "cdc_lag_p95_s",
-    "divergence_pct",
-]
-
-FORMATTERS = {
-    "percent": lambda value: f"{value.quantize(Decimal('0.1'))}%",
-    "ratio": lambda value: f"{value.quantize(Decimal('0.0001'))}",
-    "seconds": lambda value: f"{value.quantize(Decimal('0.001'))}s",
-}
-
 
 @dataclass(frozen=True)
+class MetricConfig:
+    key: str
+    threshold_key: str
 class MetricSpec:
     key: str
     label: str
@@ -133,29 +122,67 @@ class Threshold:
     metric_id: str
     display_name: str
     comparison: str
-    target: Decimal
+    display_name: str
     unit: str
-    description: str
     on_fail: str
 
 
 @dataclass(frozen=True)
-class Measurement:
-    metric_id: str
-    observed: Decimal
-    unit: str
-    sample_size: int
-    window: str
-
-
-@dataclass(frozen=True)
 class Evaluation:
-    metric_id: str
-    threshold: Threshold
-    measurement: Measurement
+    config: MetricConfig
+    observed: Decimal
+    target: Decimal
     ok: bool
-    delta: Decimal
 
+
+METRICS: List[MetricConfig] = [
+    MetricConfig(
+        key="quorum_ratio",
+        threshold_key="quorum_ratio_min",
+        comparison="gte",
+        display_name="Quorum Ratio",
+        unit="ratio",
+        on_fail="Ativar fallback TWAP, reiniciar oráculos inativos e revisar alertas de quorum.",
+    ),
+    MetricConfig(
+        key="failover_time_p95_s",
+        threshold_key="failover_time_p95_s_max",
+        comparison="lte",
+        display_name="Failover p95",
+        unit="seconds",
+        on_fail="Executar runbook de failover e validar health-checks das rotas primárias.",
+    ),
+    MetricConfig(
+        key="staleness_p95_s",
+        threshold_key="staleness_p95_s_max",
+        comparison="lte",
+        display_name="Staleness p95",
+        unit="seconds",
+        on_fail="Investigar TWAP/heartbeats, checar latência de ingestão e recalibrar buffers.",
+    ),
+    MetricConfig(
+        key="cdc_lag_p95_s",
+        threshold_key="cdc_lag_p95_s_max",
+        comparison="lte",
+        display_name="CDC Lag p95",
+        unit="seconds",
+        on_fail="Acionar squad de dados para reequilibrar consumidores e ampliar throughput do stream.",
+    ),
+    MetricConfig(
+        key="divergence_pct",
+        threshold_key="divergence_pct_max",
+        comparison="lte",
+        display_name="Divergence %",
+        unit="percent",
+        on_fail="Rever pesos de feeds, habilitar overlays e comunicar incident commander.",
+    ),
+]
+
+FORMATTERS = {
+    "percent": lambda value: f"{value.quantize(Decimal('0.1'))}%",
+    "ratio": lambda value: f"{value.quantize(Decimal('0.0001'))}",
+    "seconds": lambda value: f"{value.quantize(Decimal('0.001'))}s",
+}
 
 SCHEMA_FILES = {
     "thresholds": SCHEMAS_DIR / "thresholds.schema.json",
@@ -273,87 +300,42 @@ def render_markdown(
         raise
 
 
-def parse_thresholds(data: Dict) -> Dict[str, Threshold]:
-    metrics = data.get("metrics", {})
-    thresholds: Dict[str, Threshold] = {}
-    for metric_id in METRIC_ORDER:
-        entry = metrics.get(metric_id)
-        if entry is None:
-            fail("MISSING-THRESHOLD", f"Threshold ausente para {metric_id}")
-        threshold = Threshold(
-            metric_id=metric_id,
-            display_name=entry["display_name"],
-            comparison=entry["comparison"],
-            target=decimal_from(entry["target"]),
-            unit=entry["unit"],
-            description=entry["description"],
-            on_fail=entry["on_fail"],
-        )
-        thresholds[metric_id] = threshold
+def parse_thresholds(data: Dict) -> Dict[str, Decimal]:
+    thresholds: Dict[str, Decimal] = {}
+    for config in METRICS:
+        if config.threshold_key not in data:
+            fail("MISSING-THRESHOLD", f"Threshold ausente para {config.threshold_key}")
+        thresholds[config.key] = decimal_from(data[config.threshold_key])
     return thresholds
 
 
-def parse_measurements(data: Dict) -> Dict[str, Measurement]:
-    metrics = data.get("metrics", {})
-    measurements: Dict[str, Measurement] = {}
-    for metric_id, entry in metrics.items():
-        if metric_id in measurements:
-            fail("DUPLICATE-METRIC", f"Métrica duplicada: {metric_id}")
-        measurements[metric_id] = Measurement(
-            metric_id=metric_id,
-            observed=decimal_from(entry["observed"]),
-            unit=entry["unit"],
-            sample_size=int(entry["sample_size"]),
-            window=entry["window"],
-        )
+def parse_measurements(data: Dict) -> Dict[str, Decimal]:
+    measurements: Dict[str, Decimal] = {}
+    for config in METRICS:
+        if config.key not in data:
+            fail("MISSING-METRIC", f"Métrica sem coleta: {config.key}")
+        measurements[config.key] = decimal_from(data[config.key])
     return measurements
 
 
-def assert_units(thresholds: Iterable[Threshold], measurements: Dict[str, Measurement]) -> None:
-    for threshold in thresholds:
-        measurement = measurements.get(threshold.metric_id)
-        if measurement is None:
-            fail("MISSING-METRIC", f"Métrica sem coleta: {threshold.metric_id}")
-        if measurement.unit != threshold.unit:
-            fail(
-                "UNIT-MISMATCH",
-                f"Unidade divergente para {threshold.metric_id}: {measurement.unit} != {threshold.unit}",
-            )
-
-
-def compare(threshold: Threshold, measurement: Measurement) -> Evaluation:
-    value = measurement.observed
-    target = threshold.target
-    comparison = threshold.comparison
+def compare(observed: Decimal, target: Decimal, comparison: str) -> bool:
     if comparison == "gte":
-        delta = value - target
-        ok = value + EPSILON >= target
-    elif comparison == "lte":
-        delta = target - value
-        ok = value - EPSILON <= target
-    else:
-        fail("COMPARISON", f"Operador desconhecido: {comparison}")
-        delta = Decimal("0")
-        ok = False
-    return Evaluation(
-        metric_id=threshold.metric_id,
-        threshold=threshold,
-        measurement=measurement,
-        ok=ok,
-        delta=delta,
-    )
+        return observed + EPSILON >= target
+    if comparison == "lte":
+        return observed - EPSILON <= target
+    fail("COMPARISON", f"Operador desconhecido: {comparison}")
+    return False
 
 
-def evaluate(thresholds: Dict[str, Threshold], measurements: Dict[str, Measurement]) -> List[Evaluation]:
-    assert_units(thresholds.values(), measurements)
+def evaluate(thresholds: Dict[str, Decimal], measurements: Dict[str, Decimal]) -> List[Evaluation]:
     evaluations: List[Evaluation] = []
-    for metric_id in METRIC_ORDER:
-        threshold = thresholds[metric_id]
-        measurement = measurements.get(metric_id)
-        if measurement is None:
-            fail("MISSING-METRIC", f"Métrica sem coleta: {metric_id}")
-        evaluation = compare(threshold, measurement)
-        evaluations.append(evaluation)
+    for config in METRICS:
+        target = thresholds[config.key]
+        observed = measurements.get(config.key)
+        if observed is None:
+            fail("MISSING-METRIC", f"Métrica sem coleta: {config.key}")
+        ok = compare(observed, target, config.comparison)
+        evaluations.append(Evaluation(config=config, observed=observed, target=target, ok=ok))
     return evaluations
 
 
@@ -382,17 +364,11 @@ def build_report(
 ) -> Dict[str, object]:
     metrics_block: Dict[str, Dict[str, object]] = {}
     for evaluation in evaluations:
-        threshold = evaluation.threshold
-        measurement = evaluation.measurement
-        metrics_block[evaluation.metric_id] = {
-            "observed": float(measurement.observed),
-            "target": float(threshold.target),
+        config = evaluation.config
+        metrics_block[config.key] = {
+            "observed": float(evaluation.observed),
+            "target": float(evaluation.target),
             "ok": evaluation.ok,
-            "comparison": threshold.comparison,
-            "unit": threshold.unit,
-            "sample_size": measurement.sample_size,
-            "window": measurement.window,
-            "delta": float(evaluation.delta),
         }
     status = "PASS" if all(evaluation.ok for evaluation in evaluations) else "FAIL"
     return {
@@ -421,20 +397,17 @@ def render_markdown(report: Dict[str, object], evaluations: List[Evaluation]) ->
     status_emoji = "✅" if report["status"] == "PASS" else "❌"
     lines.append(f"{status_emoji} Status geral: **{report['status']}**")
     lines.append("")
-    lines.append("| Métrica | Observado | Limite | Status | Janela | Amostras |")
-    lines.append("| --- | --- | --- | --- | --- | --- |")
+    lines.append("| Métrica | Observado | Limite | Status |")
+    lines.append("| --- | --- | --- | --- |")
     for evaluation in evaluations:
-        threshold = evaluation.threshold
-        measurement = evaluation.measurement
+        config = evaluation.config
         status = "✅" if evaluation.ok else "❌"
         lines.append(
-            "| {name} | {observed} | {target} | {status} | {window} | {sample} |".format(
-                name=threshold.display_name,
-                observed=format_value(measurement.observed, threshold.unit),
-                target=format_value(threshold.target, threshold.unit),
+            "| {name} | {observed} | {target} | {status} |".format(
+                name=config.display_name,
+                observed=format_value(evaluation.observed, config.unit),
+                target=format_value(evaluation.target, config.unit),
                 status=status,
-                window=measurement.window,
-                sample=measurement.sample_size,
             )
         )
     lines.append("")
@@ -442,7 +415,7 @@ def render_markdown(report: Dict[str, object], evaluations: List[Evaluation]) ->
     failing = [evaluation for evaluation in evaluations if not evaluation.ok]
     if failing:
         for evaluation in failing:
-            lines.append(f"- {evaluation.threshold.display_name}: {evaluation.threshold.on_fail}")
+            lines.append(f"- {evaluation.config.display_name}: {evaluation.config.on_fail}")
     else:
         lines.append("- Todas as métricas passaram. Manter monitoramento em 24h.")
     lines.append("")
@@ -453,8 +426,12 @@ def build_pr_comment(report: Dict[str, object], results: List[MetricResult], bun
     status = report["status"]
     emoji = "✅" if status == "PASS" else "❌"
     lines.append("## Metadados")
-    lines.append(f"- Thresholds: v{report['inputs']['thresholds']['version']} @ {report['inputs']['thresholds']['timestamp_utc']}")
-    lines.append(f"- Métricas: v{report['inputs']['metrics']['version']} @ {report['inputs']['metrics']['timestamp_utc']}")
+    lines.append(
+        f"- Thresholds: v{report['inputs']['thresholds']['version']} @ {report['inputs']['thresholds']['timestamp_utc']}"
+    )
+    lines.append(
+        f"- Métricas: v{report['inputs']['metrics']['version']} @ {report['inputs']['metrics']['timestamp_utc']}"
+    )
     lines.append(f"- Gerado em: {report['timestamp_utc']}")
     lines.append(f"- SHA do bundle: `{report['bundle']['sha256']}`")
     return "\n".join(lines) + "\n"
@@ -485,7 +462,7 @@ def render_svg_badge(status: str) -> str:
     failing = [evaluation for evaluation in evaluations if not evaluation.ok]
     if failing:
         for evaluation in failing:
-            lines.append(f"- {evaluation.threshold.display_name}: {evaluation.threshold.on_fail}")
+            lines.append(f"- {evaluation.config.display_name}: {evaluation.config.on_fail}")
     else:
         lines.append("- Nenhuma ação imediata necessária.")
     lines.append("")
@@ -500,7 +477,7 @@ def render_svg_badge(report: Dict[str, object]) -> str:
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"160\" height=\"40\">"
         f"<rect width=\"160\" height=\"40\" fill=\"{color}\" rx=\"6\"/>"
         "<text x=\"80\" y=\"25\" text-anchor=\"middle\" fill=\"#ffffff\" font-size=\"20\""
-        " font-family=\"Helvetica,Arial,sans-serif\">S6 {status}</text>"
+        f" font-family=\"Helvetica,Arial,sans-serif\">S6 {status}</text>"
         "</svg>"
     )
 
@@ -513,7 +490,7 @@ def render_scorecard_svg(evaluations: List[Evaluation]) -> str:
     header = (
         f"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"520\" height=\"{height}\">"
         "<style>text{font-family:Helvetica,Arial,sans-serif;font-size:14px;}</style>"
-        "<rect width=\"520\" height=\"{height}\" fill=\"#ffffff\" stroke=\"#1f2933\" rx=\"8\"/>"
+        f"<rect width=\"520\" height=\"{height}\" fill=\"#ffffff\" stroke=\"#1f2933\" rx=\"8\"/>"
         "<text x=\"20\" y=\"30\" font-size=\"18\" font-weight=\"bold\">Sprint 6 Scorecards</text>"
         f"<text x=\"420\" y=\"30\" text-anchor=\"end\" font-size=\"16\">Status: {status}</text>"
     )
@@ -527,14 +504,13 @@ def render_scorecard_svg(evaluations: List[Evaluation]) -> str:
             f"<text x=\"370\" y=\"{y}\">{result.formatted_target()}</text>"
             f"<text x=\"460\" y=\"{y}\" fill=\"{status_color}\">{result.status_text()}</text>"
     for evaluation in evaluations:
-        threshold = evaluation.threshold
-        measurement = evaluation.measurement
+        config = evaluation.config
         status_color = "#2e8540" if evaluation.ok else "#c92a2a"
         status_text = "PASS" if evaluation.ok else "FAIL"
         lines.append(
-            f"<text x=\"20\" y=\"{y}\">{threshold.display_name}</text>"
-            f"<text x=\"260\" y=\"{y}\">{format_value(measurement.observed, threshold.unit)}</text>"
-            f"<text x=\"360\" y=\"{y}\">{format_value(threshold.target, threshold.unit)}</text>"
+            f"<text x=\"20\" y=\"{y}\">{config.display_name}</text>"
+            f"<text x=\"260\" y=\"{y}\">{format_value(evaluation.observed, config.unit)}</text>"
+            f"<text x=\"360\" y=\"{y}\">{format_value(evaluation.target, config.unit)}</text>"
             f"<text x=\"460\" y=\"{y}\" fill=\"{status_color}\">{status_text}</text>"
         )
         y += 30
