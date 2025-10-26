@@ -1,6 +1,9 @@
 actions:
   actions/checkout: 11bd71901bbe5b1630ceea73d27597364c9af683
+  actions/download-artifact: 65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+  actions/upload-artifact: 5076951413fa71e81ff98d6b871c3e9df2bda29b
+  docker/login-action: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
 metadata:
-  updated_at: 2025-10-26T20:58:45Z
+  updated_at: 2025-10-26T21:21:14Z
   updated_by: codex
-  rationale: "Fix do pin de actions/checkout após erro 404 (SHA inválido)."
+  rationale: "Sweep de pins: normalização para SHAs válidos (compat Node 20)."

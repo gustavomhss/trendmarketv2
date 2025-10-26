@@ -198,7 +198,7 @@ jobs:
 
       - name: Security | Upload findings
         if: ${{ always() && inputs.run_security }}
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: security-findings
           path: out/security/**
@@ -262,7 +262,7 @@ jobs:
 
       - name: GHCR login (opcional)
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -346,7 +346,7 @@ jobs:
           exit "$RC"
 
       - name: Upload TLA report
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
           name: tla-report
@@ -485,7 +485,7 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{ always() }}
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: s4-dbt-docs
           path: analytics/dbt/target
@@ -493,7 +493,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: s5-bundle
           path: |
@@ -506,7 +506,7 @@ jobs:
 
       - name: Upload auditoria pip
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: pip-audit
           path: out/pip-audit
@@ -514,7 +514,7 @@ jobs:
 
       - name: Upload s5-orr evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: s5-orr-evidence
           path: |

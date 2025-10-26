@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload Sprint 5 artifacts
         if: always()
-        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
+        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
         with:
           name: sprint5-validation-artifacts
           path: |
