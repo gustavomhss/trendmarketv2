@@ -1,13 +1,4 @@
 {
-  "__inputs": [],
-  "__requires": [
-    {
-      "type": "panel",
-      "id": "stat",
-      "name": "Stat",
-      "version": "9.5.2"
-    }
-  ],
   "title": "Scorecards Quorum Failover Staleness",
   "time": {
     "from": "now-24h",
@@ -16,19 +7,39 @@
   "templating": {
     "list": []
   },
+  "schemaVersion": 40,
+  "version": 1,
   "panels": [
     {
       "id": 1,
-      "title": "quorum_ratio",
-      "type": "stat",
-      "gridPos": {"h": 6, "w": 4, "x": 0, "y": 0},
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:oracle:quorum_ratio"
       "title": "Quorum Ratio",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.66}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -38,16 +49,34 @@
     },
     {
       "id": 2,
-      "title": "failover_time_p95_s",
+      "title": "Failover p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 4, "x": 4, "y": 0},
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:oracle:failover_time_p95_s"
-      "title": "Failover Time p95 (s)",
-      "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 5, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 60}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -57,16 +86,34 @@
     },
     {
       "id": 3,
-      "title": "staleness_p95_s",
-      "type": "stat",
-      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0},
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:oracle:staleness_p95_ms / 1000"
       "title": "Staleness p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 10, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 30}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -76,16 +123,34 @@
     },
     {
       "id": 4,
-      "title": "cdc_lag_p95_s",
-      "type": "stat",
-      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0},
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "quantile_over_time(0.95, cdc_lag_seconds{service=\"trendmarket-amm\", env=\"prod\"}[5m])"
       "title": "CDC Lag p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 15, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 120}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -95,16 +160,34 @@
     },
     {
       "id": 5,
-      "title": "divergence_pct",
-      "type": "stat",
-      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0},
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:oracle:divergence_p95"
       "title": "Divergence (%)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
+      "gridPos": {"h": 6, "w": 5, "x": 20, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "refId": "A",
@@ -112,10 +195,5 @@
         }
       ]
     }
-  ],
-  "templating": {
-    "list": []
-  },
-  "schemaVersion": 38,
-  "version": 1
+  ]
 }
