@@ -84,25 +84,30 @@ jobs:
             def has_panel(id; title; expr):
               any(
                 .panels[];
-                .id == id and .title == title and .type == "stat" and (.targets | length == 1) and .targets[0].expr == expr
+                .id == id and
+                .title == title and
+                .type == "stat" and
+                (.targets | length == 1) and
+                .targets[0].expr == expr
               );
 
             if
               (.title == "Scorecards Quorum Failover Staleness") and
               (.time.from == "now-24h") and
               (.time.to == "now") and
-              (.schemaVersion == 38) and
+              (.templating.list == []) and
+              (.schemaVersion == 40) and
               (.version == 1) and
               (.panels | length == 5) and
-              has_panel(1; "Guard Status"; "avg(scorecard_guard_status)") and
-              has_panel(2; "Latency p50"; "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
-              has_panel(3; "Latency p95"; "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
-              has_panel(4; "Scorecard Freshness (m)"; "(time() - max(scorecard_last_run_timestamp)) / 60") and
-              has_panel(5; "Boss Aggregate Ratio"; "avg(q1_boss_final_ratio)")
+              has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\"prod\"})") and
+              has_panel(2; "Failover p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})") and
+              has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000") and
+              has_panel(4; "CDC Lag p95 (s)"; "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))") and
+              has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100")
             then
               empty
             else
-              halt_error(1; "Dashboard structure mismatch")
+              error("Dashboard structure mismatch")
             end
           ' dashboards/grafana/scorecards_quorum_failover_staleness.json
 

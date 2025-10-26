@@ -28,11 +28,11 @@
           "expr": "mbp:oracle:quorum_ratio"
       "title": "Quorum Ratio",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "quorum_ratio"
+          "expr": "avg(mbp:oracle:quorum_ratio{env=\"prod\"})"
         }
       ]
     },
@@ -47,11 +47,11 @@
           "expr": "mbp:oracle:failover_time_p95_s"
       "title": "Failover Time p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "failover_time_p95_s"
+          "expr": "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})"
         }
       ]
     },
@@ -66,11 +66,11 @@
           "expr": "mbp:oracle:staleness_p95_ms / 1000"
       "title": "Staleness p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "staleness_p95_s"
+          "expr": "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000"
         }
       ]
     },
@@ -85,11 +85,11 @@
           "expr": "quantile_over_time(0.95, cdc_lag_seconds{service=\"trendmarket-amm\", env=\"prod\"}[5m])"
       "title": "CDC Lag p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "cdc_lag_p95_s"
+          "expr": "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))"
         }
       ]
     },
@@ -104,11 +104,11 @@
           "expr": "mbp:oracle:divergence_p95"
       "title": "Divergence (%)",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "divergence_pct"
+          "expr": "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100"
         }
       ]
     }
