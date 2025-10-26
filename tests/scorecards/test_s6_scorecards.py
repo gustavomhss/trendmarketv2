@@ -1,188 +1,66 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import HealthCheck, given, seed, settings as hp_settings
+from hypothesis import strategies as st
 
 from scripts.scorecards import s6_scorecards as scorecards
-from scripts.scorecards.s6_scorecards import (
-    EPSILON,
-    Measurement,
-    ScorecardError,
-    Threshold,
-)
+
+try:
+    hp_settings.register_profile(
+        "ci",
+        hp_settings(max_examples=50, deadline=None, suppress_health_check=(HealthCheck.too_slow,)),
+    )
+except ValueError:
+    pass
 
 
-DECIMAL_VALUES = st.decimals(
-    min_value=-50,
-    max_value=50,
-    places=4,
-    allow_nan=False,
-    allow_infinity=False,
-)
-POSITIVE_DECIMALS = st.decimals(
-    min_value=0,
-    max_value=10,
+DECIMAL_RATIO = st.decimals(
+    min_value=Decimal("0.1"),
+    max_value=Decimal("0.99"),
     places=4,
     allow_nan=False,
     allow_infinity=False,
 )
 
-
-def make_threshold(metric_id: str, comparison: str, target: Decimal, order: int = 1) -> Threshold:
-    return Threshold(
-        metric_id=metric_id,
-        order=order,
-        display_name=f"Metric {metric_id.upper()}",
-        comparison=comparison,
-        target_value=target,
-        unit="percent",
-        description="desc",
-        on_fail="fix",
-    )
-
-
-def make_measurement(metric_id: str, value: Decimal) -> Measurement:
-    return Measurement(
-        metric_id=metric_id,
-        value=value,
-        unit="percent",
-        sample_size=100,
-        measurement="2024-01-01/2024-01-02",
-    )
-
-
-@given(target=st.integers(-10, 10))
-def test_compare_gte_respects_epsilon_boundary(target: int) -> None:
-    target_decimal = Decimal(target)
-    threshold = make_threshold("m1", "gte", target_decimal)
-    within_epsilon = make_measurement("m1", target_decimal - (EPSILON / 2))
-    status, delta = scorecards.compare(threshold, within_epsilon)
-    assert status == "pass"
-    assert delta == within_epsilon.value - target_decimal
-
-    beyond_epsilon = make_measurement("m1", target_decimal - (EPSILON * 2))
-    status, _ = scorecards.compare(threshold, beyond_epsilon)
-    assert status == "fail"
-
-
-@given(target=st.integers(-10, 10))
-def test_compare_lte_respects_epsilon_boundary(target: int) -> None:
-    target_decimal = Decimal(target)
-    threshold = make_threshold("m2", "lte", target_decimal)
-    within_epsilon = make_measurement("m2", target_decimal + (EPSILON / 2))
-    status, delta = scorecards.compare(threshold, within_epsilon)
-    assert status == "pass"
-    assert delta == target_decimal - within_epsilon.value
-
-    beyond_epsilon = make_measurement("m2", target_decimal + (EPSILON * 2))
-    status, _ = scorecards.compare(threshold, beyond_epsilon)
-    assert status == "fail"
-
-
-@given(
-    target=DECIMAL_VALUES,
-    measurement_delta=DECIMAL_VALUES,
-    relax=POSITIVE_DECIMALS,
-    tighten=POSITIVE_DECIMALS,
+DECIMAL_LATENCY = st.decimals(
+    min_value=Decimal("0"),
+    max_value=Decimal("120"),
+    places=4,
+    allow_nan=False,
+    allow_infinity=False,
 )
-def test_metamorphic_relax_and_tighten_gte(
-    target: Decimal,
-    measurement_delta: Decimal,
-    relax: Decimal,
-    tighten: Decimal,
-) -> None:
-    threshold = make_threshold("m3", "gte", target)
-    measurement_value = target - measurement_delta
-    measurement = make_measurement("m3", measurement_value)
-    status, _ = scorecards.compare(threshold, measurement)
-
-    relaxed_threshold = make_threshold("m3", "gte", target - relax)
-    relaxed_status, _ = scorecards.compare(relaxed_threshold, measurement)
-    if status == "pass":
-        assert relaxed_status == "pass"
-
-    tightened_threshold = make_threshold("m3", "gte", target + tighten)
-    tightened_status, _ = scorecards.compare(tightened_threshold, measurement)
-    if status == "fail":
-        assert tightened_status == "fail"
 
 
-@given(
-    target=DECIMAL_VALUES,
-    measurement_delta=DECIMAL_VALUES,
-    relax=POSITIVE_DECIMALS,
-    tighten=POSITIVE_DECIMALS,
-)
-def test_metamorphic_relax_and_tighten_lte(
-    target: Decimal,
-    measurement_delta: Decimal,
-    relax: Decimal,
-    tighten: Decimal,
-) -> None:
-    threshold = make_threshold("m4", "lte", target)
-    measurement_value = target + measurement_delta
-    measurement = make_measurement("m4", measurement_value)
-    status, _ = scorecards.compare(threshold, measurement)
-
-    relaxed_threshold = make_threshold("m4", "lte", target + relax)
-    relaxed_status, _ = scorecards.compare(relaxed_threshold, measurement)
-    if status == "pass":
-        assert relaxed_status == "pass"
-
-    tightened_threshold = make_threshold("m4", "lte", target - tighten)
-    tightened_status, _ = scorecards.compare(tightened_threshold, measurement)
-    if status == "fail":
-        assert tightened_status == "fail"
-
-
-@pytest.mark.parametrize(
-    "value, unit, expected",
-    [
-        (Decimal("99.94"), "percent", "99.9%"),
-        (Decimal("0.23456"), "ratio", "0.2346"),
-        (Decimal("12.3456"), "seconds", "12.346s"),
-        (Decimal("5"), "other", "5"),
-    ],
-)
-def test_format_value_canonical(value: Decimal, unit: str, expected: str) -> None:
-    assert scorecards.format_value(value, unit) == expected
-
-
-def _write_inputs(tmp_path: Path) -> tuple[Path, Path]:
-    thresholds = {
-        "schema_version": 1,
-        "generated_at": "2024-01-01T00:00:00Z",
-        "metrics": [
-            {
-                "id": "metric_availability",
-                "order": 1,
-                "display_name": "Availability",
-                "comparison": "gte",
-                "target_value": "99.95",
-                "unit": "percent",
-                "description": "Availability target",
-                "on_fail": "Scale the service",
-            }
-        ],
+def _base_thresholds() -> dict[str, object]:
+    return {
+        "version": 1,
+        "timestamp_utc": "2024-01-01T00:00:00Z",
+        "quorum_ratio_min": 0.80,
+        "failover_time_p95_s_max": 60.0,
+        "staleness_p95_s_max": 30.0,
+        "cdc_lag_p95_s_max": 120.0,
+        "divergence_pct_max": 1.0,
     }
-    metrics = {
-        "schema_version": 1,
-        "collected_at": "2024-01-01T00:00:00Z",
-        "metrics": [
-            {
-                "id": "metric_availability",
-                "value": "99.97",
-                "unit": "percent",
-                "sample_size": 4800,
-                "measurement": "2024-01-01/2024-01-02",
-            }
-        ],
+
+
+def _base_metrics() -> dict[str, object]:
+    return {
+        "version": 1,
+        "timestamp_utc": "2024-01-01T00:00:00Z",
+        "quorum_ratio": 0.90,
+        "failover_time_p95_s": 12.0,
+        "staleness_p95_s": 8.0,
+        "cdc_lag_p95_s": 20.0,
+        "divergence_pct": 0.4,
     }
+
+
+def _write_inputs(tmp_path: Path, thresholds: dict[str, object], metrics: dict[str, object]) -> tuple[Path, Path]:
     thresholds_path = tmp_path / "thresholds.json"
     metrics_path = tmp_path / "metrics.json"
     thresholds_path.write_text(json.dumps(thresholds), encoding="utf-8")
@@ -190,65 +68,215 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path]:
     return thresholds_path, metrics_path
 
 
-def _freeze_datetime(monkeypatch: pytest.MonkeyPatch) -> None:
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz: timezone | None = None) -> datetime:
-            return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz or timezone.utc)
-
-    monkeypatch.setattr(scorecards, "datetime", FrozenDateTime)
+def _freeze_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(scorecards, "isoformat_utc", lambda: "2024-01-01T06:00:00Z")
 
 
-def test_generate_report_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    output_dir = tmp_path / "out"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-    _freeze_datetime(monkeypatch)
-    thresholds_path, metrics_path = _write_inputs(tmp_path)
-
-    report_first = scorecards.generate_report(thresholds_path, metrics_path)
-    markdown_first = (output_dir / "report.md").read_text(encoding="utf-8")
-    bundle_hash_first = report_first["bundle_sha256"]
-
-    report_second = scorecards.generate_report(thresholds_path, metrics_path)
-    markdown_second = (output_dir / "report.md").read_text(encoding="utf-8")
-
-    assert report_second["bundle_sha256"] == bundle_hash_first
-    assert markdown_first == markdown_second
-    assert (output_dir / "bundle.sha256").read_text(encoding="utf-8").strip() == bundle_hash_first
-    assert (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip() == "PASS"
-    assert "| Métrica | Valor |" in markdown_first
+@pytest.fixture
+def output_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = tmp_path / "out"
+    monkeypatch.setattr(scorecards, "OUTPUT_DIR", directory)
+    return directory
 
 
-def test_generate_report_missing_thresholds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    output_dir = tmp_path / "out"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-    _, metrics_path = _write_inputs(tmp_path)
+def test_generate_report_pass_flow(output_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _freeze_time(monkeypatch)
+    thresholds_path, metrics_path = _write_inputs(tmp_path, _base_thresholds(), _base_metrics())
 
-    with pytest.raises(ScorecardError) as exc:
-        scorecards.generate_report(tmp_path / "missing.json", metrics_path)
-    assert exc.value.code == "S6-E-MISSING"
+    artifacts = scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
 
-
-def test_generate_report_schema_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    output_dir = tmp_path / "out"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-    thresholds_path, metrics_path = _write_inputs(tmp_path)
-    thresholds_path.write_text(
-        json.dumps({"schema_version": 1, "generated_at": "2024-01-01T00:00:00Z"}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ScorecardError) as exc:
-        scorecards.generate_report(thresholds_path, metrics_path)
-    assert exc.value.code == "S6-E-SCHEMA"
+    assert artifacts.report["status"] == "PASS"
+    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert guard_status == "PASS"
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert report["schema_version"] == scorecards.SCHEMA_VERSION
+    assert report["inputs"]["thresholds"]["version"] == 1
+    assert report["bundle"]["sha256"] == artifacts.bundle_sha256
 
 
-def test_generate_report_invalid_encoding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    output_dir = tmp_path / "out"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-    thresholds_path, metrics_path = _write_inputs(tmp_path)
-    thresholds_path.write_bytes(b"\xff\xfe\x00invalid")
+def test_generate_report_fail_flow_sets_guard(output_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _freeze_time(monkeypatch)
+    thresholds = _base_thresholds()
+    metrics = _base_metrics()
+    metrics["failover_time_p95_s"] = thresholds["failover_time_p95_s_max"] + 10
+    thresholds_path, metrics_path = _write_inputs(tmp_path, thresholds, metrics)
 
-    with pytest.raises(ScorecardError) as exc:
-        scorecards.generate_report(thresholds_path, metrics_path)
-    assert exc.value.code == "S6-E-ENCODING"
+    artifacts = scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+
+    assert artifacts.report["status"] == "FAIL"
+    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert guard_status == "FAIL"
+    markdown = (output_dir / "report.md").read_text(encoding="utf-8")
+    assert "❌ FAIL" in markdown
+
+
+@given(target=DECIMAL_RATIO)
+@hp_settings(profile="ci")
+@seed(12345)
+def test_evaluate_metrics_respects_epsilon_gte(target: Decimal) -> None:
+    thresholds = _base_thresholds()
+    metrics = _base_metrics()
+    thresholds["quorum_ratio_min"] = float(target)
+    metrics["quorum_ratio"] = float(target - (scorecards.EPSILON / 2))
+
+    results = scorecards.evaluate_metrics(thresholds, metrics)
+    quorum = next(result for result in results if result.spec.key == "quorum_ratio")
+    assert quorum.ok
+
+    metrics["quorum_ratio"] = float(target - (scorecards.EPSILON * 2))
+    results = scorecards.evaluate_metrics(thresholds, metrics)
+    quorum = next(result for result in results if result.spec.key == "quorum_ratio")
+    assert not quorum.ok
+
+
+@given(target=DECIMAL_LATENCY)
+@hp_settings(profile="ci")
+@seed(12345)
+def test_evaluate_metrics_respects_epsilon_lte(target: Decimal) -> None:
+    thresholds = _base_thresholds()
+    metrics = _base_metrics()
+    thresholds["failover_time_p95_s_max"] = float(target)
+    metrics["failover_time_p95_s"] = float(target + (scorecards.EPSILON / 2))
+
+    results = scorecards.evaluate_metrics(thresholds, metrics)
+    failover = next(result for result in results if result.spec.key == "failover_time_p95_s")
+    assert failover.ok
+
+    metrics["failover_time_p95_s"] = float(target + (scorecards.EPSILON * 2))
+    results = scorecards.evaluate_metrics(thresholds, metrics)
+    failover = next(result for result in results if result.spec.key == "failover_time_p95_s")
+    assert not failover.ok
+
+
+@given(
+    target=DECIMAL_RATIO,
+    measurement_delta=st.decimals(min_value=Decimal("0"), max_value=Decimal("0.3"), places=4, allow_nan=False),
+    relax=st.decimals(min_value=Decimal("0"), max_value=Decimal("0.1"), places=4, allow_nan=False),
+    tighten=st.decimals(min_value=Decimal("0"), max_value=Decimal("0.1"), places=4, allow_nan=False),
+)
+@hp_settings(profile="ci")
+@seed(12345)
+def test_metamorphic_relax_and_tighten_gte(
+    target: Decimal,
+    measurement_delta: Decimal,
+    relax: Decimal,
+    tighten: Decimal,
+) -> None:
+    thresholds = _base_thresholds()
+    metrics = _base_metrics()
+    thresholds["quorum_ratio_min"] = float(target)
+    measurement = max(Decimal("0"), target - measurement_delta)
+    metrics["quorum_ratio"] = float(measurement)
+
+    base = scorecards.evaluate_metrics(thresholds, metrics)
+    quorum = next(result for result in base if result.spec.key == "quorum_ratio")
+
+    thresholds_relaxed = dict(thresholds)
+    thresholds_relaxed["quorum_ratio_min"] = float(target - relax)
+    relaxed = scorecards.evaluate_metrics(thresholds_relaxed, metrics)
+    relaxed_quorum = next(result for result in relaxed if result.spec.key == "quorum_ratio")
+    if quorum.ok:
+        assert relaxed_quorum.ok
+
+    thresholds_tight = dict(thresholds)
+    thresholds_tight["quorum_ratio_min"] = float(target + tighten)
+    tightened = scorecards.evaluate_metrics(thresholds_tight, metrics)
+    tightened_quorum = next(result for result in tightened if result.spec.key == "quorum_ratio")
+    if not quorum.ok:
+        assert not tightened_quorum.ok
+
+
+@given(
+    target=DECIMAL_LATENCY,
+    measurement_delta=st.decimals(min_value=Decimal("0"), max_value=Decimal("30"), places=4, allow_nan=False),
+    relax=st.decimals(min_value=Decimal("0"), max_value=Decimal("20"), places=4, allow_nan=False),
+    tighten=st.decimals(min_value=Decimal("0"), max_value=Decimal("20"), places=4, allow_nan=False),
+)
+@hp_settings(profile="ci")
+@seed(12345)
+def test_metamorphic_relax_and_tighten_lte(
+    target: Decimal,
+    measurement_delta: Decimal,
+    relax: Decimal,
+    tighten: Decimal,
+) -> None:
+    thresholds = _base_thresholds()
+    metrics = _base_metrics()
+    thresholds["failover_time_p95_s_max"] = float(target)
+    measurement = target + measurement_delta
+    metrics["failover_time_p95_s"] = float(measurement)
+
+    base = scorecards.evaluate_metrics(thresholds, metrics)
+    failover = next(result for result in base if result.spec.key == "failover_time_p95_s")
+
+    thresholds_relaxed = dict(thresholds)
+    thresholds_relaxed["failover_time_p95_s_max"] = float(target + relax)
+    relaxed = scorecards.evaluate_metrics(thresholds_relaxed, metrics)
+    relaxed_failover = next(result for result in relaxed if result.spec.key == "failover_time_p95_s")
+    if failover.ok:
+        assert relaxed_failover.ok
+
+    thresholds_tight = dict(thresholds)
+    thresholds_tight["failover_time_p95_s_max"] = float(max(Decimal("0"), target - tighten))
+    tightened = scorecards.evaluate_metrics(thresholds_tight, metrics)
+    tightened_failover = next(result for result in tightened if result.spec.key == "failover_time_p95_s")
+    if not failover.ok:
+        assert not tightened_failover.ok
+
+
+def test_metric_formatting_helpers() -> None:
+    spec = scorecards.METRIC_SPECS[0]
+    result = scorecards.MetricResult(spec=spec, observed=Decimal("0.91234"), target=Decimal("0.95000"), ok=False)
+    assert result.formatted_observed() == "0.9123"
+    assert result.formatted_target() == "0.9500"
+    assert result.status_text() == "FAIL"
+
+
+def test_idempotent_reruns(output_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _freeze_time(monkeypatch)
+    thresholds_path, metrics_path = _write_inputs(tmp_path, _base_thresholds(), _base_metrics())
+
+    first = scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    outputs_first = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(output_dir.iterdir())
+    }
+
+    second = scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    outputs_second = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(output_dir.iterdir())
+    }
+
+    assert first.bundle_sha256 == second.bundle_sha256
+    assert outputs_first == outputs_second
+
+
+def test_missing_thresholds_file_raises(tmp_path: Path, output_dir: Path) -> None:
+    metrics_path = _write_inputs(tmp_path, _base_thresholds(), _base_metrics())[1]
+    with pytest.raises(scorecards.ScorecardError) as excinfo:
+        scorecards.generate_report(threshold_path=tmp_path / "missing.json", metrics_path=metrics_path)
+    assert excinfo.value.code == "S6-E-MISSING"
+    assert (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip() == "FAIL"
+
+
+def test_schema_violation_raises(tmp_path: Path, output_dir: Path) -> None:
+    thresholds = _base_thresholds()
+    thresholds.pop("quorum_ratio_min")
+    thresholds_path, metrics_path = _write_inputs(tmp_path, thresholds, _base_metrics())
+
+    with pytest.raises(scorecards.ScorecardError) as excinfo:
+        scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    assert excinfo.value.code == "S6-E-SCHEMA"
+    assert (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip() == "FAIL"
+
+
+def test_invalid_encoding_raises(tmp_path: Path, output_dir: Path) -> None:
+    thresholds_path = tmp_path / "thresholds.json"
+    metrics_path = _write_inputs(tmp_path, _base_thresholds(), _base_metrics())[1]
+    thresholds_path.write_bytes(b"ÿþinvalid")
+
+    with pytest.raises(scorecards.ScorecardError) as excinfo:
+        scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    assert excinfo.value.code == "S6-E-ENCODING"
+    assert (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip() == "FAIL"

@@ -19,8 +19,13 @@ concurrency: { group: s6-scorecards-${{ github.ref }}, cancel-in-progress: true 
 
 jobs:
   scorecards:
+    name: Scorecards (clean=${{ matrix.clean_runner }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        clean_runner: [false, true]
     env:
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
@@ -29,6 +34,7 @@ jobs:
       HYPOTHESIS_PROFILE: ci
       HYPOTHESIS_SEED: '12345'
       REPORT_DIR: out/s6_scorecards
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6

@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 from pathlib import Path
 
+import pytest
+
 from tests.utils.github_actions import post_comment_with_summary_fallback
+
+FALLBACK_MESSAGE = "⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes."
 
 
 def test_comment_failure_writes_summary_fallback(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     badge = tmp_path / "badge.svg"
-    badge.write_text("<svg>badge</svg>\n", encoding="utf-8")
+    badge.write_text("<svg>badge</svg>
+", encoding="utf-8")
     comment_body = "✅ [Sprint 6 report](./report.md)"
 
     def failing(_: str) -> None:
@@ -49,7 +56,8 @@ def test_comment_success_does_not_touch_summary(tmp_path: Path) -> None:
 def test_fallback_appends_on_reused_runner(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     badge = tmp_path / "badge.svg"
-    badge.write_text("<svg>badge</svg>\n", encoding="utf-8")
+    badge.write_text("<svg>badge</svg>
+", encoding="utf-8")
 
     def fail_first(_: str) -> None:
         raise RuntimeError("first failure")
@@ -74,13 +82,6 @@ def test_fallback_appends_on_reused_runner(tmp_path: Path) -> None:
     assert content.count("GitHub comment fallback") == 2
     assert "first failure" in content
     assert "second failure" in content
-from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-
-FALLBACK_MESSAGE = "⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes."
 
 
 class SummaryStub:
@@ -88,14 +89,16 @@ class SummaryStub:
         self.path = path
         self.lines: list[str] = []
 
-    def addHeading(self, text: str) -> None:  # noqa: N802 (match GitHub API casing)
+    def addHeading(self, text: str) -> None:  # noqa: N802
         self.lines.append(text)
 
     def addRaw(self, text: str) -> None:  # noqa: N802
         self.lines.append(text)
 
     def write(self) -> None:
-        self.path.write_text("\n".join(self.lines) + "\n", encoding="utf-8")
+        self.path.write_text("
+".join(self.lines) + "
+", encoding="utf-8")
 
 
 def simulate_comment_step(report_dir: Path, heading: str, summary_path: Path) -> None:
@@ -124,7 +127,8 @@ def test_scorecards_comment_fallback(tmp_path: Path) -> None:
 def test_boss_final_comment_uses_report_body(tmp_path: Path) -> None:
     workflow_text = Path(".github/workflows/q1-boss-final.yml").read_text(encoding="utf-8")
     assert FALLBACK_MESSAGE in workflow_text
-    comment_body = "✅ [Q1 Boss Final report](./report.md)\n"
+    comment_body = "✅ [Q1 Boss Final report](./report.md)
+"
     (tmp_path / "pr_comment.md").write_text(comment_body, encoding="utf-8")
     summary_path = tmp_path / "summary.md"
     with pytest.raises(RuntimeError):
