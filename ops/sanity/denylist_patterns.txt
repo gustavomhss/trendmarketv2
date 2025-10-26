@@ -1,0 +1,1 @@
+# deny patterns (regex), um por linha.
