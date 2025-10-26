@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9bb56186c3b3904c0d7bf6008d63fb09d019f64d
+        uses: actions/checkout@11bd719072671a5b573d8ee83c61156b598640ef
         with:
           fetch-depth: 0
 
