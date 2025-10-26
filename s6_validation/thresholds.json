@@ -1,36 +1,46 @@
 {
-  "schema_version": 1,
-  "generated_at": "2024-09-01T06:00:00Z",
-  "metrics": [
-    {
-      "id": "trade_success_rate",
-      "order": 1,
-      "display_name": "Trade Success Rate",
+  "version": 1,
+  "timestamp_utc": "2024-09-01T06:00:00Z",
+  "metrics": {
+    "quorum_ratio": {
+      "display_name": "Quorum Ratio",
       "comparison": "gte",
-      "target_value": "99.5",
-      "unit": "percent",
-      "description": "Percentual de trades liquidados sem erro nas últimas 24h.",
-      "on_fail": "Acionar o runbook de estabilização de matching e revisar alarmes de retries."
-    },
-    {
-      "id": "median_settlement_latency",
-      "order": 2,
-      "display_name": "Median Settlement Latency",
-      "comparison": "lte",
-      "target_value": "2.250",
-      "unit": "seconds",
-      "description": "Latência mediana de liquidação de ordens, janela rolling 24h.",
-      "on_fail": "Verificar filas de mensageria e provisionar nós extras de processamento."
-    },
-    {
-      "id": "error_budget_consumption",
-      "order": 3,
-      "display_name": "Error Budget Consumption",
-      "comparison": "lte",
-      "target_value": "0.2500",
+      "target": 0.6667,
       "unit": "ratio",
-      "description": "Consumo acumulado do error budget trimestral.",
-      "on_fail": "Congelar deploys e abrir investigação conjunta com SRE e Produto."
+      "description": "Proporção de feeds ativos no quorum (mínimo 9 nós).",
+      "on_fail": "Ativar fallback TWAP, reiniciar oráculos inativos e revisar alertas de quorum."
+    },
+    "failover_time_p95_s": {
+      "display_name": "Failover p95",
+      "comparison": "lte",
+      "target": 60.0,
+      "unit": "seconds",
+      "description": "Tempo p95 para completar failover automático entre exchanges.",
+      "on_fail": "Executar runbook de failover e validar health-checks das rotas primárias."
+    },
+    "staleness_p95_s": {
+      "display_name": "Staleness p95",
+      "comparison": "lte",
+      "target": 30.0,
+      "unit": "seconds",
+      "description": "Janela p95 de staleness dos dados de mercado na malha MBP.",
+      "on_fail": "Investigar TWAP/heartbeats, checar latência de ingestão e recalibrar buffers."
+    },
+    "cdc_lag_p95_s": {
+      "display_name": "CDC Lag p95",
+      "comparison": "lte",
+      "target": 120.0,
+      "unit": "seconds",
+      "description": "Atraso p95 da replicação CDC para camadas analíticas.",
+      "on_fail": "Acionar squad de dados para reequilibrar consumidores e ampliar throughput do stream."
+    },
+    "divergence_pct": {
+      "display_name": "Divergence %",
+      "comparison": "lte",
+      "target": 1.0,
+      "unit": "percent",
+      "description": "Percentual p95 de divergência entre preços on-chain e fontes de referência.",
+      "on_fail": "Rever pesos de feeds, habilitar overlays e comunicar incident commander."
     }
-  ]
+  }
 }
