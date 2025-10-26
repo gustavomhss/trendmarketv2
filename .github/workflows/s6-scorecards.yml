@@ -71,6 +71,16 @@ jobs:
       - name: Validate Grafana dashboard structure (jq)
         run: |
           jq -e '
+            .title == "Scorecards Quorum Failover Staleness" and
+            .time.from == "now-24h" and
+            .time.to == "now" and
+            (.panels | length == 5) and
+            (.panels[0] | .title == "Guard Status" and .type == "stat" and .targets[0].expr == "avg(scorecard_guard_status)") and
+            (.panels[1] | .title == "Latency p50" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+            (.panels[2] | .title == "Latency p95" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+            (.panels[3] | .title == "Scorecard Freshness (m)" and .type == "stat" and .targets[0].expr == "(time() - max(scorecard_last_run_timestamp)) / 60") and
+            (.panels[4] | .title == "Boss Aggregate Ratio" and .type == "stat" and .targets[0].expr == "avg(q1_boss_final_ratio)")
+          ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null
             def has_panel(id; title; expr):
               any(
                 .panels[];
@@ -184,6 +194,10 @@ jobs:
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
                 body
               });
             } catch (error) {
