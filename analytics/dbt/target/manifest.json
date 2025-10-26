@@ -1,0 +1,1950 @@
+{
+  "child_map": {
+    "model.ce_dbt.example": [],
+    "model.ce_dbt.mrt_moderation_events": [
+      "test.ce_dbt.not_null_mrt_moderation_events_symbol",
+      "test.ce_dbt.unique_mrt_moderation_events_symbol",
+      "test.ce_dbt.not_null_mrt_moderation_events_pauses",
+      "test.ce_dbt.not_null_mrt_moderation_events_appeals",
+      "test.ce_dbt.not_null_mrt_moderation_events_id",
+      "test.ce_dbt.unique_mrt_moderation_events_id",
+      "test.ce_dbt.not_null_mrt_moderation_events_ts",
+      "test.ce_dbt.not_null_mrt_moderation_events_action",
+      "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state"
+    ],
+    "model.ce_dbt.mrt_simulation_runs": [
+      "test.ce_dbt.not_null_mrt_simulation_runs_scenario",
+      "test.ce_dbt.unique_mrt_simulation_runs_scenario",
+      "test.ce_dbt.not_null_mrt_simulation_runs_run_count",
+      "test.ce_dbt.not_null_mrt_simulation_runs_success_count",
+      "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id",
+      "test.ce_dbt.not_null_mrt_simulation_runs_started_at",
+      "test.ce_dbt.not_null_mrt_simulation_runs_finished_at",
+      "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms",
+      "test.ce_dbt.not_null_mrt_simulation_runs_result_path",
+      "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds",
+      "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes",
+      "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status",
+      "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run"
+    ],
+    "model.ce_dbt.mrt_twap_5m": [
+      "test.ce_dbt.not_null_mrt_twap_5m_symbol",
+      "test.ce_dbt.not_null_mrt_twap_5m_ts",
+      "test.ce_dbt.not_null_mrt_twap_5m_twap",
+      "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok",
+      "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok"
+    ],
+    "model.ce_dbt.stg_moderation_events": [
+      "test.ce_dbt.not_null_stg_moderation_events_id",
+      "test.ce_dbt.unique_stg_moderation_events_id",
+      "test.ce_dbt.not_null_stg_moderation_events_ts",
+      "test.ce_dbt.not_null_stg_moderation_events_symbol",
+      "test.ce_dbt.not_null_stg_moderation_events_action",
+      "test.ce_dbt.not_null_stg_moderation_events_reason",
+      "test.ce_dbt.not_null_stg_moderation_events_evidence_uri",
+      "test.ce_dbt.not_null_stg_moderation_events_actor",
+      "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event"
+    ],
+    "model.ce_dbt.stg_oracle_quotes": [
+      "test.ce_dbt.not_null_stg_oracle_quotes_symbol",
+      "test.ce_dbt.not_null_stg_oracle_quotes_ts",
+      "test.ce_dbt.not_null_stg_oracle_quotes_source",
+      "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms"
+    ],
+    "model.ce_dbt.stg_simulation_runs": [
+      "test.ce_dbt.not_null_stg_simulation_runs_run_id",
+      "test.ce_dbt.unique_stg_simulation_runs_run_id",
+      "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds"
+    ],
+    "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state": [],
+    "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run": [],
+    "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok": [],
+    "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms": [],
+    "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_action": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_appeals": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_id": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_pauses": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_symbol": [],
+    "test.ce_dbt.not_null_mrt_moderation_events_ts": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_finished_at": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_result_path": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_count": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_scenario": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_started_at": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_success_count": [],
+    "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status": [],
+    "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok": [],
+    "test.ce_dbt.not_null_mrt_twap_5m_symbol": [],
+    "test.ce_dbt.not_null_mrt_twap_5m_ts": [],
+    "test.ce_dbt.not_null_mrt_twap_5m_twap": [],
+    "test.ce_dbt.not_null_stg_moderation_events_action": [],
+    "test.ce_dbt.not_null_stg_moderation_events_actor": [],
+    "test.ce_dbt.not_null_stg_moderation_events_evidence_uri": [],
+    "test.ce_dbt.not_null_stg_moderation_events_id": [],
+    "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event": [],
+    "test.ce_dbt.not_null_stg_moderation_events_reason": [],
+    "test.ce_dbt.not_null_stg_moderation_events_symbol": [],
+    "test.ce_dbt.not_null_stg_moderation_events_ts": [],
+    "test.ce_dbt.not_null_stg_oracle_quotes_source": [],
+    "test.ce_dbt.not_null_stg_oracle_quotes_symbol": [],
+    "test.ce_dbt.not_null_stg_oracle_quotes_ts": [],
+    "test.ce_dbt.not_null_stg_simulation_runs_run_id": [],
+    "test.ce_dbt.unique_mrt_moderation_events_id": [],
+    "test.ce_dbt.unique_mrt_moderation_events_symbol": [],
+    "test.ce_dbt.unique_mrt_simulation_runs_scenario": [],
+    "test.ce_dbt.unique_stg_moderation_events_id": [],
+    "test.ce_dbt.unique_stg_simulation_runs_run_id": []
+  },
+  "disabled": {},
+  "docs": {},
+  "exposures": {},
+  "files": [],
+  "groups": {},
+  "macros": {},
+  "metadata": {
+    "adapter_type": "duckdb_offline",
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v7.json",
+    "dbt_version": "1.6.4-offline",
+    "env": {
+      "offline": true
+    },
+    "generated_at": "2025-10-25T05:44:34.486575+00:00",
+    "invocation_id": "11081fed-b436-4e7f-9ac5-d6310d16236b",
+    "project_name": "ce_dbt"
+  },
+  "metadata_version": 1,
+  "metrics": {},
+  "nodes": {
+    "model.ce_dbt.example": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "34e3b880d1c7a477b743ec3cc560a1f9206ba6a28544ed4d059f4aabad330739",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "analytics",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "example"
+      ],
+      "name": "example",
+      "original_file_path": "models/example.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "example.sql",
+      "raw_code": "select\n  1 as ok,\n  current_timestamp as ts,\n  'duckdb-ci' as engine,\n  42 as answer\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.example"
+    },
+    "model.ce_dbt.mrt_moderation_events": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "4dfe787a59945d1bbf0081b126c87068a722e62d875114d8cc6c504e9c2b422e",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "marts",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "marts",
+        "mrt_moderation_events"
+      ],
+      "name": "mrt_moderation_events",
+      "original_file_path": "models/marts/mrt_moderation_events.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "marts/mrt_moderation_events.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nwith events as (\n    select *\n    from {{ ref('stg_moderation_events') }}\n),\naggregated as (\n    select\n        symbol,\n        sum(case when action = 'pause' then 1 else 0 end) as pauses,\n        sum(case when action = 'appeal' then 1 else 0 end) as appeals\n    from events\n    group by symbol\n),\nranked_events as (\n    select\n        *,\n        row_number() over (partition by symbol order by ts desc) as event_rank,\n        lead(ts) over (partition by symbol order by ts desc) as next_event_ts,\n        sum(case when action = 'pause' then 1 else 0 end) over (\n            partition by symbol\n            order by ts desc\n            rows between unbounded preceding and current row\n        ) as pause_count_to_date\n    from events\n),\nlatest_events as (\n    select\n        symbol,\n        id,\n        ts,\n        action,\n        reason,\n        evidence_uri,\n        actor,\n        event_rank,\n        minutes_since_previous_event,\n        case when next_event_ts is null then 0 else datediff('minutes', next_event_ts, ts) end as minutes_until_next_event,\n        pause_count_to_date,\n        case\n            when event_rank = 1 and action = 'pause' then 'paused'\n            when event_rank = 1 and action = 'resume' then 'active'\n            when event_rank = 1 then 'under_review'\n            else 'historical'\n        end as moderation_state\n    from ranked_events\n    where event_rank = 1\n),\nfinal as (\n    select\n        a.symbol,\n        a.pauses,\n        a.appeals,\n        l.id,\n        l.ts,\n        l.action,\n        l.reason,\n        l.evidence_uri,\n        l.actor,\n        l.event_rank,\n        l.minutes_since_previous_event,\n        l.minutes_until_next_event,\n        l.pause_count_to_date,\n        l.moderation_state\n    from aggregated a\n    join latest_events l using (symbol)\n)\n\nselect *\nfrom final\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.mrt_moderation_events"
+    },
+    "model.ce_dbt.mrt_simulation_runs": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "ced4cbb3aea46fa6fcc6bd0b73e1a6827703e2107f6524653073ac85c3d985f1",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "marts",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "marts",
+        "mrt_simulation_runs"
+      ],
+      "name": "mrt_simulation_runs",
+      "original_file_path": "models/marts/mrt_simulation_runs.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "marts/mrt_simulation_runs.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nwith runs as (\n    select *\n    from {{ ref('stg_simulation_runs') }}\n),\nscenario_counts as (\n    select\n        scenario,\n        count(*) as run_count,\n        sum(case when status = 'success' then 1 else 0 end) as success_count\n    from runs\n    group by scenario\n),\nranked_runs as (\n    select\n        *,\n        row_number() over (partition by scenario order by finished_at desc, started_at desc) as scenario_rank,\n        max(finished_at) over () as most_recent_finish_ts\n    from runs\n),\nlatest_per_scenario as (\n    select\n        scenario,\n        run_id as latest_run_id,\n        started_at,\n        finished_at,\n        p95_latency_ms,\n        result_path,\n        run_duration_seconds,\n        cast(run_duration_seconds as double) / 60.0 as run_duration_minutes,\n        case when p95_latency_ms <= 800 then 'pass' else 'breach' end as ttpv_slo_status,\n        datediff('hours', finished_at, most_recent_finish_ts) as hours_since_last_run\n    from ranked_runs\n    where scenario_rank = 1\n),\ncombined as (\n    select\n        c.scenario,\n        c.run_count,\n        c.success_count,\n        l.latest_run_id,\n        l.started_at,\n        l.finished_at,\n        l.p95_latency_ms,\n        l.result_path,\n        l.run_duration_seconds,\n        l.run_duration_minutes,\n        l.ttpv_slo_status,\n        l.hours_since_last_run\n    from scenario_counts c\n    join latest_per_scenario l using (scenario)\n)\n\nselect *\nfrom combined\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.mrt_simulation_runs"
+    },
+    "model.ce_dbt.mrt_twap_5m": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "c42fe4a7fc798352e32d7cd2ce81a0fee97ce90384c1ddf619bbaa2e202e4712",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "marts",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "marts",
+        "mrt_twap_5m"
+      ],
+      "name": "mrt_twap_5m",
+      "original_file_path": "models/marts/mrt_twap_5m.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "marts/mrt_twap_5m.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nwith quotes as (\n    select * from {{ ref('stg_oracle_quotes') }}\n),\nminute_buckets as (\n    select\n        symbol,\n        date_trunc('minute', ts) as window_start,\n        avg(price) as avg_price,\n        min(case when staleness_ms <= 30000 then 1 else 0 end) as quorum_ok\n    from quotes\n    group by 1, 2\n)\n\nselect\n    symbol,\n    window_start as ts,\n    avg_price as twap,\n    (quorum_ok = 1) as quorum_ok\nfrom minute_buckets\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.mrt_twap_5m"
+    },
+    "model.ce_dbt.stg_moderation_events": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "4977f53bf717670b11f88042e6882769334173b9715ba82e42e0b59e17e094bc",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "stg",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "staging",
+        "stg_moderation_events"
+      ],
+      "name": "stg_moderation_events",
+      "original_file_path": "models/staging/stg_moderation_events.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "staging/stg_moderation_events.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nselect\n    id,\n    ts,\n    symbol,\n    action,\n    reason,\n    evidence_uri,\n    actor,\n    coalesce(datediff('minutes', previous_event_ts, ts), 0) as minutes_since_previous_event\nfrom (\n    select\n        *,\n        lag(ts) over (partition by symbol order by ts) as previous_event_ts\n    from (\n        select\n            cast(id as varchar) as id,\n            cast(ts as timestamp) as ts,\n            upper(trim(symbol)) as symbol,\n            lower(trim(action)) as action,\n            trim(reason) as reason,\n            trim(evidence_uri) as evidence_uri,\n            lower(trim(actor)) as actor\n        from (\n            select *\n            from read_csv_auto('seeds/moderation_events.csv', header=True)\n        ) as raw_events\n    ) as typed_events\n) as ranked_events\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.stg_moderation_events"
+    },
+    "model.ce_dbt.stg_oracle_quotes": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "6ac703bf3cbc8227ebdfc5df1898aa666bf7611fceb6164ffe73bc3ea0dc6f32",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "stg",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "staging",
+        "stg_oracle_quotes"
+      ],
+      "name": "stg_oracle_quotes",
+      "original_file_path": "models/staging/stg_oracle_quotes.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "staging/stg_oracle_quotes.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nwith quotes as (\n    select * from (\n        values\n            ('BRLUSD', timestamp '2024-01-01 00:00:00', 'primary', 5.4375, 1200),\n            ('BRLUSD', timestamp '2024-01-01 00:00:20', 'secondary', 5.4380, 800),\n            ('BRLUSD', timestamp '2024-01-01 00:00:40', 'tertiary', 5.4378, 500)\n    ) as t(symbol, ts, source, price, staleness_ms)\n)\n\nselect\n    symbol,\n    ts,\n    source,\n    price,\n    staleness_ms\nfrom quotes\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.stg_oracle_quotes"
+    },
+    "model.ce_dbt.stg_simulation_runs": {
+      "access": "protected",
+      "checksum": {
+        "checksum": "4693635bed0235b3c571e81c75780aee754d1530d39dbc5d80d52fa223618344",
+        "name": "sha256"
+      },
+      "columns": {},
+      "config": {
+        "aliases": null,
+        "materialized": "view",
+        "schema": "stg",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": []
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "staging",
+        "stg_simulation_runs"
+      ],
+      "name": "stg_simulation_runs",
+      "original_file_path": "models/staging/stg_simulation_runs.sql",
+      "package_name": "ce_dbt",
+      "patch_path": null,
+      "path": "staging/stg_simulation_runs.sql",
+      "raw_code": "{{ config(materialized='table') }}\n\nwith source_data as (\n    select *\n    from read_csv_auto('seeds/simulation_runs.csv', header=True)\n),\ntyped_runs as (\n    select\n        cast(id as varchar) as run_id,\n        lower(trim(scenario)) as scenario,\n        cast(started_at as timestamp) as started_at,\n        cast(finished_at as timestamp) as finished_at,\n        cast(p95_latency_ms as integer) as p95_latency_ms,\n        trim(result_path) as result_path\n    from source_data\n),\nfinalized_runs as (\n    select\n        run_id,\n        scenario,\n        case when p95_latency_ms <= 750 then 'success' else 'failed' end as status,\n        started_at,\n        finished_at,\n        p95_latency_ms,\n        result_path,\n        datediff('seconds', started_at, finished_at) as run_duration_seconds\n    from typed_runs\n)\n\nselect *\nfrom finalized_runs\n",
+      "resource_type": "model",
+      "root_path": "/workspace/trendmarketv2",
+      "unique_id": "model.ce_dbt.stg_simulation_runs"
+    },
+    "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "accepted_values",
+        "mrt_moderation_events"
+      ],
+      "name": "accepted_values_moderation_state",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "arguments": {},
+          "column_name": "moderation_state",
+          "model": "mrt_moderation_events",
+          "values": [
+            "paused",
+            "active",
+            "under_review",
+            "historical"
+          ]
+        },
+        "name": "accepted_values",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state"
+    },
+    "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "accepted_values",
+        "mrt_simulation_runs"
+      ],
+      "name": "accepted_values_hours_since_last_run",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "arguments": {},
+          "column_name": "hours_since_last_run",
+          "model": "mrt_simulation_runs",
+          "values": [
+            "pass",
+            "breach",
+            "not_null"
+          ]
+        },
+        "name": "accepted_values",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run"
+    },
+    "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_twap_5m"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "accepted_values",
+        "mrt_twap_5m"
+      ],
+      "name": "accepted_values_quorum_ok",
+      "original_file_path": "models/tests/mrt_twap_5m.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_twap_5m.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "arguments": {},
+          "column_name": "quorum_ok",
+          "model": "mrt_twap_5m",
+          "values": [
+            "true",
+            "false"
+          ]
+        },
+        "name": "accepted_values",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok"
+    },
+    "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_oracle_quotes"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "accepted_values",
+        "stg_oracle_quotes"
+      ],
+      "name": "accepted_values_staleness_ms",
+      "original_file_path": "models/tests/stg_oracle_quotes.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_oracle_quotes.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "arguments": {},
+          "column_name": "staleness_ms",
+          "model": "stg_oracle_quotes",
+          "values": [
+            "0",
+            "500",
+            "800",
+            "1200"
+          ]
+        },
+        "name": "accepted_values",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms"
+    },
+    "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "accepted_values",
+        "stg_simulation_runs"
+      ],
+      "name": "accepted_values_run_duration_seconds",
+      "original_file_path": "models/tests/stg_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "arguments": {},
+          "column_name": "run_duration_seconds",
+          "model": "stg_simulation_runs",
+          "values": [
+            "success",
+            "failed",
+            "not_null",
+            "not_null",
+            "not_null",
+            "not_null",
+            "not_null"
+          ]
+        },
+        "name": "accepted_values",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_action": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_action",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "action",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_action"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_appeals": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_appeals",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "appeals",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_appeals"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_id",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "id",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_id"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_pauses": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_pauses",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "pauses",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_pauses"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_symbol": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_symbol",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "symbol",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_symbol"
+    },
+    "test.ce_dbt.not_null_mrt_moderation_events_ts": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_moderation_events"
+      ],
+      "name": "not_null_ts",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "ts",
+          "model": "mrt_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_moderation_events_ts"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_finished_at": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_finished_at",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "finished_at",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_finished_at"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_latest_run_id",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "latest_run_id",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_p95_latency_ms",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "p95_latency_ms",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_result_path": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_result_path",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "result_path",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_result_path"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_count": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_run_count",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "run_count",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_count"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_run_duration_minutes",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "run_duration_minutes",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_run_duration_seconds",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "run_duration_seconds",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_scenario": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_scenario",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "scenario",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_scenario"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_started_at": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_started_at",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "started_at",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_started_at"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_success_count": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_success_count",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "success_count",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_success_count"
+    },
+    "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_simulation_runs"
+      ],
+      "name": "not_null_ttpv_slo_status",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "ttpv_slo_status",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status"
+    },
+    "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_twap_5m"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_twap_5m"
+      ],
+      "name": "not_null_quorum_ok",
+      "original_file_path": "models/tests/mrt_twap_5m.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_twap_5m.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "quorum_ok",
+          "model": "mrt_twap_5m"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok"
+    },
+    "test.ce_dbt.not_null_mrt_twap_5m_symbol": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_twap_5m"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_twap_5m"
+      ],
+      "name": "not_null_symbol",
+      "original_file_path": "models/tests/mrt_twap_5m.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_twap_5m.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "symbol",
+          "model": "mrt_twap_5m"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_symbol"
+    },
+    "test.ce_dbt.not_null_mrt_twap_5m_ts": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_twap_5m"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_twap_5m"
+      ],
+      "name": "not_null_ts",
+      "original_file_path": "models/tests/mrt_twap_5m.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_twap_5m.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "ts",
+          "model": "mrt_twap_5m"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_ts"
+    },
+    "test.ce_dbt.not_null_mrt_twap_5m_twap": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_twap_5m"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "mrt_twap_5m"
+      ],
+      "name": "not_null_twap",
+      "original_file_path": "models/tests/mrt_twap_5m.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_twap_5m.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "twap",
+          "model": "mrt_twap_5m"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_mrt_twap_5m_twap"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_action": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_action",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "action",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_action"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_actor": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_actor",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "actor",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_actor"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_evidence_uri": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_evidence_uri",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "evidence_uri",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_evidence_uri"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_id",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "id",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_id"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_minutes_since_previous_event",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "minutes_since_previous_event",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_reason": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_reason",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "reason",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_reason"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_symbol": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_symbol",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "symbol",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_symbol"
+    },
+    "test.ce_dbt.not_null_stg_moderation_events_ts": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_moderation_events"
+      ],
+      "name": "not_null_ts",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "ts",
+          "model": "stg_moderation_events"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_moderation_events_ts"
+    },
+    "test.ce_dbt.not_null_stg_oracle_quotes_source": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_oracle_quotes"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_oracle_quotes"
+      ],
+      "name": "not_null_source",
+      "original_file_path": "models/tests/stg_oracle_quotes.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_oracle_quotes.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "source",
+          "model": "stg_oracle_quotes"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_source"
+    },
+    "test.ce_dbt.not_null_stg_oracle_quotes_symbol": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_oracle_quotes"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_oracle_quotes"
+      ],
+      "name": "not_null_symbol",
+      "original_file_path": "models/tests/stg_oracle_quotes.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_oracle_quotes.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "symbol",
+          "model": "stg_oracle_quotes"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_symbol"
+    },
+    "test.ce_dbt.not_null_stg_oracle_quotes_ts": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_oracle_quotes"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_oracle_quotes"
+      ],
+      "name": "not_null_ts",
+      "original_file_path": "models/tests/stg_oracle_quotes.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_oracle_quotes.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "ts",
+          "model": "stg_oracle_quotes"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_oracle_quotes_ts"
+    },
+    "test.ce_dbt.not_null_stg_simulation_runs_run_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "not_null",
+        "stg_simulation_runs"
+      ],
+      "name": "not_null_run_id",
+      "original_file_path": "models/tests/stg_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "run_id",
+          "model": "stg_simulation_runs"
+        },
+        "name": "not_null",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.not_null_stg_simulation_runs_run_id"
+    },
+    "test.ce_dbt.unique_mrt_moderation_events_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "unique",
+        "mrt_moderation_events"
+      ],
+      "name": "unique_id",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "id",
+          "model": "mrt_moderation_events"
+        },
+        "name": "unique",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.unique_mrt_moderation_events_id"
+    },
+    "test.ce_dbt.unique_mrt_moderation_events_symbol": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "unique",
+        "mrt_moderation_events"
+      ],
+      "name": "unique_symbol",
+      "original_file_path": "models/tests/mrt_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "symbol",
+          "model": "mrt_moderation_events"
+        },
+        "name": "unique",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.unique_mrt_moderation_events_symbol"
+    },
+    "test.ce_dbt.unique_mrt_simulation_runs_scenario": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.mrt_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "unique",
+        "mrt_simulation_runs"
+      ],
+      "name": "unique_scenario",
+      "original_file_path": "models/tests/mrt_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/mrt_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "scenario",
+          "model": "mrt_simulation_runs"
+        },
+        "name": "unique",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.unique_mrt_simulation_runs_scenario"
+    },
+    "test.ce_dbt.unique_stg_moderation_events_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_moderation_events"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "unique",
+        "stg_moderation_events"
+      ],
+      "name": "unique_id",
+      "original_file_path": "models/tests/stg_moderation_events.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_moderation_events.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "id",
+          "model": "stg_moderation_events"
+        },
+        "name": "unique",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.unique_stg_moderation_events_id"
+    },
+    "test.ce_dbt.unique_stg_simulation_runs_run_id": {
+      "config": {
+        "severity": "ERROR",
+        "tags": []
+      },
+      "depends_on": {
+        "macros": [],
+        "nodes": [
+          "model.ce_dbt.stg_simulation_runs"
+        ]
+      },
+      "description": "",
+      "fqn": [
+        "ce_dbt",
+        "unique",
+        "stg_simulation_runs"
+      ],
+      "name": "unique_run_id",
+      "original_file_path": "models/tests/stg_simulation_runs.yml",
+      "package_name": "ce_dbt",
+      "path": "tests/stg_simulation_runs.yml",
+      "resource_type": "test",
+      "root_path": "/workspace/trendmarketv2",
+      "test_metadata": {
+        "kwargs": {
+          "column_name": "run_id",
+          "model": "stg_simulation_runs"
+        },
+        "name": "unique",
+        "namespace": null
+      },
+      "unique_id": "test.ce_dbt.unique_stg_simulation_runs_run_id"
+    }
+  },
+  "parent_map": {
+    "model.ce_dbt.example": [],
+    "model.ce_dbt.mrt_moderation_events": [],
+    "model.ce_dbt.mrt_simulation_runs": [],
+    "model.ce_dbt.mrt_twap_5m": [],
+    "model.ce_dbt.stg_moderation_events": [],
+    "model.ce_dbt.stg_oracle_quotes": [],
+    "model.ce_dbt.stg_simulation_runs": [],
+    "test.ce_dbt.accepted_values_mrt_moderation_events_moderation_state": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.accepted_values_mrt_simulation_runs_hours_since_last_run": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.accepted_values_mrt_twap_5m_quorum_ok": [
+      "model.ce_dbt.mrt_twap_5m"
+    ],
+    "test.ce_dbt.accepted_values_stg_oracle_quotes_staleness_ms": [
+      "model.ce_dbt.stg_oracle_quotes"
+    ],
+    "test.ce_dbt.accepted_values_stg_simulation_runs_run_duration_seconds": [
+      "model.ce_dbt.stg_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_action": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_appeals": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_id": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_pauses": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_symbol": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_moderation_events_ts": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_finished_at": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_latest_run_id": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_p95_latency_ms": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_result_path": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_count": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_minutes": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_run_duration_seconds": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_scenario": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_started_at": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_success_count": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_simulation_runs_ttpv_slo_status": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.not_null_mrt_twap_5m_quorum_ok": [
+      "model.ce_dbt.mrt_twap_5m"
+    ],
+    "test.ce_dbt.not_null_mrt_twap_5m_symbol": [
+      "model.ce_dbt.mrt_twap_5m"
+    ],
+    "test.ce_dbt.not_null_mrt_twap_5m_ts": [
+      "model.ce_dbt.mrt_twap_5m"
+    ],
+    "test.ce_dbt.not_null_mrt_twap_5m_twap": [
+      "model.ce_dbt.mrt_twap_5m"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_action": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_actor": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_evidence_uri": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_id": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_minutes_since_previous_event": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_reason": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_symbol": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_moderation_events_ts": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.not_null_stg_oracle_quotes_source": [
+      "model.ce_dbt.stg_oracle_quotes"
+    ],
+    "test.ce_dbt.not_null_stg_oracle_quotes_symbol": [
+      "model.ce_dbt.stg_oracle_quotes"
+    ],
+    "test.ce_dbt.not_null_stg_oracle_quotes_ts": [
+      "model.ce_dbt.stg_oracle_quotes"
+    ],
+    "test.ce_dbt.not_null_stg_simulation_runs_run_id": [
+      "model.ce_dbt.stg_simulation_runs"
+    ],
+    "test.ce_dbt.unique_mrt_moderation_events_id": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.unique_mrt_moderation_events_symbol": [
+      "model.ce_dbt.mrt_moderation_events"
+    ],
+    "test.ce_dbt.unique_mrt_simulation_runs_scenario": [
+      "model.ce_dbt.mrt_simulation_runs"
+    ],
+    "test.ce_dbt.unique_stg_moderation_events_id": [
+      "model.ce_dbt.stg_moderation_events"
+    ],
+    "test.ce_dbt.unique_stg_simulation_runs_run_id": [
+      "model.ce_dbt.stg_simulation_runs"
+    ]
+  },
+  "selectors": {},
+  "semantic_models": {},
+  "sources": {},
+  "sources_version": null
+}

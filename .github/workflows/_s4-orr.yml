@@ -354,11 +354,11 @@ jobs:
           if-no-files-found: warn
 
       - name: dbt run (DuckDB)
-        if: ${{ !inputs.run_tla && hashFiles('data/analytics/dbt/dbt_project.yml') != '' }}
+        if: ${{ !inputs.run_tla && hashFiles('analytics/dbt/dbt_project.yml') != '' }}
         shell: bash
         run: |
           set -euo pipefail
-          DBT_DIR="data/analytics/dbt"
+          DBT_DIR="analytics/dbt"
           python -m pip install --upgrade pip
           python -m pip install 'dbt-duckdb~=1.8.0'
           mkdir -p out/dbt out/dbt/tmp "$HOME/.dbt"
@@ -419,11 +419,11 @@ jobs:
           SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
       - name: "S5 DBT (DuckDB) — deps/debug/run/test"
-        if: ${{ inputs.run_dbt_ci || hashFiles('data/analytics/dbt/dbt_project.yml') != '' }}
+        if: ${{ inputs.run_dbt_ci || hashFiles('analytics/dbt/dbt_project.yml') != '' }}
         shell: bash
         run: |
           set -euo pipefail
-          DBT_DIR="data/analytics/dbt"
+          DBT_DIR="analytics/dbt"
           python3 -m pip install --upgrade 'dbt-duckdb~=1.8.0'
           mkdir -p out/dbt
           mkdir -p "$HOME/.dbt"
@@ -482,7 +482,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: s4-dbt-docs
-          path: data/analytics/dbt/target
+          path: analytics/dbt/target
           if-no-files-found: error
 
       - name: Upload bundle

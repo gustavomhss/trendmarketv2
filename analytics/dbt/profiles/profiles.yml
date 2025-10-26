@@ -1,0 +1,25 @@
+trendmarketv2_bq:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('DBT_BQ_PROJECT') }}"
+      dataset: "{{ env_var('DBT_BQ_DATASET') }}"
+      location: "{{ env_var('DBT_BQ_LOCATION', 'US') }}"
+      threads: 4
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+
+ce_mbp_bq:
+  target: ci
+  outputs:
+    ci:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('GCP_SA_JSON') }}"
+      project: "{{ env_var('DBT_BQ_PROJECT') }}"
+      dataset: "{{ env_var('DBT_BQ_DATASET', 'ce_mbp_ci') }}"
+      location: "{{ env_var('DBT_BQ_LOCATION', 'US') }}"
+      priority: interactive
+      threads: 4
+      timeout_seconds: 300

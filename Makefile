@@ -29,7 +29,7 @@ micro:
 	@set -euo pipefail; ./scripts/microbench_dec.sh
 
 dbt.docs:
-        @set -euo pipefail; dbt docs generate --project-dir data/analytics/dbt --profiles-dir data/analytics/dbt/profiles
+        @set -euo pipefail; dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
 
 rum.docs:
 	@set -euo pipefail; node fe/rum/collector_publish.js
@@ -44,11 +44,11 @@ clean:
 
 dbt-ci:
 	mkdir -p out/dbt/tmp
-	pip install 'dbt-duckdb~=1.8.0'
-	dbt deps --profiles-dir ~/.dbt --profile ce_profile
-	dbt debug --profiles-dir ~/.dbt --profile ce_profile
-	dbt run   --profiles-dir ~/.dbt --profile ce_profile
-	dbt test  --profiles-dir ~/.dbt --profile ce_profile
+        pip install 'dbt-duckdb~=1.8.0'
+        dbt deps --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt debug --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt run   --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
+        dbt test  --profiles-dir ~/.dbt --profile ce_profile --project-dir analytics/dbt
 
 sim-all:
 	SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario spike --out out/sim/spike.report.json
