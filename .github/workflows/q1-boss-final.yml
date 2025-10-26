@@ -53,7 +53,7 @@ jobs:
       CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
 
       - name: Install Python 3.11
         run: |
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload guard artifacts
         if: ${{ !matrix.clean_runner }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: boss-stage-${{ matrix.stage }}
           path: out/q1_boss_final/stages/${{ matrix.stage }}
@@ -110,7 +110,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
 
       - name: Install Python 3.11
         run: |
@@ -139,37 +139,37 @@ jobs:
             jsonschema==4.23.0
 
       - name: Download stage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s1
           path: out/q1_boss_final/stages/s1
 
       - name: Download stage artifacts s2
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s2
           path: out/q1_boss_final/stages/s2
 
       - name: Download stage artifacts s3
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s3
           path: out/q1_boss_final/stages/s3
 
       - name: Download stage artifacts s4
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s4
           path: out/q1_boss_final/stages/s4
 
       - name: Download stage artifacts s5
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s5
           path: out/q1_boss_final/stages/s5
 
       - name: Download stage artifacts s6
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
         with:
           name: boss-stage-s6
           path: out/q1_boss_final/stages/s6
@@ -182,7 +182,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: q1-boss-final
           path: ${{ env.REPORT_DIR }}
@@ -202,7 +202,7 @@ jobs:
 
       - name: Publish Boss Final summary
         if: always()
-        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        uses: ./.github/actions/github-script
         with:
           script: |
             const fs = require('fs');

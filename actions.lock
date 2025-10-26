@@ -1,36 +1,9 @@
-actions:
-  actions/checkout:
-    sha: b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
-    date: 2024-09-15
-    author: GitHub Actions
-    rationale: Versão 4.1.0 auditada para hardening de fetch determinístico.
-  actions/upload-artifact:
-    sha: a8a3bc47d66b9b4ade100e3f1920993de94506ee
-    date: 2025-10-26
-    author: GitHub Actions
-    rationale: Atualização com hardening de expiração de token e logs ampliados.
-  actions/download-artifact:
-    sha: 8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6
-    date: 2025-10-26
-    author: GitHub Actions
-    rationale: Correção de vulnerabilidade de path traversal na recuperação de artefatos.
-  actions/github-script:
-    sha: 11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
-    date: 2024-09-15
-    author: GitHub Actions
-    rationale: Comentário de PR com fallback para GITHUB_STEP_SUMMARY.
 {
   "actions/checkout": {
     "sha": "b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
     "date": "2024-09-15",
     "author": "GitHub Actions",
     "rationale": "Checkout with hardened fetch for deterministic builds."
-  },
-  "actions/github-script": {
-    "sha": "11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3",
-    "date": "2024-09-15",
-    "author": "GitHub Actions",
-    "rationale": "Comment automation with fallback warnings."
   },
   "actions/upload-artifact": {
     "sha": "a8a3bc47d66b9b4ade100e3f1920993de94506ee",

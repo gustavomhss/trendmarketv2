@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
         with:
           ref: ${{ inputs.ref || github.sha }}
 
@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload Sprint 5 artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: sprint5-validation-artifacts
           path: |

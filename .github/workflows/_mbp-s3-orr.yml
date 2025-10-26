@@ -7,7 +7,7 @@ jobs:
   orr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
       - name: Tooling versions
         run: |
           bash --version | head -n1 || true
@@ -36,7 +36,7 @@ jobs:
             echo "FREEZE=NO — ok para prosseguir"
           fi
       - name: Publicar artefatos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s3-evidence
           path: out/s3_gatecheck/evidence
@@ -45,7 +45,7 @@ jobs:
           find out/s3_gatecheck/evidence -maxdepth 1 -type f -printf "%f %s bytes\n" | sort
       - name: Comentário no PR
         if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
+        uses: ./.github/actions/github-script
         with:
           script: |
             const fs = require('fs');

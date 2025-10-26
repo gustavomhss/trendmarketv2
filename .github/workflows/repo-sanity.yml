@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
         with:
           fetch-depth: 0
 
@@ -24,7 +24,7 @@ jobs:
 
       - name: Upload guard report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: repo-guard-report
           path: out/repo_guard/**/*.txt
