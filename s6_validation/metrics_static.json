@@ -1,1 +1,36 @@
-{"version":1,"quorum_ratio":0.92,"failover_time_p95_s":7.8,"staleness_p95_s":12.0,"cdc_lag_p95_s":45.0,"divergence_pct":0.4}
+{
+  "version": 1,
+  "timestamp_utc": "2024-09-01T05:55:00Z",
+  "metrics": {
+    "quorum_ratio": {
+      "observed": 0.92,
+      "unit": "ratio",
+      "sample_size": 18630,
+      "window": "rolling_24h"
+    },
+    "failover_time_p95_s": {
+      "observed": 7.8,
+      "unit": "seconds",
+      "sample_size": 512,
+      "window": "rolling_30d"
+    },
+    "staleness_p95_s": {
+      "observed": 12.0,
+      "unit": "seconds",
+      "sample_size": 18630,
+      "window": "rolling_24h"
+    },
+    "cdc_lag_p95_s": {
+      "observed": 45.0,
+      "unit": "seconds",
+      "sample_size": 2880,
+      "window": "rolling_24h"
+    },
+    "divergence_pct": {
+      "observed": 0.4,
+      "unit": "percent",
+      "sample_size": 90,
+      "window": "quarter_to_date"
+    }
+  }
+}

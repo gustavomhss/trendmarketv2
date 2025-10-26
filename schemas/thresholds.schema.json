@@ -1,1 +1,148 @@
-{"$id":"https://ce.local/schemas/thresholds.schema.json","$schema":"http://json-schema.org/draft-07/schema#","title":"S6 Thresholds","type":"object","additionalProperties":false,"required":["version","quorum_ratio_min","failover_time_p95_s_max","staleness_p95_s_max","cdc_lag_p95_s_max","divergence_pct_max"],"properties":{"version":{"type":"integer","minimum":1},"quorum_ratio_min":{"type":"number","minimum":0.0,"maximum":1.0},"failover_time_p95_s_max":{"type":"number","minimum":0.0},"staleness_p95_s_max":{"type":"number","minimum":0.0},"cdc_lag_p95_s_max":{"type":"number","minimum":0.0},"divergence_pct_max":{"type":"number","minimum":0.0}}}
+{
+  "$id": "https://ce.local/schemas/thresholds.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "S6 Thresholds",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "timestamp_utc",
+    "metrics"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quorum_ratio",
+        "failover_time_p95_s",
+        "staleness_p95_s",
+        "cdc_lag_p95_s",
+        "divergence_pct"
+      ],
+      "properties": {
+        "quorum_ratio": {
+          "$ref": "#/definitions/ratioThreshold"
+        },
+        "failover_time_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "staleness_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "cdc_lag_p95_s": {
+          "$ref": "#/definitions/secondsThreshold"
+        },
+        "divergence_pct": {
+          "$ref": "#/definitions/percentThreshold"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "threshold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display_name",
+        "comparison",
+        "target",
+        "unit",
+        "description",
+        "on_fail"
+      ],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "comparison": {
+          "type": "string",
+          "enum": [
+            "gte",
+            "lte"
+          ]
+        },
+        "target": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "percent",
+            "ratio",
+            "seconds"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "on_fail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ratioThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/threshold"
+        },
+        {
+          "properties": {
+            "target": {
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "unit": {
+              "const": "ratio"
+            }
+          }
+        }
+      ]
+    },
+    "secondsThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/threshold"
+        },
+        {
+          "properties": {
+            "target": {
+              "minimum": 0.0
+            },
+            "unit": {
+              "const": "seconds"
+            }
+          }
+        }
+      ]
+    },
+    "percentThreshold": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/threshold"
+        },
+        {
+          "properties": {
+            "target": {
+              "minimum": 0.0
+            },
+            "unit": {
+              "const": "percent"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

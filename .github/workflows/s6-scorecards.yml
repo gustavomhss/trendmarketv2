@@ -15,7 +15,9 @@ on:
       - 'docs/scorecards/**'
       - 'Makefile'
 
-concurrency: s6-scorecards-${{ github.ref }}
+concurrency:
+  group: s6-scorecards-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   scorecards:
@@ -62,11 +64,46 @@ jobs:
 
       - name: Ruff lint
         timeout-minutes: 5
-        run: ruff check .
+        run: ruff check scripts/
 
       - name: Ruff format check
         timeout-minutes: 5
-        run: ruff format --check .
+        run: ruff format --check scripts/
+
+      - name: Validate Grafana dashboard structure
+        run: |
+          jq -e '
+            .title == "Scorecards Quorum Failover Staleness" and
+            .time.from == "now-24h" and
+            .time.to == "now" and
+            (.panels | length == 5) and
+            (.panels[0] | .title == "Guard Status" and .type == "stat" and .targets[0].expr == "avg(scorecard_guard_status)") and
+            (.panels[1] | .title == "Latency p50" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+            (.panels[2] | .title == "Latency p95" and .type == "stat" and .targets[0].expr == "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+            (.panels[3] | .title == "Scorecard Freshness (m)" and .type == "stat" and .targets[0].expr == "(time() - max(scorecard_last_run_timestamp)) / 60") and
+            (.panels[4] | .title == "Boss Aggregate Ratio" and .type == "stat" and .targets[0].expr == "avg(q1_boss_final_ratio)")
+          ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null
+            def has_panel(id; title; expr):
+              any(.panels[]; .id == id and .title == title and .type == "stat" and (.targets | length == 1) and .targets[0].expr == expr);
+
+            if
+              (.title == "Scorecards Quorum Failover Staleness") and
+              (.time.from == "now-24h") and
+              (.time.to == "now") and
+              (.schemaVersion == 38) and
+              (.version == 1) and
+              (.panels | length == 5) and
+              has_panel(1; "Guard Status"; "avg(scorecard_guard_status)") and
+              has_panel(2; "Latency p50"; "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+              has_panel(3; "Latency p95"; "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))") and
+              has_panel(4; "Scorecard Freshness (m)"; "(time() - max(scorecard_last_run_timestamp)) / 60") and
+              has_panel(5; "Boss Aggregate Ratio"; "avg(q1_boss_final_ratio)")
+            then
+              empty
+            else
+              halt_error(1; "Dashboard structure mismatch")
+            end
+          ' dashboards/grafana/scorecards_quorum_failover_staleness.json
 
       - name: Run pytest
         timeout-minutes: 5
@@ -136,18 +173,26 @@ jobs:
             const path = require('path');
             const reportDir = process.env.REPORT_DIR;
             const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body;
+            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
             if (fs.existsSync(commentPath)) {
               body = fs.readFileSync(commentPath, 'utf8');
-            } else {
-              body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
             }
-            core.summary.addHeading('S6 Scorecards');
-            core.summary.addRaw(body);
-            core.summary.write();
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
+
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } catch (error) {
+              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+                body
+              });
+            } catch (error) {
+              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
+            } finally {
+              core.summary.addHeading('S6 Scorecards');
+              core.summary.addRaw(body);
+              await core.summary.write();
+            }

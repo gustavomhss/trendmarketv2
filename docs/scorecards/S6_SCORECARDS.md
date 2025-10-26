@@ -25,11 +25,14 @@ Gerar scorecards determinísticos com contratos DbC explícitos, validação por
 
 ## Governança de Actions
 
-As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e documentadas em `actions.lock`. Rotacionar SHAs a cada 30 dias ou quando surgir CVE crítico. Procedimento:
+As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e documentadas em `actions.lock`. Cada slug mapeia para um objeto com as chaves `sha`, `date`, `author` e `rationale`. Rotacionar SHAs a cada 30 dias ou quando surgir CVE crítico. Procedimento:
 
 1. Abrir PR dedicado com atualização das versões.
 2. Validar hash/assinatura do commit da action.
-3. Atualizar registro correspondente em `actions.lock` com data, autor e racional.
+3. Atualizar a entrada `actions.<slug>` em `actions.lock` garantindo o objeto `{sha, date, author, rationale}`.
+
+O arquivo `actions.lock` deve mapear cada slug de action em `actions:` para um objeto com os campos `sha`, `pinned_at`, `author`
+e `rationale`, garantindo leitura determinística por ferramentas automatizadas.
 
 ## Troubleshooting
 
