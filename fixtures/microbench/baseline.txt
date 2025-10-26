@@ -1,0 +1,3 @@
+engine::dec_paths::match_core      time: 0.60 ms  (σ=0.05)
+engine::dec_paths::route_fast      time: 0.42 ms  (σ=0.04)
+engine::dec_paths::twap_update     time: 0.31 ms  (σ=0.03)

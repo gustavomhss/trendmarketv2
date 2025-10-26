@@ -7,8 +7,9 @@
   "required": [
     "schema_version",
     "timestamp_utc",
+    "status",
     "sprints",
-    "status"
+    "bundle_sha256"
   ],
   "properties": {
     "schema_version": {
@@ -19,30 +20,28 @@
       "type": "string",
       "format": "date-time"
     },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
     "sprints": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "s1",
-        "s2",
-        "s3",
-        "s4",
-        "s5",
-        "s6"
-      ],
+      "required": ["s1", "s2", "s3", "s4", "s5", "s6"],
       "properties": {
+        "s1": { "$ref": "#/$defs/stage" },
+        "s2": { "$ref": "#/$defs/stage" },
+        "s3": { "$ref": "#/$defs/stage" },
+        "s4": { "$ref": "#/$defs/stage" },
+        "s5": { "$ref": "#/$defs/stage" },
+        "s6": { "$ref": "#/$defs/stage" }
         "s1": {
           "type": "object",
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         },
         "s2": {
@@ -50,13 +49,8 @@
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         },
         "s3": {
@@ -64,13 +58,8 @@
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         },
         "s4": {
@@ -78,13 +67,8 @@
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         },
         "s5": {
@@ -92,13 +76,8 @@
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         },
         "s6": {
@@ -106,13 +85,8 @@
           "required": ["status", "notes"],
           "additionalProperties": false,
           "properties": {
-            "status": {
-              "type": "string",
-              "enum": ["PASS", "FAIL"]
-            },
-            "notes": {
-              "type": "string"
-            }
+            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+            "notes": {"type": "string"}
           }
         }
       }
@@ -120,6 +94,23 @@
     "status": {
       "type": "string",
       "enum": ["PASS", "FAIL"]
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "notes"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   }
 }
