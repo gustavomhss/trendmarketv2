@@ -1,0 +1,3 @@
+{"event": "sim.run", "payload": {"duration_seconds": 0.001883078999526333, "quorum_ratio": 1.0, "report_path": "out/sim/spike.report.json", "scenario": "spike", "seed": 42}, "timestamp": "2025-10-26T06:28:42Z"}
+{"event": "sim.run", "payload": {"duration_seconds": 0.0017295939996984089, "quorum_ratio": 1.0, "report_path": "out/sim/gap.report.json", "scenario": "gap", "seed": 42}, "timestamp": "2025-10-26T06:28:45Z"}
+{"event": "sim.run", "payload": {"duration_seconds": 0.002076785000099335, "quorum_ratio": 1.0, "report_path": "out/sim/burst.report.json", "scenario": "burst", "seed": 42}, "timestamp": "2025-10-26T06:28:49Z"}

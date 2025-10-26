@@ -1,44 +1,35 @@
 {
-  "version": 1,
-  "timestamp_utc": "2024-09-30T06:00:00Z",
-  "metrics": {
-    "quorum_ratio": {
-      "observed": "0.9824",
-      "unit": "ratio",
-      "sample_size": 1440,
-      "window": "24h"
-    },
-    "failover_time_p95_s": {
-      "observed": "24.830",
-      "unit": "seconds",
-      "sample_size": 18,
-      "window": "7d"
-    },
-    "staleness_p95_s": {
-      "observed": "32.410",
-      "unit": "seconds",
-      "sample_size": 288,
-      "window": "24h"
-    },
-    "cdc_lag_p95_s": {
-      "observed": "11.900",
-      "unit": "seconds",
-      "sample_size": 288,
-      "window": "24h"
-    },
-    "divergence_pct": {
-      "observed": "2.1",
-      "unit": "percent",
-      "sample_size": 96,
-      "window": "24h"
-    }
-  }
   "schema": "trendmarketv2.sprint6.metrics",
   "schema_version": 2,
   "timestamp_utc": "2024-09-02T06:00:00Z",
-  "quorum_ratio": 0.7025,
-  "failover_time_p95_s": 42.5,
-  "staleness_p95_s": 18.1,
-  "cdc_lag_p95_s": 88.2,
-  "divergence_pct": 0.4
+  "quorum_ratio": {
+    "observed": 0.7025,
+    "unit": "ratio",
+    "sample_size": 1440,
+    "window": "24h"
+  },
+  "failover_time_p95_s": {
+    "observed": 42.5,
+    "unit": "seconds",
+    "sample_size": 18,
+    "window": "7d"
+  },
+  "staleness_p95_s": {
+    "observed": 18.1,
+    "unit": "seconds",
+    "sample_size": 288,
+    "window": "24h"
+  },
+  "cdc_lag_p95_s": {
+    "observed": 88.2,
+    "unit": "seconds",
+    "sample_size": 288,
+    "window": "24h"
+  },
+  "divergence_pct": {
+    "observed": 0.4,
+    "unit": "percent",
+    "sample_size": 96,
+    "window": "24h"
+  }
 }

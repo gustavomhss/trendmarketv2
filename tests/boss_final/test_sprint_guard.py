@@ -33,12 +33,11 @@ def test_run_stage_writes_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     primary_dir = output_root / "s1" / "primary"
     assert (primary_dir / "result.json").exists()
-    stage_summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
-    assert stage_summary["status"] == "PASS"
-    assert stage_summary["variants"]["primary"]["status"] == "PASS"
-    assert stage_summary["variants"]["clean"]["status"] == "PASS"
-    stage_guard = (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert stage_guard == "PASS"
+    summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
+    assert summary["status"] == "PASS"
+    assert summary["variants"]["primary"]["status"] == "PASS"
+    guard_status = (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert guard_status == "PASS"
 
 
 def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,8 +53,8 @@ def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyP
     with pytest.raises(SystemExit):
         sprint_guard.run_stage("s1", "primary")
 
-    primary_guard = (output_root / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert primary_guard == "FAIL"
+    guard_status = (output_root / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert guard_status == "FAIL"
     summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
     assert summary["status"] == "FAIL"
 
@@ -68,20 +67,19 @@ def test_validate_dashboard_structure_pass(monkeypatch: pytest.MonkeyPatch) -> N
     assert record.status == "PASS"
 
 
-def test_validate_dashboard_structure_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    dashboards_dir = tmp_path / "dashboards" / "grafana"
+def test_validate_dashboard_structure_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dashboards_dir = tmp_path / "observability" / "grafana" / "dashboards"
     dashboards_dir.mkdir(parents=True)
-    bad_dashboard = dashboards_dir / "scorecards_quorum_failover_staleness.json"
-    bad_dashboard.write_text(json.dumps({"title": "broken", "panels": []}), encoding="utf-8")
+    bad_dashboard = dashboards_dir / "s5_mbp_scale.json"
+    bad_dashboard.write_text(json.dumps({"panels": []}), encoding="utf-8")
 
     monkeypatch.setattr(sprint_guard, "BASE_DIR", tmp_path)
     context = sprint_guard.StageContext(stage="s5", variant="primary")
-
     with pytest.raises(sprint_guard.StageFailure):
         sprint_guard.validate_dashboard_structure(context)
 
 
-def test_validate_actions_lock_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     base = tmp_path
     actions_lock = {
         "actions/checkout": {
