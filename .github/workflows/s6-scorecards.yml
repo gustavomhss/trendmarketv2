@@ -1,0 +1,153 @@
+name: S6 Scorecards
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/s6-scorecards.yml'
+      - 'scripts/scorecards/**'
+      - 'scripts/watchers/**'
+      - 'schemas/**'
+      - 's6_validation/**'
+      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
+      - 'docs/scorecards/**'
+      - 'Makefile'
+
+concurrency: s6-scorecards-${{ github.ref }}
+
+jobs:
+  scorecards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+      PYTHONHASHSEED: '0'
+      PYTHONUTF8: '1'
+      HYPOTHESIS_PROFILE: ci
+      HYPOTHESIS_SEED: '12345'
+      REPORT_DIR: out/s6_scorecards
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+
+      - name: Set up Python
+        uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Upgrade packaging toolchain
+        run: |
+          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install \
+            -r requirements.lock \
+            ruff==0.6.8 \
+            yamllint==1.35.1 \
+            pytest==8.3.3 \
+            hypothesis==6.103.0 \
+            jsonschema==4.23.0
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Lint YAML
+        timeout-minutes: 5
+        run: yamllint .
+
+      - name: Ruff lint
+        timeout-minutes: 5
+        run: ruff check .
+
+      - name: Ruff format check
+        timeout-minutes: 5
+        run: ruff format --check .
+
+      - name: Run pytest
+        timeout-minutes: 5
+        run: pytest -q
+
+      - name: Validate existing report schema
+        run: |
+          if [ -f "$REPORT_DIR/report.json" ]; then
+            python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json || exit 1
+          fi
+
+      - name: UTF-8 and CRLF hygiene
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          root = Path('.')
+          bad = []
+          for path in root.rglob('*'):
+            if not path.is_file():
+              continue
+            if path.suffix not in {'.py', '.json', '.sh', '.md', '.yml', '.yaml'}:
+              continue
+            data = path.read_bytes()
+            try:
+              data.decode('utf-8')
+            except UnicodeDecodeError:
+              bad.append(f"UTF8:{path}")
+              continue
+            if b'\r' in data:
+              bad.append(f"CRLF:{path}")
+          if bad:
+            for entry in bad:
+              print(entry)
+            sys.exit(1)
+          PY
+
+      - name: Generate S6 scorecards
+        timeout-minutes: 5
+        run: python scripts/scorecards/s6_scorecards.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: s6-scorecards
+          path: ${{ env.REPORT_DIR }}
+
+      - name: Validate generated report schema
+        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json
+
+      - name: Evaluate guard status
+        run: |
+          status=$(cat "$REPORT_DIR/guard_status.txt")
+          echo "guard_status=$status" >> $GITHUB_OUTPUT
+          if [ "$status" != "PASS" ]; then
+            exit 1
+          fi
+        id: guard
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const reportDir = process.env.REPORT_DIR;
+            const commentPath = path.join(reportDir, 'pr_comment.md');
+            let body;
+            if (fs.existsSync(commentPath)) {
+              body = fs.readFileSync(commentPath, 'utf8');
+            } else {
+              body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
+            }
+            core.summary.addHeading('S6 Scorecards');
+            core.summary.addRaw(body);
+            core.summary.write();
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
