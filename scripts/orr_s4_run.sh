@@ -86,167 +86,113 @@ fi
 log "Calculando métricas de governança"
 python3 - "$EVI_DIR/governance.json" <<'PY'
 import json
-import re
-import sys
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+import re
+import sys
 
-try:
-    import yaml  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - ambiente sem PyYAML
-    yaml = None
+if len(sys.argv) != 2:
+    print("Uso: governance_out", file=sys.stderr)
+    sys.exit(2)
 
+target = Path(sys.argv[1])
+watchers_path = Path('obs/ops/watchers.yml')
+if not watchers_path.exists():
+    raise SystemExit(f"watchers.yml não encontrado em {watchers_path}")
 
-def load_watchers(path: Path) -> List[Dict[str, str]]:
-    text = path.read_text(encoding="utf-8")
-    if yaml is not None:
-        data = yaml.safe_load(text) or {}
-        watchers = data.get("watchers") or []
-        parsed: List[Dict[str, str]] = []
-        for entry in watchers:
-            if not isinstance(entry, dict):
-                continue
-            hook: Dict[str, str] = {
-                "hook": str(entry.get("hook", "desconhecido")) or "desconhecido"
-            }
-            for key in ("owner", "runbook", "action"):
-                value = entry.get(key)
-                if value:
-                    hook[key] = str(value)
-            notify_block = entry.get("notify")
-            if isinstance(notify_block, dict):
-                hook["_notify_present"] = "true"
-                for channel, channel_value in notify_block.items():
-                    if channel_value:
-                        hook[str(channel)] = str(channel_value)
-            elif isinstance(notify_block, (list, tuple, set)):
-                if notify_block:
-                    hook["_notify_present"] = "true"
-                for channel in notify_block:
-                    if isinstance(channel, str) and channel:
-                        hook[channel] = "configured"
-            parsed.append(hook)
-        return parsed
-
-    hooks: List[Dict[str, str]] = []
-    current: Optional[Dict[str, str]] = None
-    pattern = re.compile(r"^([A-Za-z0-9_]+):\s*(.*)$")
-    notify_active = False
-    for raw_line in text.splitlines():
-        stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#"):
+hooks = []
+current = None
+notify_active = False
+pattern = re.compile(r'^([A-Za-z0-9_]+):\s*(.*)$')
+with watchers_path.open('r', encoding='utf-8') as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip('\n')
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
             continue
-        if stripped.startswith("- hook:"):
+        indent = len(line) - len(line.lstrip(' '))
+        if stripped.startswith('- hook:'):
             if current:
                 hooks.append(current)
-            current = {"hook": stripped.split(":", 1)[1].strip()}
+            current = {'hook': stripped.split(':', 1)[1].strip()}
             notify_active = False
             continue
         if current is None:
+            notify_active = False
             continue
-        if stripped.startswith("- "):
+        if stripped.startswith('- ') and indent <= 2:
             if current:
                 hooks.append(current)
             current = None
             notify_active = False
             continue
-        if stripped == "notify:":
-            if current is not None:
-                current["_notify_present"] = "true"
+        if notify_active and stripped.startswith('- '):
+            channel_name = stripped[1:].strip()
+            if channel_name:
+                current[channel_name] = 'configured'
+            continue
+        if stripped == 'notify:':
+            current.setdefault('notify_section', True)
             notify_active = True
             continue
         match = pattern.match(stripped)
         if not match:
+            notify_active = False
             continue
         key, value = match.group(1), match.group(2).strip().strip('"')
-        if key == "notify":
+        if key == 'notify':
             notify_active = True
             continue
         if notify_active:
-            current[key] = value
+            current[key] = value or 'configured'
             continue
         notify_active = False
         current[key] = value
-    if current:
-        hooks.append(current)
-    return hooks
+if current:
+    hooks.append(current)
 
-
-def compute_payload(hooks: List[Dict[str, str]]) -> Dict[str, object]:
-    owners: Counter = Counter()
-    channel_totals: Counter = Counter()
-    actions: Counter = Counter()
-    runbook_missing: List[str] = []
-    notify_missing: List[str] = []
-    channel_keys = ("pagerduty", "slack", "email", "webhook")
-
-    for hook in hooks:
-        name = hook.get("hook", "desconhecido")
-        owner = hook.get("owner", "desconhecido")
-        owners[owner] += 1
-        action = hook.get("action", "unspecified")
-        actions[action] += 1
-
-        runbook = hook.get("runbook")
-        if not runbook:
-            runbook_missing.append(name)
-
-        has_notify = False
-        for channel_key in channel_keys:
-            if channel_key in hook:
-                has_notify = True
-                channel_totals[channel_key] += 1
-        if not has_notify and hook.get("_notify_present"):
+owners = {}
+runbook_missing = []
+channel_totals = {}
+notify_missing = []
+for hook in hooks:
+    owner = hook.get('owner', 'desconhecido')
+    owners[owner] = owners.get(owner, 0) + 1
+    runbook = hook.get('runbook')
+    if not runbook:
+        runbook_missing.append(hook['hook'])
+    has_notify = False
+    for channel_key in ('pagerduty', 'slack', 'email', 'webhook'):
+        if channel_key in hook:
+            channel_totals[channel_key] = channel_totals.get(channel_key, 0) + 1
             has_notify = True
-        if not has_notify:
-            notify_missing.append(name)
+    if not has_notify:
+        notify_missing.append(hook['hook'])
+coverage_ratio = 1.0
+if hooks:
+    coverage_ratio = (len(hooks) - len(runbook_missing)) / len(hooks)
+notify_ratio = 1.0
+if hooks:
+    notify_ratio = (len(hooks) - len(notify_missing)) / len(hooks)
 
-    total_hooks = len(hooks)
-    coverage_ratio = 1.0 if total_hooks == 0 else (
-        (total_hooks - len(runbook_missing)) / total_hooks
-    )
-    notify_ratio = 1.0 if total_hooks == 0 else (
-        (total_hooks - len(notify_missing)) / total_hooks
-    )
+payload = {
+    'generated_at': datetime.now(timezone.utc).isoformat(),
+    'watcher_count': len(hooks),
+    'owners': owners,
+    'notification_channels': channel_totals,
+    'runbook_coverage': {
+        'covered': len(hooks) - len(runbook_missing),
+        'missing_hooks': runbook_missing,
+        'ratio': coverage_ratio,
+    },
+    'notify_coverage': {
+        'covered': len(hooks) - len(notify_missing),
+        'missing_hooks': notify_missing,
+        'ratio': notify_ratio,
+    },
+}
 
-    return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "watcher_count": total_hooks,
-        "owners": dict(owners),
-        "actions": dict(actions),
-        "notification_channels": dict(channel_totals),
-        "runbook_coverage": {
-            "covered": total_hooks - len(runbook_missing),
-            "missing_hooks": runbook_missing,
-            "ratio": coverage_ratio,
-        },
-        "notify_coverage": {
-            "covered": total_hooks - len(notify_missing),
-            "missing_hooks": notify_missing,
-            "ratio": notify_ratio,
-        },
-    }
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        print("Uso: governance_out", file=sys.stderr)
-        sys.exit(2)
-
-    target = Path(sys.argv[1])
-    watchers_path = Path("obs/ops/watchers.yml")
-    if not watchers_path.exists():
-        raise SystemExit(f"watchers.yml não encontrado em {watchers_path}")
-
-    hooks = load_watchers(watchers_path)
-    payload = compute_payload(hooks)
-    target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-
-if __name__ == "__main__":
-    main()
+target.write_text(json.dumps(payload, indent=2), encoding='utf-8')
 PY
 
 for marker in ACCEPTANCE_OK GATECHECK_OK; do
