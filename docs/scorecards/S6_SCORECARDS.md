@@ -31,6 +31,9 @@ As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e docum
 2. Validar hash/assinatura do commit da action.
 3. Atualizar registro correspondente em `actions.lock` com data, autor e racional.
 
+O arquivo `actions.lock` deve mapear cada slug de action em `actions:` para um objeto com os campos `sha`, `pinned_at`, `author`
+e `rationale`, garantindo leitura determinística por ferramentas automatizadas.
+
 ## Troubleshooting
 
 | Sintoma | Ação |
