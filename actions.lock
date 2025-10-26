@@ -1,20 +1,6 @@
-{
-  "actions/checkout": {
-    "sha": "b4ffde65f46336ab88eb53be808477a52a8b00c2",
-    "date": "2025-01-15",
-    "author": "GitHub Actions",
-    "rationale": "Pinned to checkout v4.1.1 after upstream commit rotation."
-  },
-  "actions/upload-artifact": {
-    "sha": "a8a3bc47d66b9b4ade100e3f1920993de94506ee",
-    "date": "2025-10-26",
-    "author": "GitHub Actions",
-    "rationale": "Hardened artifact uploads with scoped tokens and audit logging."
-  },
-  "actions/download-artifact": {
-    "sha": "8b0f5668a7fe5adb56c1fb26a40cc1a2ddcae4c6",
-    "date": "2025-10-26",
-    "author": "GitHub Actions",
-    "rationale": "Patched artifact downloads to mitigate traversal exposure."
-  }
-}
+actions:
+  actions/checkout: 11bd71901bbe5b1630ceea73d27597364c9af683
+metadata:
+  updated_at: 2025-10-26T20:58:45Z
+  updated_by: codex
+  rationale: "Fix do pin de actions/checkout após erro 404 (SHA inválido)."
