@@ -139,6 +139,20 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
 def fail(code_suffix: str, message: str) -> None:
     raise ScorecardError(f"{ERROR_PREFIX}-E-{code_suffix}", message)
 
+_FORMAT_CHECKER = jsonschema.FormatChecker()
+_SCHEMA_VALIDATORS: dict[str, jsonschema.Draft7Validator] = {}
+
+
+def _validator_for(schema_key: str) -> jsonschema.Draft7Validator:
+    try:
+        return _SCHEMA_VALIDATORS[schema_key]
+    except KeyError:
+        schema_path = SCHEMA_FILES[schema_key]
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        validator = jsonschema.Draft7Validator(schema, format_checker=_FORMAT_CHECKER)
+        _SCHEMA_VALIDATORS[schema_key] = validator
+        return validator
+
 
 @lru_cache(maxsize=None)
 def _load_schema(schema_key: str) -> Dict[str, Any]:
@@ -167,6 +181,13 @@ def load_json(path: Path, schema_key: str) -> Dict[str, object]:
         content = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         fail("INVALID-JSON", f"Falha ao decodificar {path}: {exc}")
+    try:
+        validator = _validator_for(schema_key)
+        validator.validate(content)
+    except jsonschema.ValidationError as exc:
+        location = "/".join(str(part) for part in exc.path)
+        suffix = f" (campo {location})" if location else ""
+        fail("SCHEMA", f"Violação de schema em {path}: {exc.message}{suffix}")
 
     schema_path = SCHEMA_FILES[schema_key]
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
