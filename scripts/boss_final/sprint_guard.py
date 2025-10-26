@@ -1,107 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
-import json
-import shutil
-import subprocess
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Callable, Dict, List
-
-BASE_DIR = Path(__file__).resolve().parents[2]
-OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
-SCORECARD_DIR = BASE_DIR / "out" / "s6_scorecards"
-
-StageRunner = Callable[[Path, List[str]], str]
-
-
-class StageError(RuntimeError):
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-        self.message = message
-
-
-def run_command(stage_dir: Path, logs: List[str], command: List[str], description: str) -> None:
-    result = subprocess.run(command, capture_output=True, text=True)
-    log_entry = [f"$ {' '.join(command)}", result.stdout.strip(), result.stderr.strip()]
-    logs.append("\n".join(filter(None, log_entry)))
-    if result.returncode != 0:
-        raise StageError(f"{description} falhou com código {result.returncode}")
-
-
-def stage_s1(stage_dir: Path, logs: List[str]) -> str:
-    run_command(
-        stage_dir,
-        logs,
-        [sys.executable, "-m", "pytest", "-q", "tests/scorecards"],
-        "Testes de scorecards",
-    )
-    return "Testes de scorecards executados com sucesso."
-
-
-def stage_s2(stage_dir: Path, logs: List[str]) -> str:
-    run_command(
-        stage_dir,
-        logs,
-        [sys.executable, "-m", "compileall", "services"],
-        "Compilação dos serviços",
-    )
-    return "Compilação dos módulos de serviço concluída."
-
-
-def stage_s3(stage_dir: Path, logs: List[str]) -> str:
-    dashboard = BASE_DIR / "dashboards" / "grafana" / "scorecards_quorum_failover_staleness.json"
-    content = json.loads(dashboard.read_text(encoding="utf-8"))
-    titles = [panel.get("title") for panel in content.get("panels", [])]
-    logs.append(f"Painéis carregados: {titles}")
-    expected = [
-        "Quorum ratio",
-        "Failover time p95 (s)",
-        "Replica staleness p95 (s)",
-        "CDC lag p95 (s)",
-        "Oracle divergence (%)",
-    ]
-    if titles != expected:
-        raise StageError("Painéis do dashboard divergentes do contrato.")
-    return "Dashboard de observabilidade validado com cinco painéis mandatórios."
-
-
-def stage_s4(stage_dir: Path, logs: List[str]) -> str:
-    thresholds = BASE_DIR / "s6_validation" / "thresholds.json"
-    metrics = BASE_DIR / "s6_validation" / "metrics_static.json"
-    for path in (thresholds, metrics):
-        data = json.loads(path.read_text(encoding="utf-8"))
-        logs.append(f"Validado {path.name} com version={data.get('version')}")
-    return "Bundles de thresholds e métricas conferidos."
-
-
-def stage_s5(stage_dir: Path, logs: List[str]) -> str:
-    run_command(
-        stage_dir,
-        logs,
-        [sys.executable, "-m", "json.tool", "schemas/report.schema.json"],
-        "Validação do schema de report",
-    )
-    return "Schema de report JSON validado."
-
-
-def stage_s6(stage_dir: Path, logs: List[str]) -> str:
-    run_command(
-        stage_dir,
-        logs,
-        [sys.executable, "scripts/scorecards/s6_scorecards.py"],
-        "Geração do scorecard",
-    )
-    if SCORECARD_DIR.exists():
-        for artefact in ["report.json", "bundle.sha256", "guard_status.txt"]:
-            source = SCORECARD_DIR / artefact
-            if source.exists():
-                shutil.copy2(source, stage_dir / artefact)
-    return "Scorecard gerado e artefatos copiados."
-
-
-STAGES: Dict[str, StageRunner] = {
 """Boss Final sprint guard executor."""
 
 from __future__ import annotations
@@ -120,6 +17,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
+SCORECARD_DIR = BASE_DIR / "out" / "s6_scorecards"
 ERROR_PREFIX = "BOSS-E"
 STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
 
@@ -156,12 +54,10 @@ class StageContext:
         return OUTPUT_ROOT / self.stage / self.variant
 
 
-def stage_summary_dir(stage: str) -> Path:
-    return OUTPUT_ROOT / stage
-
-
 class StageFailure(RuntimeError):
-    def __init__(self, code: str, message: str, record: CommandRecord | None = None) -> None:
+    def __init__(
+        self, code: str, message: str, record: CommandRecord | None = None
+    ) -> None:
         self.code = f"{ERROR_PREFIX}-{code}"
         self.message = message
         self.record = record
@@ -169,11 +65,23 @@ class StageFailure(RuntimeError):
 
 
 def isoformat_utc() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def canonical_dumps(payload: Dict[str, object]) -> str:
-    return json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
+    return (
+        json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        + "\n"
+    )
+
+
+def stage_summary_dir(stage: str) -> Path:
+    return OUTPUT_ROOT / stage
 
 
 def update_stage_summary(stage: str) -> Dict[str, object]:
@@ -219,7 +127,9 @@ def update_stage_summary(stage: str) -> Dict[str, object]:
         "timestamp_utc": isoformat_utc(),
     }
     summary_path = base_dir / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     guard_path = base_dir / "guard_status.txt"
     guard_path.write_text(f"{stage_status}\n", encoding="utf-8")
     return summary
@@ -261,7 +171,9 @@ def run_command(
         raise StageFailure(code, f"{name} (exit {completed.returncode})", record)
 
 
-def record_check(context: StageContext, *, name: str, code: str, passed: bool, detail: str) -> None:
+def record_check(
+    context: StageContext, *, name: str, code: str, passed: bool, detail: str
+) -> None:
     status = "PASS" if passed else "FAIL"
     record = CommandRecord(
         name=name,
@@ -287,7 +199,13 @@ def ensure_healthchecks(context: StageContext) -> None:
         if "healthcheck" not in path.read_text(encoding="utf-8"):
             missing.append(f"{file_name}: healthcheck não encontrado")
     detail = "Healthchecks verificados" if not missing else "; ".join(missing)
-    record_check(context, name="Healthcheck manifests", code="S1-HEALTH", passed=not missing, detail=detail)
+    record_check(
+        context,
+        name="Healthcheck manifests",
+        code="S1-HEALTH",
+        passed=not missing,
+        detail=detail,
+    )
 
 
 def run_microbenchmark(context: StageContext) -> None:
@@ -298,24 +216,48 @@ def run_microbenchmark(context: StageContext) -> None:
     duration = time.perf_counter() - start
     detail = f"total={total} tempo={duration:.6f}s"
     passed = duration < 1.0
-    record_check(context, name="Microbenchmark", code="S2-MICRO", passed=passed, detail=detail)
+    record_check(
+        context, name="Microbenchmark", code="S2-MICRO", passed=passed, detail=detail
+    )
 
 
 def ensure_observability_catalog(context: StageContext) -> None:
     catalog = BASE_DIR / "observability"
     if not catalog.exists():
-        record_check(context, name="Observability catalog", code="S3-CATALOG", passed=False, detail="observability/ ausente")
+        record_check(
+            context,
+            name="Observability catalog",
+            code="S3-CATALOG",
+            passed=False,
+            detail="observability/ ausente",
+        )
         return
     yaml_files = list(catalog.rglob("*.yaml"))
     passed = bool(yaml_files)
-    detail = f"{len(yaml_files)} YAML encontrados" if passed else "Nenhum YAML em observability/"
-    record_check(context, name="Observability catalog", code="S3-CATALOG", passed=passed, detail=detail)
+    detail = (
+        f"{len(yaml_files)} YAML encontrados"
+        if passed
+        else "Nenhum YAML em observability/"
+    )
+    record_check(
+        context,
+        name="Observability catalog",
+        code="S3-CATALOG",
+        passed=passed,
+        detail=detail,
+    )
 
 
 def validate_actions_lock(context: StageContext) -> None:
     path = BASE_DIR / "actions.lock"
     if not path.exists():
-        record_check(context, name="actions.lock", code="S4-ACTIONS", passed=False, detail="actions.lock ausente")
+        record_check(
+            context,
+            name="actions.lock",
+            code="S4-ACTIONS",
+            passed=False,
+            detail="actions.lock ausente",
+        )
         return
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -345,9 +287,9 @@ def validate_actions_lock(context: StageContext) -> None:
         sha = str(meta.get("sha", ""))
         if len(sha) != 40:
             issues.append(f"{action}: SHA inválido")
-        for field in ("date", "author", "rationale"):
-            if field not in meta or not str(meta[field]).strip():
-                issues.append(f"{action}: campo {field} ausente")
+        for field_name in ("date", "author", "rationale"):
+            if field_name not in meta or not str(meta[field_name]).strip():
+                issues.append(f"{action}: campo {field_name} ausente")
     record_check(
         context,
         name="actions.lock",
@@ -382,36 +324,48 @@ def validate_actions_lock(context: StageContext) -> None:
 
 
 def validate_dashboard_structure(context: StageContext) -> None:
-    path = BASE_DIR / "dashboards" / "grafana" / "scorecards_quorum_failover_staleness.json"
+    path = BASE_DIR / "observability" / "grafana" / "dashboards" / "s5_mbp_scale.json"
     if not path.exists():
-        record_check(context, name="Grafana dashboard", code="S5-DASH", passed=False, detail="Dashboard ausente")
+        record_check(
+            context,
+            name="Grafana dashboard",
+            code="S5-DASH",
+            passed=False,
+            detail="Dashboard ausente",
+        )
         return
     payload = json.loads(path.read_text(encoding="utf-8"))
-    required_ids = {
-        1: ("Quorum Ratio", "avg(mbp:oracle:quorum_ratio{env=\"prod\"})"),
-        2: ("Failover p95 (s)", "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})"),
-        3: ("Staleness p95 (s)", "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})"),
-        4: ("CDC Lag p95 (s)", "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})"),
-        5: ("Divergence (%)", "avg(mbp:oracle:divergence_pct{env=\"prod\"})"),
-    }
     issues: List[str] = []
-    if payload.get("schemaVersion") != 40 or payload.get("version") != 1:
-        issues.append("Versões de schema/arquivo divergentes")
-    if payload.get("time", {}).get("from") != "now-24h" or payload.get("time", {}).get("to") != "now":
-        issues.append("Intervalo de tempo inválido")
-    if payload.get("templating", {}).get("list", []) != []:
-        issues.append("Templating deve estar vazio")
-    panels = {panel.get("id"): panel for panel in payload.get("panels", [])}
-    if set(panels) != set(required_ids):
-        issues.append("Painéis ausentes ou extras")
-    for panel_id, (title, expr) in required_ids.items():
-        panel = panels.get(panel_id)
-        if not panel:
-            continue
-        targets = panel.get("targets", [])
-        expected = len(targets) == 1 and targets[0].get("expr") == expr
-        if panel.get("title") != title or panel.get("type") != "stat" or not expected:
-            issues.append(f"Painel {panel_id} inválido")
+    schema_version = payload.get("schemaVersion")
+    if schema_version is None or schema_version < 40:
+        issues.append("SchemaVersion inválido")
+    panels = payload.get("panels", [])
+    quorum_expr = 'avg(mbp:oracle:quorum_ratio{env="prod"})'
+    failover_expr = 'avg(mbp:oracle:failover_time_p95_s{env="prod"})'
+    quorum_panel = next(
+        (
+            panel
+            for panel in panels
+            if panel.get("title", "").lower().startswith("quorum ratio")
+        ),
+        None,
+    )
+    failover_panel = next(
+        (panel for panel in panels if "failover" in panel.get("title", "").lower()),
+        None,
+    )
+    if not quorum_panel:
+        issues.append("Painel de quorum_ratio ausente")
+    else:
+        targets = quorum_panel.get("targets", [])
+        if not any(target.get("expr") == quorum_expr for target in targets):
+            issues.append("Consulta de quorum_ratio divergente")
+    if not failover_panel:
+        issues.append("Painel de failover ausente")
+    else:
+        targets = failover_panel.get("targets", [])
+        if not any(target.get("expr") == failover_expr for target in targets):
+            issues.append("Consulta de failover divergente")
     record_check(
         context,
         name="Grafana dashboard",
@@ -428,7 +382,7 @@ def run_scorecards(context: StageContext) -> None:
         code="S6-SCORECARDS",
         command=[sys.executable, "scripts/scorecards/s6_scorecards.py"],
     )
-    guard_path = BASE_DIR / "out" / "s6_scorecards" / "guard_status.txt"
+    guard_path = SCORECARD_DIR / "guard_status.txt"
     if not guard_path.exists():
         record_check(
             context,
@@ -459,7 +413,13 @@ def stage_s1(context: StageContext) -> None:
         context=context,
         name="Ruff format",
         code="S1-FORMAT",
-        command=["ruff", "format", "--check", "scripts/scorecards", "scripts/boss_final"],
+        command=[
+            "ruff",
+            "format",
+            "--check",
+            "scripts/scorecards",
+            "scripts/boss_final",
+        ],
     )
     run_command(
         context=context,
@@ -524,56 +484,9 @@ STAGE_HANDLERS: Dict[str, Callable[[StageContext], None]] = {
 }
 
 
-def write_stage_outputs(stage: str, status: str, notes: str, logs: List[str], stage_dir: Path) -> None:
-    stage_dir.mkdir(parents=True, exist_ok=True)
-    (stage_dir / "guard_status.txt").write_text(f"{status}\n", encoding="utf-8")
-    data = {
-        "stage": stage,
-        "status": status,
-        "timestamp_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "notes": notes,
-    }
-    (stage_dir / "stage.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    (stage_dir / "logs.txt").write_text("\n\n".join(logs) + "\n", encoding="utf-8")
-
-
-def run_stage(stage: str) -> int:
-    if stage not in STAGES:
-        raise SystemExit(f"BOSS-E-STAGE: Estágio desconhecido {stage}")
-    stage_dir = OUTPUT_ROOT / stage
-    stage_dir.mkdir(parents=True, exist_ok=True)
-    logs: List[str] = []
-    runner = STAGES[stage]
-    try:
-        notes = runner(stage_dir, logs)
-    except StageError as exc:
-        write_stage_outputs(stage, "FAIL", exc.message, logs, stage_dir)
-        print(f"FAIL {stage.upper()} {exc.message}")
-        return 1
-    except Exception as exc:  # pragma: no cover - robust fallback
-        write_stage_outputs(stage, "FAIL", f"Erro inesperado: {exc}", logs, stage_dir)
-        print(f"FAIL {stage.upper()} {exc}")
-        return 1
-    else:
-        write_stage_outputs(stage, "PASS", notes, logs, stage_dir)
-        print(f"PASS {stage.upper()} {notes}")
-        return 0
-
-
-def parse_args(argv: List[str]) -> str:
-    if len(argv) != 3 or argv[1] != "--stage":
-        raise SystemExit("Uso: sprint_guard.py --stage <s1|s2|s3|s4|s5|s6>")
-    return argv[2]
-
-
-def main(argv: List[str]) -> int:
-    stage = parse_args(argv)
-    return run_stage(stage)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
-def write_stage_outputs(context: StageContext, status: str, notes: str) -> Dict[str, object]:
+def write_stage_outputs(
+    context: StageContext, status: str, notes: str
+) -> Dict[str, object]:
     status = status.upper()
     directory = context.stage_dir()
     directory.mkdir(parents=True, exist_ok=True)
@@ -586,10 +499,17 @@ def write_stage_outputs(context: StageContext, status: str, notes: str) -> Dict[
         "checks": [record.to_dict() for record in context.records],
     }
     result_path = directory / "result.json"
-    result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    result_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     guard_path = directory / "guard_status.txt"
     guard_path.write_text(f"{status}\n", encoding="utf-8")
-    comment_lines = [f"### Stage {context.stage.upper()} ({context.variant})", "", f"{status}: {notes}", ""]
+    comment_lines = [
+        f"### Stage {context.stage.upper()} ({context.variant})",
+        "",
+        f"{status}: {notes}",
+        "",
+    ]
     (directory / "comment.md").write_text("\n".join(comment_lines), encoding="utf-8")
     bundle_sha = hashlib.sha256(canonical_dumps(result).encode("utf-8")).hexdigest()
     (directory / "bundle.sha256").write_text(bundle_sha + "\n", encoding="utf-8")

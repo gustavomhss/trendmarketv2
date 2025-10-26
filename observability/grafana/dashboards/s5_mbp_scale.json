@@ -1,195 +1,86 @@
 {
   "title": "S5 MBP Scale",
   "uid": "s5-mbp-scale",
-  "schemaVersion": 39,
-  "version": 2,
+  "schemaVersion": 41,
+  "version": 3,
   "timezone": "utc",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
+  },
+  "templating": {
+    "list": []
   },
   "panels": [
     {
       "id": 1,
-      "type": "timeseries",
-      "title": "Oracle Staleness p95 (ms)",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "stat",
+      "title": "Quorum Ratio (prod)",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:oracle:staleness_p95_ms{symbol=\"BRLUSD\"}"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "type": "timeseries",
-      "title": "Oracle Quorum Ratio",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(mbp_oracle_aggregate_total{quorum_ok=\"true\"}[5m])) / sum(rate(mbp_oracle_aggregate_total[5m]))"
-        }
-      ]
-    },
-    {
-      "id": 11,
-      "type": "timeseries",
-      "title": "TWAP Failover Events",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "increase(mbp_oracle_fetch_total{source=\"secondary\"}[5m])"
+          "expr": "avg(mbp:oracle:quorum_ratio{env=\"prod\"})"
         }
       ]
     },
     {
       "id": 2,
-      "type": "timeseries",
-      "title": "Oracle Divergence p95",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "stat",
+      "title": "Failover time p95 (s)",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:oracle:divergence_p95{symbol=\"BRLUSD\"}"
+          "expr": "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})"
         }
       ]
     },
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Fee Δ5m",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "title": "Replica staleness p95 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:fee:delta_pct_5m{symbol=\"BRLUSD\"}"
+          "expr": "mbp:oracle:staleness_p95_s{env=\"prod\"}"
         }
       ]
     },
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Fee Cooldown Hits",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "title": "CDC lag p95 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:fee:cooldown_hits{symbol=\"BRLUSD\"}"
+          "expr": "mbp:oracle:cdc_lag_p95_s{env=\"prod\"}"
         }
       ]
     },
     {
       "id": 5,
-      "type": "stat",
-      "title": "Moderation Appeals Open",
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
+      "type": "timeseries",
+      "title": "Oracle divergence (%)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:moderation:appeals_open{symbol=\"BRLUSD\"}"
+          "expr": "mbp:oracle:divergence_pct{env=\"prod\"}"
         }
       ]
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Simulation TTPV p95",
-      "gridPos": { "h": 6, "w": 18, "x": 6, "y": 16 },
+      "title": "Auto-resolve latency p95 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
       "targets": [
         {
           "refId": "A",
-          "expr": "mbp:simulation:ttpv_p95_ms"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "Simulation Success Ratio",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:simulation:success_ratio"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "type": "timeseries",
-      "title": "Auto-Resolve SLA (p50/p95)",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:auto_resolve:latency_p50_ms"
-        },
-        {
-          "refId": "B",
-          "expr": "mbp:auto_resolve:latency_p95_ms"
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "type": "timeseries",
-      "title": "Auto-Resolve Decision Throughput",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"auto\"}[5m]))"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "type": "timeseries",
-      "title": "Auto-Resolve Success Ratio",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:auto_resolve:success_ratio"
-        }
-      ]
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "Auto-Resolve Manual Fallback Rate",
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 38 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:auto_resolve:manual_fallback_rate"
-        }
-      ]
-    },
-    {
-      "id": 12,
-      "type": "timeseries",
-      "title": "Manual Fallback Rate",
-      "gridPos": { "h": 6, "w": 12, "x": 6, "y": 38 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(mbp_auto_resolve_attempts_total{mode=\"manual\"}[5m])) / sum(rate(mbp_auto_resolve_attempts_total[5m]))"
-        }
-      ]
-    },
-    {
-      "id": 13,
-      "type": "timeseries",
-      "title": "Auto-Resolve Backlog (max 15m)",
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 38 },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "mbp:auto_resolve:backlog_max"
+          "expr": "mbp:auto_resolve:latency_p95_s{env=\"prod\"}"
         }
       ]
     }

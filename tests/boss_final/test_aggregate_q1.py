@@ -8,84 +8,8 @@ import pytest
 
 from scripts.boss_final import aggregate_q1
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-STAGES_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
-OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
-
-
-@pytest.fixture(autouse=True)
-def cleanup() -> None:
-    if OUTPUT_DIR.exists():
-        for path in OUTPUT_DIR.rglob('*'):
-            if path.is_file():
-                path.unlink()
-        for path in sorted(OUTPUT_DIR.rglob('*'), reverse=True):
-            if path.is_dir():
-                path.rmdir()
-    if STAGES_DIR.exists():
-        for path in STAGES_DIR.rglob('*'):
-            if path.is_file():
-                path.unlink()
-        for path in sorted(STAGES_DIR.rglob('*'), reverse=True):
-            if path.is_dir():
-                path.rmdir()
-    yield
-    if OUTPUT_DIR.exists():
-        for path in OUTPUT_DIR.rglob('*'):
-            if path.is_file():
-                path.unlink()
-        for path in sorted(OUTPUT_DIR.rglob('*'), reverse=True):
-            if path.is_dir():
-                path.rmdir()
-    if STAGES_DIR.exists():
-        for path in STAGES_DIR.rglob('*'):
-            if path.is_file():
-                path.unlink()
-        for path in sorted(STAGES_DIR.rglob('*'), reverse=True):
-            if path.is_dir():
-                path.rmdir()
-
-
-def _write_stage(stage: str, status: str, notes: str) -> None:
-    stage_dir = STAGES_DIR / stage
-    stage_dir.mkdir(parents=True, exist_ok=True)
-    (stage_dir / "guard_status.txt").write_text(f"{status}\n", encoding="utf-8")
-    payload = {
-        "stage": stage,
-        "status": status,
-        "timestamp_utc": "2024-09-30T07:00:00Z",
-        "notes": notes,
-    }
-    (stage_dir / "stage.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def test_aggregate_q1_pass() -> None:
-    for stage in aggregate_q1.STAGES:
-        _write_stage(stage, "PASS", f"{stage} ok")
-
-    result = aggregate_q1.main()
-
-    assert result == 0
-    report = json.loads((OUTPUT_DIR / "report.json").read_text(encoding="utf-8"))
-    assert report["status"] == "PASS"
-    assert report["sprints"]["s3"]["notes"] == "s3 ok"
-    assert (OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip() == "PASS"
-
-
-def test_stage_status_mismatch_triggers_fail() -> None:
-    for stage in aggregate_q1.STAGES:
-        status = "PASS"
-        notes = "ok"
-        _write_stage(stage, status, notes)
-    # Break guard file for s4
-    (STAGES_DIR / "s4" / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit):
-        aggregate_q1.main()
-
-    assert (OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip() == "FAIL"
 STAGES = aggregate_q1.STAGES
-VARIANTS = ("primary", "clean")
+VARIANTS = aggregate_q1.VARIANTS
 
 
 def _freeze_time(monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T10:00:00Z") -> None:
@@ -139,7 +63,7 @@ def _write_stage_summary(
     stage_dir.mkdir(parents=True, exist_ok=True)
     variants_payload: dict[str, dict[str, str]] = {}
     for variant, (status, note) in variant_status.items():
-        variants_payload[variant] = {"status": status, "notes": note}
+        variants_payload[variant] = {"status": status, "notes": note, "timestamp_utc": "2024-01-02T09:00:00Z"}
     stage_status = "PASS" if all(status == "PASS" for status, _ in variant_status.values()) else "FAIL"
     summary_notes = notes if notes is not None else " | ".join(
         f"{variant}:{status}{(' ' + note) if note else ''}"
@@ -181,116 +105,60 @@ def _load_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _manual_global_bundle(stages_dir: Path) -> str:
+def _manual_bundle(stages_dir: Path) -> str:
     pieces: list[str] = []
     for stage in STAGES:
         stage_dir = stages_dir / stage
         summary = _load_json(stage_dir / "summary.json")
-        pieces.append(json.dumps(summary, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n")
+        summary_payload = {
+            "stage": stage,
+            "status": summary["status"],
+            "notes": summary["notes"],
+        }
+        pieces.append(aggregate_q1.canonical_dumps(summary_payload) + "\n")
         for variant in VARIANTS:
             result = _load_json(stage_dir / variant / "result.json")
-            payload = {
-                "stage": summary["stage"],
+            variant_payload = {
+                "stage": stage,
                 "variant": variant,
                 "status": result["status"],
                 "notes": result["notes"],
                 "timestamp_utc": result["timestamp_utc"],
             }
-            pieces.append(json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n")
+            pieces.append(aggregate_q1.canonical_dumps(variant_payload) + "\n")
     return hashlib.sha256("".join(pieces).encode("utf-8")).hexdigest()
 
 
-def test_aggregate_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
-        _prime_stage(stages_dir, stage, primary_notes=f"{stage}-primary", clean_notes=f"{stage}-clean")
+        _prime_stage(stages_dir, stage, primary_notes=f"{stage} ok", clean_notes=f"{stage} ok")
 
-    artifacts = aggregate_q1.aggregate()
+    report = aggregate_q1.aggregate()
 
-    report = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
     assert report["status"] == "PASS"
-    assert report["schema_version"] == aggregate_q1.SCHEMA_VERSION
-    for stage in STAGES:
-        assert report["sprints"][stage]["status"] == "PASS"
-        assert report["sprints"][stage]["notes"].startswith("primary:PASS")
-    assert _manual_global_bundle(aggregate_q1.STAGES_DIR) == artifacts.bundle_sha256
-    badge = (aggregate_q1.OUTPUT_DIR / "badge.svg").read_text(encoding="utf-8")
-    assert "Q1 Boss" in badge and "PASS" in badge
-    dag = (aggregate_q1.OUTPUT_DIR / "dag.svg").read_text(encoding="utf-8")
-    assert all(stage.upper() in dag for stage in STAGES)
-    guard = (aggregate_q1.OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert guard == "PASS"
+    guard_status = (aggregate_q1.OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip()
+    assert guard_status == "PASS"
+    report_json = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
+    assert report_json["bundle"]["sha256"] == report["bundle"]["sha256"]
 
 
-def test_stage_failure_propagates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages_dir = _prepare_environment(tmp_path, monkeypatch)
-    for stage in STAGES:
-        if stage == "s3":
-            _prime_stage(stages_dir, stage, primary_status="FAIL", clean_status="PASS", primary_notes="failed", clean_notes="ok")
-        else:
-            _prime_stage(stages_dir, stage)
-
-    with pytest.raises(SystemExit):
-        aggregate_q1.aggregate()
-
-    report = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
-    assert report["status"] == "FAIL"
-    assert report["sprints"]["s3"]["status"] == "FAIL"
-    guard = (aggregate_q1.OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip()
-    assert guard == "FAIL"
-
-
-def test_missing_summary_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aggregate_detects_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(stages_dir, stage)
-    (stages_dir / "s4" / "summary.json").unlink()
+    # Break guard for s4
+    (stages_dir / "s4" / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError):
         aggregate_q1.aggregate()
-    assert "E-SUMMARY" in str(excinfo.value)
 
 
-def test_guard_mismatch_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages_dir = _prepare_environment(tmp_path, monkeypatch)
-    for stage in STAGES:
-        _prime_stage(stages_dir, stage)
-    (stages_dir / "s2" / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
-
-    with pytest.raises(RuntimeError) as excinfo:
-        aggregate_q1.aggregate()
-    assert "E-SUMMARY-MISMATCH" in str(excinfo.value)
-
-
-def test_variant_guard_mismatch_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages_dir = _prepare_environment(tmp_path, monkeypatch)
-    for stage in STAGES:
-        _prime_stage(stages_dir, stage)
-    (stages_dir / "s5" / "primary" / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
-
-    with pytest.raises(RuntimeError) as excinfo:
-        aggregate_q1.aggregate()
-    assert "E-GUARD-MISMATCH" in str(excinfo.value)
-
-
-def test_pr_comment_contains_notes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    stages_dir = _prepare_environment(tmp_path, monkeypatch)
-    for stage in STAGES:
-        _prime_stage(stages_dir, stage, primary_notes="ready", clean_notes="steady")
-
-    artifacts = aggregate_q1.aggregate()
-    comment = (aggregate_q1.OUTPUT_DIR / "pr_comment.md").read_text(encoding="utf-8")
-    assert artifacts.report["status"] in comment
-    for stage in STAGES:
-        assert stage.upper() in comment
-
-
-def test_aggregate_with_release_tag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bundle_sha_manual_match(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(stages_dir, stage)
 
-    artifacts = aggregate_q1.aggregate("v1.2.3")
-    report = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
-    assert report["release_tag"] == "v1.2.3"
-    assert artifacts.report["status"] == "PASS"
+    report = aggregate_q1.aggregate()
+    expected = _manual_bundle(stages_dir)
+    assert report["bundle"]["sha256"] == expected

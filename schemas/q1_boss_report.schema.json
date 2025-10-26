@@ -1,9 +1,4 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Q1 Boss Final report",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
   "$id": "https://trendmarketv2.local/schemas/q1_boss_report.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Q1 Boss Final Report",
@@ -14,13 +9,7 @@
     "schema_version",
     "timestamp_utc",
     "status",
-    "sprints",
-    "bundle_sha256"
-  ],
-  "properties": {
-    "schema_version": {
-      "type": "integer",
-      "const": 1
+    "stages",
     "bundle"
   ],
   "properties": {
@@ -40,32 +29,17 @@
       "type": "string",
       "enum": ["PASS", "FAIL"]
     },
-    "sprints": {
+    "stages": {
       "type": "object",
       "additionalProperties": false,
       "required": ["s1", "s2", "s3", "s4", "s5", "s6"],
       "properties": {
-        "s1": {"$ref": "#/definitions/stage"},
-        "s2": {"$ref": "#/definitions/stage"},
-        "s3": {"$ref": "#/definitions/stage"},
-        "s4": {"$ref": "#/definitions/stage"},
-        "s5": {"$ref": "#/definitions/stage"},
-        "s6": {"$ref": "#/definitions/stage"}
-      }
-    },
-    "bundle_sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    }
-  },
-  "definitions": {
-    "stage": {
-        "s1": { "$ref": "#/definitions/stage_result" },
-        "s2": { "$ref": "#/definitions/stage_result" },
-        "s3": { "$ref": "#/definitions/stage_result" },
-        "s4": { "$ref": "#/definitions/stage_result" },
-        "s5": { "$ref": "#/definitions/stage_result" },
-        "s6": { "$ref": "#/definitions/stage_result" }
+        "s1": {"$ref": "#/definitions/stage_summary"},
+        "s2": {"$ref": "#/definitions/stage_summary"},
+        "s3": {"$ref": "#/definitions/stage_summary"},
+        "s4": {"$ref": "#/definitions/stage_summary"},
+        "s5": {"$ref": "#/definitions/stage_summary"},
+        "s6": {"$ref": "#/definitions/stage_summary"}
       }
     },
     "bundle": {
@@ -78,16 +52,13 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       }
-    },
-    "release_tag": {
-      "type": "string"
     }
   },
   "definitions": {
-    "stage_result": {
+    "stage_summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "notes"],
+      "required": ["status", "notes", "variants"],
       "properties": {
         "status": {
           "type": "string",
@@ -95,7 +66,26 @@
         },
         "notes": {
           "type": "string"
+        },
+        "variants": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["primary", "clean"],
+          "properties": {
+            "primary": {"$ref": "#/definitions/variant_summary"},
+            "clean": {"$ref": "#/definitions/variant_summary"}
+          }
         }
+      }
+    },
+    "variant_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "notes", "timestamp_utc"],
+      "properties": {
+        "status": {"type": "string", "enum": ["PASS", "FAIL"]},
+        "notes": {"type": "string"},
+        "timestamp_utc": {"type": "string", "format": "date-time"}
       }
     }
   }

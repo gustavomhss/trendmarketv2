@@ -1,0 +1,50 @@
+{
+  "scenario": "burst",
+  "symbol": "BRLUSD",
+  "seed": 42,
+  "report_version": 1,
+  "generated_at": "2025-10-26T06:28:49Z",
+  "orders": {
+    "count": 13,
+    "avg_price": 5.439884615384615,
+    "max_price": 5.4435,
+    "min_price": 5.435,
+    "total_qty": 1525.0
+  },
+  "market_depth": {
+    "bids": [
+      {
+        "price": 5.43,
+        "qty": 1500
+      },
+      {
+        "price": 5.4295,
+        "qty": 1200
+      }
+    ],
+    "asks": [
+      {
+        "price": 5.431,
+        "qty": 1400
+      },
+      {
+        "price": 5.432,
+        "qty": 1100
+      }
+    ]
+  },
+  "oracle": {
+    "quorum_ratio": 1.0,
+    "divergence_max": 0.000925,
+    "staleness_max_ms": 10000,
+    "agg_price_avg": 5.439737720826219
+  },
+  "twap": {
+    "source": "primary",
+    "twap": 5.439725,
+    "staleness_ms": 1000,
+    "failover_time_s": null,
+    "events": []
+  },
+  "duration_seconds": 0.002076785000099335
+}

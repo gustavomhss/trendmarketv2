@@ -1,20 +1,4 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Sprint 6 scorecard report",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "timestamp_utc",
-    "status",
-    "summary",
-    "metrics",
-    "bundle_sha256"
-  ],
-  "properties": {
-    "schema_version": {
-      "type": "integer",
-      "const": 1
   "$id": "https://trendmarketv2.local/schemas/report.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Sprint 6 Scorecard Report",
@@ -25,6 +9,7 @@
     "schema_version",
     "timestamp_utc",
     "status",
+    "summary",
     "metrics",
     "inputs",
     "bundle"
@@ -76,30 +61,36 @@
         "divergence_pct"
       ],
       "properties": {
-        "quorum_ratio": {
-          "$ref": "#/definitions/metricEntry"
-        },
-        "failover_time_p95_s": {
-          "$ref": "#/definitions/metricEntry"
-        },
-        "staleness_p95_s": {
-          "$ref": "#/definitions/metricEntry"
-        },
-        "cdc_lag_p95_s": {
-          "$ref": "#/definitions/metricEntry"
-        },
-        "divergence_pct": {
-          "$ref": "#/definitions/metricEntry"
-        }
+        "quorum_ratio": {"$ref": "#/definitions/metric_entry"},
+        "failover_time_p95_s": {"$ref": "#/definitions/metric_entry"},
+        "staleness_p95_s": {"$ref": "#/definitions/metric_entry"},
+        "cdc_lag_p95_s": {"$ref": "#/definitions/metric_entry"},
+        "divergence_pct": {"$ref": "#/definitions/metric_entry"}
       }
     },
-    "bundle_sha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thresholds", "metrics"],
+      "properties": {
+        "thresholds": {"$ref": "#/definitions/input_descriptor"},
+        "metrics": {"$ref": "#/definitions/input_descriptor"}
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
     }
   },
   "definitions": {
-    "metricEntry": {
+    "metric_entry": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -116,136 +107,27 @@
         "guidance"
       ],
       "properties": {
-        "observed": {
-          "type": "string"
-        },
-        "target": {
-          "type": "string"
-        },
-        "delta": {
-          "type": "string"
-        },
-        "comparison": {
-          "type": "string",
-          "enum": ["gte", "lte"]
-        },
-        "unit": {
-          "type": "string",
-          "enum": ["ratio", "seconds", "percent"]
-        },
-        "sample_size": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "window": {
-          "type": "string",
-          "minLength": 1
-        },
-        "ok": {
-          "type": "boolean"
-        },
-        "formatted_observed": {
-          "type": "string"
-        },
-        "formatted_target": {
-          "type": "string"
-        },
-        "guidance": {
-          "type": "string"
-          "$ref": "#/definitions/metric_result"
-        },
-        "failover_time_p95_s": {
-          "$ref": "#/definitions/metric_result"
-        },
-        "staleness_p95_s": {
-          "$ref": "#/definitions/metric_result"
-        },
-        "cdc_lag_p95_s": {
-          "$ref": "#/definitions/metric_result"
-        },
-        "divergence_pct": {
-          "$ref": "#/definitions/metric_result"
-        }
+        "observed": {"type": "string"},
+        "target": {"type": "string"},
+        "delta": {"type": "string"},
+        "comparison": {"type": "string", "enum": ["gte", "lte"]},
+        "unit": {"type": "string", "enum": ["ratio", "seconds", "percent"]},
+        "sample_size": {"type": "integer", "minimum": 1},
+        "window": {"type": "string", "minLength": 1},
+        "ok": {"type": "boolean"},
+        "formatted_observed": {"type": "string"},
+        "formatted_target": {"type": "string"},
+        "guidance": {"type": "string"}
       }
     },
-    "inputs": {
+    "input_descriptor": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["thresholds", "metrics"],
-      "properties": {
-        "thresholds": {
-          "$ref": "#/definitions/input_descriptor_thresholds"
-        },
-        "metrics": {
-          "$ref": "#/definitions/input_descriptor_metrics"
-        }
-      }
-    },
-    "bundle": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["sha256"],
-      "properties": {
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    }
-  },
-  "definitions": {
-    "metric_result": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["observed", "target", "ok"],
-      "properties": {
-        "observed": {
-          "type": "number"
-        },
-        "target": {
-          "type": "number"
-        },
-        "ok": {
-          "type": "boolean"
-        }
-      }
-    },
-    "input_descriptor_thresholds": {
-      "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "required": ["schema", "schema_version", "timestamp_utc"],
       "properties": {
-        "schema": {
-          "type": "string",
-          "const": "trendmarketv2.sprint6.thresholds"
-        },
-        "schema_version": {
-          "type": "integer",
-          "const": 2
-        },
-        "timestamp_utc": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
-    "input_descriptor_metrics": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schema", "schema_version", "timestamp_utc"],
-      "properties": {
-        "schema": {
-          "type": "string",
-          "const": "trendmarketv2.sprint6.metrics"
-        },
-        "schema_version": {
-          "type": "integer",
-          "const": 2
-        },
-        "timestamp_utc": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "schema": {"type": "string"},
+        "schema_version": {"type": "integer"},
+        "timestamp_utc": {"type": "string", "format": "date-time"}
       }
     }
   }

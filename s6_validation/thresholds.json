@@ -1,42 +1,4 @@
 {
-  "version": 1,
-  "metrics": {
-    "quorum_ratio": {
-      "target": "0.9700",
-      "comparison": "gte",
-      "unit": "ratio",
-      "description": "Votos válidos sobre total de votantes elegíveis nas últimas 24h.",
-      "on_fail": "Escalar para o time de confiabilidade e acionar reforço de orquestração."
-    },
-    "failover_time_p95_s": {
-      "target": "30.000",
-      "comparison": "lte",
-      "unit": "seconds",
-      "description": "Tempo p95 para failover completo entre regiões primária e reserva.",
-      "on_fail": "Ativar runbook de failover e revisar automação de recuperação."
-    },
-    "staleness_p95_s": {
-      "target": "45.000",
-      "comparison": "lte",
-      "unit": "seconds",
-      "description": "Tempo p95 de staleness das réplicas de leitura.",
-      "on_fail": "Investigar atraso de replicação e ajustar limites de streaming."
-    },
-    "cdc_lag_p95_s": {
-      "target": "20.000",
-      "comparison": "lte",
-      "unit": "seconds",
-      "description": "Tempo p95 de atraso no pipeline CDC para feeds críticos.",
-      "on_fail": "Escalonar para equipe de dados e reprocessar backlog de eventos."
-    },
-    "divergence_pct": {
-      "target": "5.0",
-      "comparison": "lte",
-      "unit": "percent",
-      "description": "Percentual máximo de divergência entre oráculos independentes.",
-      "on_fail": "Acionar comitê de risco e revisar fontes de mercado divergentes."
-    }
-  }
   "schema": "trendmarketv2.sprint6.thresholds",
   "schema_version": 2,
   "timestamp_utc": "2024-09-01T06:00:00Z",
