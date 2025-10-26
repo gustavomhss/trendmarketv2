@@ -1,4 +1,169 @@
 {
+  "results": {
+    "x86_64": {
+      "arch": "x86_64",
+      "timestamp": "2025-01-15T12:34:56.000000+00:00",
+      "profiles": {
+        "min": {
+          "level": "min",
+          "url": "http://127.0.0.1:48888",
+          "routes": [
+            "health",
+            "swap"
+          ],
+          "timestamp": "2025-01-15T12:34:40.000000+00:00",
+          "samples_per_route": 40,
+          "requests_total": 80,
+          "success_count": 80,
+          "error_count": 0,
+          "latency_samples": 80,
+          "success_ratio": 1.0,
+          "p95_ms": 1.05,
+          "mean_ms": 0.92,
+          "median_ms": 0.9,
+          "min_ms": 0.75,
+          "max_ms": 1.82,
+          "wall_seconds": 0.08,
+          "cpu_seconds": 0.031,
+          "cpu_pct": 38.75,
+          "throughput_rps": 1000.0,
+          "timeout_seconds": 2.0,
+          "arch": "x86_64"
+        },
+        "full": {
+          "level": "full",
+          "url": "http://127.0.0.1:48889",
+          "routes": [
+            "health",
+            "swap"
+          ],
+          "timestamp": "2025-01-15T12:34:48.000000+00:00",
+          "samples_per_route": 40,
+          "requests_total": 80,
+          "success_count": 80,
+          "error_count": 0,
+          "latency_samples": 80,
+          "success_ratio": 1.0,
+          "p95_ms": 1.1,
+          "mean_ms": 0.95,
+          "median_ms": 0.92,
+          "min_ms": 0.78,
+          "max_ms": 1.86,
+          "wall_seconds": 0.082,
+          "cpu_seconds": 0.0318,
+          "cpu_pct": 38.78,
+          "throughput_rps": 975.61,
+          "timeout_seconds": 2.0,
+          "arch": "x86_64"
+        }
+      },
+      "deltas": {
+        "cpu_delta_seconds": 0.0008,
+        "cpu_overhead_pct": 2.5806,
+        "p95_delta_ms": 0.05,
+        "p95_delta_pct": 4.7619,
+        "throughput_delta_pct": -2.439,
+        "cpu_pct_delta": 0.03
+      },
+      "status": "pass"
+    },
+    "arm64": {
+      "arch": "arm64",
+      "timestamp": "2025-01-16T08:15:42.000000+00:00",
+      "profiles": {
+        "min": {
+          "level": "min",
+          "url": "http://127.0.0.1:49888",
+          "routes": [
+            "health",
+            "swap"
+          ],
+          "timestamp": "2025-01-16T08:15:26.000000+00:00",
+          "samples_per_route": 40,
+          "requests_total": 80,
+          "success_count": 80,
+          "error_count": 0,
+          "latency_samples": 80,
+          "success_ratio": 1.0,
+          "p95_ms": 1.12,
+          "mean_ms": 0.97,
+          "median_ms": 0.94,
+          "min_ms": 0.79,
+          "max_ms": 1.89,
+          "wall_seconds": 0.085,
+          "cpu_seconds": 0.028,
+          "cpu_pct": 32.94,
+          "throughput_rps": 941.18,
+          "timeout_seconds": 2.0,
+          "arch": "arm64"
+        },
+        "full": {
+          "level": "full",
+          "url": "http://127.0.0.1:49889",
+          "routes": [
+            "health",
+            "swap"
+          ],
+          "timestamp": "2025-01-16T08:15:34.000000+00:00",
+          "samples_per_route": 40,
+          "requests_total": 80,
+          "success_count": 80,
+          "error_count": 0,
+          "latency_samples": 80,
+          "success_ratio": 1.0,
+          "p95_ms": 1.17,
+          "mean_ms": 1.0,
+          "median_ms": 0.97,
+          "min_ms": 0.82,
+          "max_ms": 1.92,
+          "wall_seconds": 0.088,
+          "cpu_seconds": 0.0288,
+          "cpu_pct": 32.73,
+          "throughput_rps": 909.09,
+          "timeout_seconds": 2.0,
+          "arch": "arm64"
+        }
+      },
+      "deltas": {
+        "cpu_delta_seconds": 0.0008,
+        "cpu_overhead_pct": 2.8571,
+        "p95_delta_ms": 0.05,
+        "p95_delta_pct": 4.4643,
+        "throughput_delta_pct": -3.4035,
+        "cpu_pct_delta": -0.21
+      },
+      "status": "pass"
+    }
+  },
+  "generated_at": "2025-01-16T08:15:42.000000+00:00",
+  "schema_version": 1,
+  "comparisons": {
+    "arm64_vs_x86_64": {
+      "generated_at": "2025-01-16T08:15:42.000000+00:00",
+      "min": {
+        "p95_ms_arm64": 1.12,
+        "p95_ms_x86_64": 1.05,
+        "p95_delta_pct": 6.6667,
+        "cpu_pct_arm64": 32.94,
+        "cpu_pct_x86_64": 38.75,
+        "cpu_pct_delta": -5.81,
+        "throughput_rps_arm64": 941.18,
+        "throughput_rps_x86_64": 1000.0,
+        "throughput_delta_pct": -5.8824
+      },
+      "full": {
+        "p95_ms_arm64": 1.17,
+        "p95_ms_x86_64": 1.1,
+        "p95_delta_pct": 6.3636,
+        "cpu_pct_arm64": 32.73,
+        "cpu_pct_x86_64": 38.78,
+        "cpu_pct_delta": -6.05,
+        "throughput_rps_arm64": 909.09,
+        "throughput_rps_x86_64": 975.61,
+        "throughput_delta_pct": -6.8182
+      }
+    }
+  }
   "deltas": {
     "cpu_overhead_pct": -34.297,
     "latency_p95_delta_ms": 0.0,
