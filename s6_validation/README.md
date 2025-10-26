@@ -1,6 +1,6 @@
 # S6 Validation Bundle
 
-This directory stores the static inputs that power the Sprint 6 scorecard gate described in the [Sprint 6 (Q1) specification](../docs/DNA/quarters/Q1/Sprint%206%20(Q1).md). Both JSON files are treated as part of the immutable validation bundle and must stay deterministic so that scorecard runs are reproducible byte-for-byte.
+This directory stores the static inputs that power the Sprint 6 scorecard gate described in the [Sprint 6 (Q1) specification](../docs/DNA/quarters/Q1/Sprint%206%20(Q1).md). Both JSON files are governed as immutable validation artefacts per the spec’s data-governance mandates in §2 (Escopo — itens 1 & 3) and §9 (Regras de Reprodutibilidade): they must remain deterministic, versioned and traceable so scorecard runs are reproducible byte-for-byte.
 
 ## Files and purpose
 
@@ -32,6 +32,12 @@ This directory stores the static inputs that power the Sprint 6 scorecard gate d
    The `make` target reruns `python scripts/scorecards/s6_scorecards.py`, which recomputes `out/s6_scorecards/bundle.sha256` using canonical serialization (`sort_keys=True`, `ensure_ascii=False`, `separators=(",", ":")`) and checks the generated `report.json` against its schema.
 5. Attach the resulting `out/s6_scorecards` artifacts (including `bundle.sha256`) to the PR description for reviewer verification.
 
+### Governance, review, and bundling
+
+- Proposed edits follow the Sprint 6 data-governance process: bundle updates are made in lockstep across both JSONs, validated, and shipped together so that the canonical hash reflects a coherent snapshot (§2, §5, §9).
+- Review mirrors the spec’s requirement that Observability and scorecard maintainers jointly gate changes; reviewers confirm the regenerated hash, schema conformance, remediation notes, and rationale linking back to the governing spec (§12, §14, §17).
+- Accepted changes are merged only when the regenerated bundle, watcher guard, and CI evidence demonstrate determinism and compliance with the bundle contract; the merged state becomes the new reference snapshot for downstream scorecard jobs (§2, §9, §16).
+
 ## Review expectations
 
 - At least one reviewer from the scorecards maintainers and one from Observability must approve changes that touch this directory; reviewers verify that the edits are consistent with the governing spec and that remediation guidance remains actionable.
@@ -42,8 +48,8 @@ This directory stores the static inputs that power the Sprint 6 scorecard gate d
 
 The scorecard script computes the bundle hash by concatenating the canonical JSON representations of `thresholds.json` and `metrics_static.json` (thresholds first) and hashing the bytes with SHA-256. Manual edits must preserve:
 
-- UTF-8 encoding without BOM and exactly one trailing `\n`.
-- Canonically sorted object keys (`sort_keys=True`) so the hash stays stable.
+- UTF-8 encoding without BOM and exactly one trailing `\n` (§2, §9).
+- Canonically sorted object keys (`sort_keys=True`) so the hash stays stable (§2, §9).
 - Metric arrays ordered by the `order` field and in sync between both files.
 
 If you must rebuild the bundle outside of the Makefile, export deterministic environment variables before calling the script:
