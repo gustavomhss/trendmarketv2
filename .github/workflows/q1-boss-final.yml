@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload guard artifacts
         if: ${{ !matrix.clean_runner }}
-        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-stage-${{ matrix.stage }}
           path: out/q1_boss_final/stages/${{ matrix.stage }}
@@ -139,37 +139,37 @@ jobs:
             jsonschema==4.23.0
 
       - name: Download stage artifacts
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s1
           path: out/q1_boss_final/stages/s1
 
       - name: Download stage artifacts s2
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s2
           path: out/q1_boss_final/stages/s2
 
       - name: Download stage artifacts s3
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s3
           path: out/q1_boss_final/stages/s3
 
       - name: Download stage artifacts s4
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s4
           path: out/q1_boss_final/stages/s4
 
       - name: Download stage artifacts s5
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s5
           path: out/q1_boss_final/stages/s5
 
       - name: Download stage artifacts s6
-        uses: actions/download-artifact@65d8626b53fa662845d786fc8c2cd0a76f1b38f1
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: boss-stage-s6
           path: out/q1_boss_final/stages/s6
@@ -182,7 +182,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: q1-boss-final
           path: ${{ env.REPORT_DIR }}

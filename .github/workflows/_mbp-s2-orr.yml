@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Publicar artefatos
-        uses: actions/upload-artifact@5076951413fa71e81ff98d6b871c3e9df2bda29b
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: orr-evidence
           path: out/orr_gatecheck/evidence
