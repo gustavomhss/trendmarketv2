@@ -89,6 +89,7 @@ class ReleaseManifestTests(unittest.TestCase):
             _write_json(
                 evidence / "pii_probe.json", {"status": "OK", "cpf": False}
             )
+            (evidence / "pii_labels.ok").write_text("LABELS_OK\n", encoding="utf-8")
             _write_json(evidence / "chaos_summary.json", {"status": "GREEN"})
             _write_json(evidence / "baseline_perf.json", {"qps": 125})
             _write_json(evidence / "golden_traces.json", {"spans": 4})
@@ -108,6 +109,7 @@ class ReleaseManifestTests(unittest.TestCase):
             self.assertTrue(manifest["evidence_checks"]["metrics_summary"])
             self.assertEqual(manifest["synthetic_probe"]["ok_ratio"], 1.0)
             self.assertEqual(manifest["watchers"]["alerts_count"], 1)
+            self.assertTrue(manifest["evidence_checks"]["pii_labels"])
             self.assertEqual(
                 manifest["drills"]["trace_log_smoke"]["observability_level"],
                 "full",
