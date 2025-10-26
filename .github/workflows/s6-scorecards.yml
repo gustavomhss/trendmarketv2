@@ -206,7 +206,7 @@ jobs:
         run: python scripts/scorecards/s6_scorecards.py
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        uses: actions/upload-artifact@a8a3bc47d66b9b4ade100e3f1920993de94506ee
         with:
           name: s6-scorecards
           path: ${{ env.REPORT_DIR }}
