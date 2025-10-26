@@ -1,0 +1,16 @@
+{
+  "stage": "s4",
+  "status": "FAIL",
+  "notes": "primary:FAIL BOSS-E-S4-YAML:Comando ausente: yamllint | clean:FAIL BOSS-E-S4-YAML:Comando ausente: yamllint",
+  "variants": {
+    "primary": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S4-YAML:Comando ausente: yamllint"
+    },
+    "clean": {
+      "status": "FAIL",
+      "notes": "BOSS-E-S4-YAML:Comando ausente: yamllint"
+    }
+  },
+  "timestamp_utc": "2025-10-26T03:23:26Z"
+}

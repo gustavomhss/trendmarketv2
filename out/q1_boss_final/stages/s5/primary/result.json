@@ -1,0 +1,18 @@
+{
+  "stage": "s5",
+  "variant": "primary",
+  "status": "PASS",
+  "notes": "PASS:S5 primary guard completado",
+  "timestamp_utc": "2025-10-26T03:23:23Z",
+  "checks": [
+    {
+      "name": "Grafana dashboard",
+      "command": null,
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.0,
+      "stdout": "Dashboard verificado",
+      "stderr": ""
+    }
+  ]
+}

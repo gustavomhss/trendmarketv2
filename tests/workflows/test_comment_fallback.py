@@ -12,8 +12,7 @@ FALLBACK_MESSAGE = "⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY 
 def test_comment_failure_writes_summary_fallback(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     badge = tmp_path / "badge.svg"
-    badge.write_text("<svg>badge</svg>
-", encoding="utf-8")
+    badge.write_text("<svg>badge</svg>", encoding="utf-8")
     comment_body = "✅ [Sprint 6 report](./report.md)"
 
     def failing(_: str) -> None:
@@ -56,8 +55,7 @@ def test_comment_success_does_not_touch_summary(tmp_path: Path) -> None:
 def test_fallback_appends_on_reused_runner(tmp_path: Path) -> None:
     summary = tmp_path / "summary.md"
     badge = tmp_path / "badge.svg"
-    badge.write_text("<svg>badge</svg>
-", encoding="utf-8")
+    badge.write_text("<svg>badge</svg>", encoding="utf-8")
 
     def fail_first(_: str) -> None:
         raise RuntimeError("first failure")
@@ -96,9 +94,7 @@ class SummaryStub:
         self.lines.append(text)
 
     def write(self) -> None:
-        self.path.write_text("
-".join(self.lines) + "
-", encoding="utf-8")
+        self.path.write_text("\n".join(self.lines) + "\n", encoding="utf-8")
 
 
 def simulate_comment_step(report_dir: Path, heading: str, summary_path: Path) -> None:
@@ -127,8 +123,7 @@ def test_scorecards_comment_fallback(tmp_path: Path) -> None:
 def test_boss_final_comment_uses_report_body(tmp_path: Path) -> None:
     workflow_text = Path(".github/workflows/q1-boss-final.yml").read_text(encoding="utf-8")
     assert FALLBACK_MESSAGE in workflow_text
-    comment_body = "✅ [Q1 Boss Final report](./report.md)
-"
+    comment_body = "✅ [Q1 Boss Final report](./report.md)"
     (tmp_path / "pr_comment.md").write_text(comment_body, encoding="utf-8")
     summary_path = tmp_path / "summary.md"
     with pytest.raises(RuntimeError):
