@@ -55,11 +55,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+      - name: Install Python 3.11
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+          python -m ensurepip --upgrade
 
       - name: Upgrade packaging toolchain
         timeout-minutes: 5
@@ -105,11 +106,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@57ded73d95736b4867d21e0da0f2e054fea0f6e7
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+      - name: Install Python 3.11
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+          python -m ensurepip --upgrade
 
       - name: Upgrade packaging toolchain
         timeout-minutes: 5
