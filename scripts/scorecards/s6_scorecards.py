@@ -30,7 +30,8 @@ SCHEMA_FILES: Dict[str, Path] = {
     "report": SCHEMAS_DIR / "report.schema.json",
 }
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+REPORT_SCHEMA = "trendmarketv2.sprint6.report"
 ERROR_PREFIX = "S6"
 EPSILON = Decimal("1e-12")
 
@@ -127,15 +128,6 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
 ]
 
 
-METRIC_TARGET_KEYS: Dict[str, str] = {
-    "quorum_ratio": "quorum_ratio_min",
-    "failover_time_p95_s": "failover_time_p95_s_max",
-    "staleness_p95_s": "staleness_p95_s_max",
-    "cdc_lag_p95_s": "cdc_lag_p95_s_max",
-    "divergence_pct": "divergence_pct_max",
-}
-
-
 def _validator_for(schema_key: str) -> Draft7Validator:
     try:
         return _VALIDATORS[schema_key]
@@ -196,12 +188,11 @@ def compare(observed: Decimal, target: Decimal, comparator: str) -> bool:
 def evaluate_metrics(thresholds: Dict[str, Any], metrics: Dict[str, Any]) -> List[MetricResult]:
     results: List[MetricResult] = []
     for definition in METRIC_DEFINITIONS:
-        target_key = METRIC_TARGET_KEYS[definition.key]
-        if target_key not in thresholds:
+        if definition.key not in thresholds:
             fail("MISSING-THRESHOLD", f"Threshold ausente para {definition.key}")
         if definition.key not in metrics:
             fail("MISSING-METRIC", f"Métrica ausente: {definition.key}")
-        target = decimal_from(thresholds[target_key])
+        target = decimal_from(thresholds[definition.key])
         observed = decimal_from(metrics[definition.key])
         ok = compare(observed, target, definition.comparator)
         results.append(
@@ -258,7 +249,7 @@ def build_report(
     }
     status = compute_status(results)
     report = {
-        "schema": "trendmarketv2.sprint6.report",
+        "schema": REPORT_SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "timestamp_utc": isoformat_utc(),
         "status": status,
@@ -266,12 +257,12 @@ def build_report(
         "inputs": {
             "thresholds": {
                 "schema": thresholds.get("schema"),
-                "version": thresholds.get("version"),
+                "schema_version": thresholds.get("schema_version"),
                 "timestamp_utc": thresholds.get("timestamp_utc"),
             },
             "metrics": {
                 "schema": metrics.get("schema"),
-                "version": metrics.get("version"),
+                "schema_version": metrics.get("schema_version"),
                 "timestamp_utc": metrics.get("timestamp_utc"),
             },
         },
@@ -288,9 +279,13 @@ def render_markdown(artifacts: ScorecardArtifacts) -> str:
     lines.append("")
     lines.append(f"- Relatório gerado em: {report['timestamp_utc']}")
     lines.append(
-        f"- Thresholds: v{report['inputs']['thresholds']['version']} @ {report['inputs']['thresholds']['timestamp_utc']}"
+        "- Thresholds: "
+        f"v{report['inputs']['thresholds']['schema_version']} @ {report['inputs']['thresholds']['timestamp_utc']}"
     )
-    lines.append(f"- Métricas: v{report['inputs']['metrics']['version']} @ {report['inputs']['metrics']['timestamp_utc']}")
+    lines.append(
+        "- Métricas: "
+        f"v{report['inputs']['metrics']['schema_version']} @ {report['inputs']['metrics']['timestamp_utc']}"
+    )
     lines.append(f"- Bundle SHA-256: `{artifacts.bundle_sha256}`")
     lines.append("")
     lines.append("| Métrica | Observado | Alvo | Status |")

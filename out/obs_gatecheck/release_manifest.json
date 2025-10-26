@@ -6,7 +6,7 @@
     "epic_path": "docs/obs/CRD-8-epic.md",
     "acceptance": "OK",
     "gatecheck": "OK",
-    "evidence_files": 21,
+    "evidence_files": 22,
     "cardinality_cost_est_usd": 7.74,
     "cardinality_max_ratio": 0.5833,
     "cardinality_max_metric": "synthetic_latency_seconds_bucket"
@@ -23,6 +23,7 @@
     "metrics_summary": true,
     "trace_log_smoke": true,
     "pii_probe": true,
+    "pii_labels": true,
     "synthetic_probe": true,
     "chaos_summary": true,
     "costs_cardinality": true,

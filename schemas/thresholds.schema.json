@@ -6,45 +6,45 @@
   "additionalProperties": false,
   "required": [
     "schema",
-    "version",
+    "schema_version",
     "timestamp_utc",
-    "quorum_ratio_min",
-    "failover_time_p95_s_max",
-    "staleness_p95_s_max",
-    "cdc_lag_p95_s_max",
-    "divergence_pct_max"
+    "quorum_ratio",
+    "failover_time_p95_s",
+    "staleness_p95_s",
+    "cdc_lag_p95_s",
+    "divergence_pct"
   ],
   "properties": {
     "schema": {
       "type": "string",
-      "const": "trendmarketv2.sprint6.thresholds.v1"
+      "const": "trendmarketv2.sprint6.thresholds"
     },
-    "version": {
+    "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "timestamp_utc": {
       "type": "string",
       "format": "date-time"
     },
-    "quorum_ratio_min": {
+    "quorum_ratio": {
       "type": "number",
       "minimum": 0.0,
       "maximum": 1.0
     },
-    "failover_time_p95_s_max": {
+    "failover_time_p95_s": {
       "type": "number",
       "minimum": 0.0
     },
-    "staleness_p95_s_max": {
+    "staleness_p95_s": {
       "type": "number",
       "minimum": 0.0
     },
-    "cdc_lag_p95_s_max": {
+    "cdc_lag_p95_s": {
       "type": "number",
       "minimum": 0.0
     },
-    "divergence_pct_max": {
+    "divergence_pct": {
       "type": "number",
       "minimum": 0.0
     }

@@ -1,0 +1,27 @@
+{
+  "stage": "s6",
+  "variant": "primary",
+  "status": "PASS",
+  "notes": "PASS:S6 primary guard completado",
+  "timestamp_utc": "2025-10-26T03:23:23Z",
+  "checks": [
+    {
+      "name": "Sprint 6 scorecards",
+      "command": "/root/.pyenv/versions/3.11.12/bin/python scripts/scorecards/s6_scorecards.py",
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.090449,
+      "stdout": "S6 scorecards: PASS (bundle f02a7eeaa3c07407a2f5cd414fe0afa834ef6df78c2a139ba185d6393d99288d)",
+      "stderr": ""
+    },
+    {
+      "name": "S6 guard",
+      "command": null,
+      "status": "PASS",
+      "returncode": 0,
+      "duration_seconds": 0.0,
+      "stdout": "guard_status=PASS",
+      "stderr": ""
+    }
+  ]
+}

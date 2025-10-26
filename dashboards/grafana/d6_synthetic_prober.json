@@ -1,0 +1,290 @@
+{
+  "title": "D6 — Synthetic Prober",
+  "uid": "d6-synth-prober",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "query",
+        "datasource": "Prometheus",
+        "definition": "label_values(synthetic_requests_total, env)",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": "prod",
+          "value": "prod"
+        },
+        "query": "label_values(synthetic_requests_total, env)",
+        "regex": ""
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "definition": "label_values(synthetic_requests_total{env=~\"$env\"}, service)",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": "trendmarket-amm",
+          "value": "trendmarket-amm"
+        },
+        "query": "label_values(synthetic_requests_total{env=~\"$env\"}, service)",
+        "regex": ""
+      },
+      {
+        "name": "route",
+        "label": "Route",
+        "type": "query",
+        "datasource": "Prometheus",
+        "definition": "label_values(synthetic_requests_total{env=~\"$env\",service=~\"$service\"}, route)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": false,
+        "allValue": ".*",
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "query": "label_values(synthetic_requests_total{env=~\"$env\",service=~\"$service\"}, route)",
+        "regex": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Synthetic requests (5m rate)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service, route) (rate(synthetic_requests_total{env=~\"$env\",service=~\"$service\",route=~\"$route\"}[5m]))",
+          "legendFormat": "{{service}} — {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Synthetic latency p75 / p95",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "links": [
+            {
+              "title": "Tempo traces for ${__field.labels.service} :: ${__field.labels.route}",
+              "targetBlank": true,
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22Tempo%22,%22queries%22:[%7B%22refId%22:%22A%22,%22queryType%22:%22traceql%22,%22query%22:%22{service=\\\"${__field.labels.service}\\\",route=\\\"${__field.labels.route}\\\"}%22%7D],%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.75, sum by (service, route, le) (rate(synthetic_latency_seconds_bucket{env=~\"$env\",service=~\"$service\",route=~\"$route\"}[5m])))",
+          "legendFormat": "{{service}} — {{route}} p75"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (service, route, le) (rate(synthetic_latency_seconds_bucket{env=~\"$env\",service=~\"$service\",route=~\"$route\"}[5m])))",
+          "legendFormat": "{{service}} — {{route}} p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Synthetic success ratio (5m avg)",
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.995
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time(synthetic_ok_ratio{env=~\"$env\",service=~\"$service\",route=~\"$route\"}[5m])",
+          "legendFormat": "{{service}} — {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "Trace quick links",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "options": {
+        "content": "### Tempo / Jaeger\n\n* [Pesquisar traces do prober](/explore?orgId=1&left=%7B%22datasource%22:%22Tempo%22,%22queries%22:[%7B%22refId%22:%22A%22,%22queryType%22:%22traceql%22,%22query%22:%22{service=\\\"$service\\\",route=\\\"$route\\\"}%22%7D],%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D)\n* Utilize os filtros `service=$service` e `route=$route` para correlacionar com spans problemáticos.\n",
+        "mode": "markdown"
+      }
+    }
+  ]
+}

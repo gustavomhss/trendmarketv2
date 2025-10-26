@@ -20,7 +20,7 @@
     },
     "schema_version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "timestamp_utc": {
       "type": "string",
@@ -64,10 +64,10 @@
       "required": ["thresholds", "metrics"],
       "properties": {
         "thresholds": {
-          "$ref": "#/definitions/input_descriptor"
+          "$ref": "#/definitions/input_descriptor_thresholds"
         },
         "metrics": {
-          "$ref": "#/definitions/input_descriptor"
+          "$ref": "#/definitions/input_descriptor_metrics"
         }
       }
     },
@@ -100,16 +100,37 @@
         }
       }
     },
-    "input_descriptor": {
+    "input_descriptor_thresholds": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "version", "timestamp_utc"],
+      "required": ["schema", "schema_version", "timestamp_utc"],
       "properties": {
         "schema": {
-          "type": "string"
+          "type": "string",
+          "const": "trendmarketv2.sprint6.thresholds"
         },
-        "version": {
-          "type": "integer"
+        "schema_version": {
+          "type": "integer",
+          "const": 2
+        },
+        "timestamp_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "input_descriptor_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "schema_version", "timestamp_utc"],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "trendmarketv2.sprint6.metrics"
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 2
         },
         "timestamp_utc": {
           "type": "string",

@@ -2,9 +2,25 @@
 set -euo pipefail
 IFS=$'\n\t'; export LC_ALL=C; export TZ=UTC
 
+timestamp() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+RUN_PROFILE="${RUN_PROFILE:-fast}"
+case "$RUN_PROFILE" in
+  fast|full) ;;
+  *)
+    echo "[orr_all] RUN_PROFILE inválido: $RUN_PROFILE" >&2
+    echo "Use RUN_PROFILE=fast (default) ou RUN_PROFILE=full." >&2
+    exit 1
+    ;;
+esac
+
+# ── Paths base ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$ROOT"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"                  # repo root
+DEFAULT_OUT="$ROOT/out/obs_gatecheck"
+DEFAULT_EVID="$DEFAULT_OUT/evidence"                  # canônico dentro do repo
 
 RUN_PROFILE_RAW="${RUN_PROFILE:-fast}"
 RUN_PROFILE="$(printf '%s' "$RUN_PROFILE_RAW" | tr '[:upper:]' '[:lower:]')"
@@ -63,6 +79,60 @@ fi
 
 mkdir -p "$TARGET_OUT"
 TARGET_OUT="$(cd "$TARGET_OUT" && pwd)"
+export EVID
+export PROFILE="$RUN_PROFILE"
+
+OUT_DIR="$(cd "$(dirname "$EVID")" && pwd)"
+LOG_DIR="$OUT_DIR/logs"
+LOG_FILE="$LOG_DIR/orr_all.txt"
+
+# ── Dirs de evidence ────────────────────────────────────────────────────────────
+mkdir -p "$EVID" \
+         "$EVID/dashboards" "$EVID/analysis" "$EVID/rum" \
+         "$EVID/obs_self" "$EVID/burnrate" "$EVID/hooks"
+mkdir -p "$LOG_DIR"
+
+: > "$LOG_FILE"
+exec > >(tee -a "$LOG_FILE")
+exec 2> >(tee -a "$LOG_FILE" >&2)
+
+echo "[$(timestamp)] RUN_PROFILE=$RUN_PROFILE"
+echo "[$(timestamp)] 📁 Using EVID: $EVID"
+echo "[$(timestamp)] 📓 Logs: $LOG_DIR"
+echo "[$(timestamp)] 🚦 Publish mode: $MODE_PUBLISH"
+
+# ── Preflight para perfil full ─────────────────────────────────────────────────
+if [[ "$RUN_PROFILE" == "full" ]]; then
+  echo "[$(timestamp)] → Preflight cargo (fetch/build/fmt/clippy/test)"
+  if command -v cargo >/dev/null 2>&1; then
+    (
+      cd "$ROOT"
+      cargo fetch
+      cargo build
+      cargo fmt -- --check
+      cargo clippy -- -D warnings
+      cargo test
+    )
+  else
+    echo "[orr_all] cargo indisponível — pulando etapa full de build/test"
+  fi
+
+  echo "[$(timestamp)] → Preflight supply-chain (cargo deny & audit)"
+  if command -v cargo >/dev/null 2>&1 && cargo deny --help >/dev/null 2>&1; then
+    (cd "$ROOT" && cargo deny check)
+  else
+    echo "[orr_all] cargo deny indisponível — skip"
+  fi
+  if command -v cargo >/dev/null 2>&1 && cargo audit --help >/dev/null 2>&1; then
+    (cd "$ROOT" && cargo audit)
+  else
+    echo "[orr_all] cargo audit indisponível — skip"
+  fi
+fi
+
+# ── Stage: análises ────────────────────────────────────────────────────────────
+echo "[$(timestamp)] → Análises determinísticas"
+bash "$ROOT/scripts/analysis/run_all.sh" --out "$EVID" --seed-dir "$SEED_DIR"
 
 if [[ -n "$TARGET_EVI" ]]; then
   if [[ "$TARGET_EVI" == "$TARGET_OUT"/* ]]; then
@@ -121,6 +191,24 @@ should_skip_stage() {
   local label="$1"
   if [[ "$RUN_PROFILE" == "full" ]]; then
     return 1
+# ── Stage: hooks A110 (fast/real) ───────────────────────────────────────────────
+echo "[$(timestamp)] → Hooks sintéticos (${HOOK_MODE})"
+HOOKS=(
+  hook_invariant_breach
+  hook_latency_budget
+  hook_resolution_sla
+  hook_cdc_lag
+  hook_schema_drift
+  hook_api_contract_break
+  hook_web_cwv_regression
+)
+for hook in "${HOOKS[@]}"; do
+  HOOK_SCRIPT="$ROOT/scripts/hooks/${hook}.sh"
+  OUT_FILE="$EVID/hooks/${hook}.json"
+  if [[ "$HOOK_MODE" == "real" ]]; then
+    bash "$HOOK_SCRIPT" --real --out "$OUT_FILE"
+  else
+    bash "$HOOK_SCRIPT" --out "$OUT_FILE"
   fi
   case "$label" in
     T11_chaos|T12_baseline)
@@ -182,6 +270,17 @@ with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 full = os.path.join(root, name)
                 rel = os.path.relpath(full, out)
                 zf.write(full, rel)
+# ── Stage: policy engine + env dump ────────────────────────────────────────────
+echo "[$(timestamp)] → Policy engine"
+bash "$ROOT/scripts/policy_engine.sh" --emit-policy-hash --out "$EVID" --seed-file "$SEED_DIR/engine/policy_metrics.json"
+python - "$SEED_DIR/engine/policy_metrics.json" "$EVID/env_dump.txt" <<'PY'
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fp:
+    metrics = json.load(fp)
+with open(sys.argv[2], 'w', encoding='utf-8') as fp:
+    fp.write(f"HistogramSchemaVersion: {metrics['histogram_schema_version']}\n")
+    fp.write(f"ResilienceIndexFast: {metrics['resilience_index_fast']}\n")
+    fp.write(f"ResilienceIndexNightly: {metrics['resilience_index_nightly']}\n")
 PY
     fi
     if [[ ! -f "$OUT/bundle.zip" ]]; then
@@ -248,6 +347,23 @@ archive_bundle
 run_stage "GOV_signatures" "gov_signatures" "scripts/provenance/verify_signatures.sh" bash "$ROOT/scripts/provenance/verify_signatures.sh" --evidence "$EVI"
 PUBLISH_ARGS=(--evidence "$EVI")
 if [[ "$PUBLISH_MODE" == "real" ]]; then
+# ── Stage: simulações determinísticas ──────────────────────────────────────────
+echo "[$(timestamp)] → Simulações determinísticas (fast/nightly + chaos weekly)"
+bash "$ROOT/scripts/sim_run.sh" --mode fast
+bash "$ROOT/scripts/sim_run.sh" --mode nightly
+bash "$ROOT/scripts/chaos_weekly.sh" --evidence "$EVID"
+
+# ── Stage: bundle SHA do repo ──────────────────────────────────────────────────
+echo "[$(timestamp)] → Geração do bundle SHA"
+BUNDLE_FILE="$EVID/bundle.sha256.txt"
+BUNDLE_SHA=$(git -C "$ROOT" ls-files -z | xargs -0 sha256sum | LC_ALL=C sort -k2 | sha256sum | awk '{print $1}')
+printf '%s\n' "$BUNDLE_SHA" > "$BUNDLE_FILE"
+
+# ── Stage: governança (assinaturas + provenance) ───────────────────────────────
+echo "[$(timestamp)] → Governança (assinaturas + provenance)"
+bash "$ROOT/scripts/provenance/verify_signatures.sh" --evidence "$EVID"
+PUBLISH_ARGS=(--evidence "$EVID")
+if [[ "$MODE_PUBLISH" == "real" ]]; then
   PUBLISH_ARGS+=(--real)
 else
   PUBLISH_ARGS+=(--dry-run)
@@ -268,6 +384,58 @@ for path in \
       :
     else
       size=$(stat -f '%z' "$path" 2>/dev/null || echo '?')
+bash "$ROOT/scripts/provenance/publish_root.sh" "${PUBLISH_ARGS[@]}"
+
+# ── Stage: spec check ──────────────────────────────────────────────────────────
+echo "[$(timestamp)] → Spec check"
+bash "$ROOT/scripts/spec_check.sh" --out "$EVID"
+
+# ── Stage: manifesto de hashes ─────────────────────────────────────────────────
+echo "[$(timestamp)] → Manifesto de hashes"
+bash "$ROOT/scripts/analysis/hash_manifest.sh" --evidence "$EVID"
+
+# ── Stages extras (RUN_PROFILE=full) ────────────────────────────────────────────
+if [[ "$RUN_PROFILE" == "full" ]]; then
+  echo "[$(timestamp)] → T9 PII Red Team"
+  bash "$ROOT/scripts/obs_sec_redteam.sh" | tee "$LOG_DIR/t9_pii.txt"
+
+  echo "[$(timestamp)] → T10 Synthetic prober"
+  bash "$ROOT/scripts/obs_probe_synthetic.sh" | tee "$LOG_DIR/t10_probe.txt"
+
+  echo "[$(timestamp)] → T11 Chaos drills"
+  bash "$ROOT/scripts/obs_chaos.sh" | tee "$LOG_DIR/t11_chaos.txt"
+
+  echo "[$(timestamp)] → T12 Costs & cardinality"
+  python3 "$ROOT/scripts/obs_cardinality_costs.py" | tee "$LOG_DIR/t12_costs.txt"
+
+  echo "[$(timestamp)] → T12 SBOM"
+  bash "$ROOT/scripts/obs_sbom.sh" | tee "$LOG_DIR/t12_sbom.txt"
+
+  echo "[$(timestamp)] → T12 Baseline perf"
+  bash "$ROOT/scripts/obs_baseline_perf.sh" | tee "$LOG_DIR/t12_baseline.txt"
+
+  echo "[$(timestamp)] → T12 Golden traces"
+  bash "$ROOT/scripts/obs_trace_golden.sh" | tee "$LOG_DIR/t12_traces.txt"
+fi
+
+# ── Sumário de arquivos chave ──────────────────────────────────────────────────
+echo
+echo "[orr_all] Sumário de evidências relevantes:"
+for path in \
+  "$EVID/spec_check.txt" \
+  "$EVID/policy_hash.txt" \
+  "$EVID/bundle.sha256.txt" \
+  "$EVID/provenance_onchain.json" \
+  "$EVID/signatures.json" \
+  "$EVID/costs_cardinality.json" \
+  "$EVID/sbom.cdx.json" \
+  "$EVID/baseline_perf.json" \
+  "$EVID/golden_traces.json"; do
+  if [[ -f "$path" ]]; then
+    if command -v stat >/dev/null 2>&1; then
+      size=$(stat -c '%s' "$path" 2>/dev/null || stat -f '%z' "$path" 2>/dev/null || echo "?")
+    else
+      size="?"
     fi
     printf '  - %s (%s bytes)\n' "$path" "$size"
   fi
@@ -277,6 +445,8 @@ printf 'ACCEPTANCE_OK\n' | tee -a "$ORR_LOG"
 printf 'GATECHECK_OK\n' | tee -a "$ORR_LOG"
 
 run_stage "SUMMARY" "summary" "scripts/orr_t9_summary.sh" bash "$ROOT/scripts/orr_t9_summary.sh"
+echo 'ACCEPTANCE_OK'
+echo 'GATECHECK_OK'
 
 missing=()
 [[ -s "$EVI/policy_hash.txt" ]] || missing+=(policy_hash.txt)
