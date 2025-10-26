@@ -10,5 +10,6 @@
 | Oráculos | Quorum/TWAP failover | [`oracle-quorum-twap.md`](oracle-quorum-twap.md) |
 | Fees | Thrash / cooldown | [`fee-cooldown.md`](fee-cooldown.md) |
 | Moderação | Pausa / appeals | [`moderation-pause.md`](moderation-pause.md) |
+| Observabilidade | Synthetic prober degradado | [`synthetic-prober.md`](synthetic-prober.md) |
 
 > Consulte `ops/watchers.yml` para mapear cada hook ao runbook correspondente.

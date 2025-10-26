@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as _datetime
-import json
 import re
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, List, Sequence
 
 __all__ = ["Draft7Validator", "ValidationError", "FormatChecker", "validate"]
 
@@ -59,30 +58,46 @@ class Draft7Validator:
             self._validate_schema(resolved, instance, path)
             return
 
+        if "allOf" in schema:
+            for subschema in schema["allOf"]:
+                self._validate_schema(subschema, instance, path)
+        if "anyOf" in schema:
+            last_error: ValidationError | None = None
+            for subschema in schema["anyOf"]:
+                try:
+                    self._validate_schema(subschema, instance, path)
+                    break
+                except ValidationError as exc:
+                    last_error = exc
+            else:
+                raise last_error or ValidationError("anyOf mismatch", path)
+        if "oneOf" in schema:
+            matches = 0
+            last_error: ValidationError | None = None
+            for subschema in schema["oneOf"]:
+                try:
+                    self._validate_schema(subschema, instance, path)
+                    matches += 1
+                except ValidationError as exc:
+                    last_error = exc
+            if matches != 1:
+                raise last_error or ValidationError("oneOf mismatch", path)
+        if "not" in schema:
+            try:
+                self._validate_schema(schema["not"], instance, path)
+            except ValidationError:
+                pass
+            else:
+                raise ValidationError("not schema violated", path)
+
         if "type" in schema:
             expected_type = schema["type"]
-            if not self._check_type(expected_type, instance):
-                raise ValidationError(f"Expected type {expected_type}", path)
-
-        if isinstance(instance, dict):
-            properties = schema.get("properties", {})
-            required = schema.get("required", [])
-            for key in required:
-                if key not in instance:
-                    raise ValidationError(f"Missing required property {key}", path + [key])
-            if schema.get("additionalProperties") is False:
-                allowed = set(properties)
-                extra = [key for key in instance if key not in allowed]
-                if extra:
-                    raise ValidationError(f"Additional properties not allowed: {extra}", path)
-            for key, subschema in properties.items():
-                if key in instance:
-                    self._validate_schema(subschema, instance[key], path + [key])
-
-        if isinstance(instance, list) and "items" in schema:
-            subschema = schema["items"]
-            for index, item in enumerate(instance):
-                self._validate_schema(subschema, item, path + [index])
+            if isinstance(expected_type, list):
+                if not any(self._check_type(candidate, instance) for candidate in expected_type):
+                    raise ValidationError(f"Expected type {expected_type}", path)
+            else:
+                if not self._check_type(expected_type, instance):
+                    raise ValidationError(f"Expected type {expected_type}", path)
 
         if "enum" in schema and instance not in schema["enum"]:
             raise ValidationError(f"Value {instance!r} not in enum", path)
@@ -90,20 +105,73 @@ class Draft7Validator:
         if "const" in schema and instance != schema["const"]:
             raise ValidationError(f"Value {instance!r} does not match const", path)
 
-        if isinstance(instance, (int, float)):
-            if "minimum" in schema and instance < schema["minimum"]:
+        if isinstance(instance, (int, float)) and not isinstance(instance, bool):
+            minimum = schema.get("minimum")
+            if minimum is not None and instance < minimum:
                 raise ValidationError("Value below minimum", path)
-            if "maximum" in schema and instance > schema["maximum"]:
+            maximum = schema.get("maximum")
+            if maximum is not None and instance > maximum:
                 raise ValidationError("Value above maximum", path)
+            exclusive_min = schema.get("exclusiveMinimum")
+            if exclusive_min is not None and instance <= exclusive_min:
+                raise ValidationError("Value below exclusiveMinimum", path)
+            exclusive_max = schema.get("exclusiveMaximum")
+            if exclusive_max is not None and instance >= exclusive_max:
+                raise ValidationError("Value above exclusiveMaximum", path)
 
-        if isinstance(instance, str) and "pattern" in schema:
-            if not re.fullmatch(schema["pattern"], instance):
+        if isinstance(instance, str):
+            if "minLength" in schema and len(instance) < schema["minLength"]:
+                raise ValidationError("String shorter than minLength", path)
+            if "maxLength" in schema and len(instance) > schema["maxLength"]:
+                raise ValidationError("String longer than maxLength", path)
+            if "pattern" in schema and not re.fullmatch(schema["pattern"], instance):
                 raise ValidationError("String does not match pattern", path)
+            if "format" in schema:
+                format_name = schema["format"]
+                if not self.format_checker.conforms(format_name, instance):
+                    raise ValidationError(f"Invalid format {format_name}", path)
 
-        if isinstance(instance, str) and "format" in schema:
-            format_name = schema["format"]
-            if not self.format_checker.conforms(format_name, instance):
-                raise ValidationError(f"Invalid format {format_name}", path)
+        if isinstance(instance, list):
+            if "minItems" in schema and len(instance) < schema["minItems"]:
+                raise ValidationError("Array shorter than minItems", path)
+            if "maxItems" in schema and len(instance) > schema["maxItems"]:
+                raise ValidationError("Array longer than maxItems", path)
+            if schema.get("uniqueItems"):
+                seen: List[Any] = []
+                for item in instance:
+                    if item in seen:
+                        raise ValidationError("Array items not unique", path)
+                    seen.append(item)
+            items = schema.get("items")
+            if isinstance(items, dict):
+                for index, item in enumerate(instance):
+                    self._validate_schema(items, item, path + [index])
+            elif isinstance(items, list):
+                for index, subschema in enumerate(items):
+                    if index < len(instance):
+                        self._validate_schema(subschema, instance[index], path + [index])
+                if schema.get("additionalItems") is False and len(instance) > len(items):
+                    raise ValidationError("Additional array items not allowed", path)
+
+        if isinstance(instance, dict):
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+            for key in required:
+                if key not in instance:
+                    raise ValidationError(f"Missing required property {key}", path + [key])
+            additional = schema.get("additionalProperties", True)
+            if additional is False:
+                allowed = set(properties)
+                extra = [key for key in instance if key not in allowed]
+                if extra:
+                    raise ValidationError(f"Additional properties not allowed: {extra}", path)
+            elif isinstance(additional, dict):
+                for key, value in instance.items():
+                    if key not in properties:
+                        self._validate_schema(additional, value, path + [key])
+            for key, subschema in properties.items():
+                if key in instance:
+                    self._validate_schema(subschema, instance[key], path + [key])
 
     def _resolve_ref(self, ref: str) -> Dict[str, Any]:
         if not ref.startswith("#/"):
@@ -127,13 +195,12 @@ class Draft7Validator:
             "integer": int,
             "boolean": bool,
             "array": list,
+            "null": type(None),
         }
         python_type = mapping.get(expected)
         if python_type is None:
             return True
-        if expected == "number" and isinstance(instance, bool):
-            return False
-        if expected == "integer" and isinstance(instance, bool):
+        if expected in {"number", "integer"} and isinstance(instance, bool):
             return False
         return isinstance(instance, python_type)
 

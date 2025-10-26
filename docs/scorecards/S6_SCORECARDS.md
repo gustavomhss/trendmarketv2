@@ -16,15 +16,16 @@ workflow `s6-scorecards` e o estágio S6 do pipeline Boss Final.
 
 Os arquivos em `s6_validation/` são as únicas entradas para o cálculo offline:
 
-- `thresholds.json`: objeto plano com `schema`, `version`, `timestamp_utc` e os
-  limites (`*_min` ou `*_max`) para cada métrica.
-- `metrics_static.json`: objeto plano com `schema`, `version`, `timestamp_utc` e os
-  valores observados correspondentes.
+- `thresholds.json`: objeto plano com `schema`, `schema_version`, `timestamp_utc`
+  e os cinco alvos (`quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`,
+  `cdc_lag_p95_s`, `divergence_pct`).
+- `metrics_static.json`: objeto plano com `schema`, `schema_version`,
+  `timestamp_utc` e os cinco valores observados correspondentes.
 
 Ambos validam contra os schemas Draft‑07 (`schemas/thresholds.schema.json` e
-`schemas/metrics.schema.json`) e permanecem bloqueados em `version: 1` e
-`schema` `*.v1`. Formatação canônica (`sort_keys=true`, newline final e UTF‑8) é
-obrigatória para preservar o hash do bundle.
+`schemas/metrics.schema.json`) com `schema_version: 2` protegido por `const`.
+Formatação canônica (`sort_keys=true`, separadores `(",",":")`, newline final e
+UTF‑8) é obrigatória para preservar o hash do bundle.
 
 ## Aritmética e EPS
 
@@ -51,12 +52,12 @@ exige `guard_status.txt` = `PASS`.
 `report.json` segue o schema Draft‑07 `schemas/report.schema.json`:
 
 - `schema`: `trendmarketv2.sprint6.report`
-- `schema_version`: `1`
+- `schema_version`: `2`
 - `timestamp_utc`: instante da avaliação
 - `status`: `PASS` ou `FAIL`
 - `metrics.<metric>.{observed,target,ok}`: valores em ponto flutuante
-- `inputs.{thresholds,metrics}.{schema,version,timestamp_utc}`: proveniência dos
-  arquivos de entrada
+- `inputs.{thresholds,metrics}.{schema,schema_version,timestamp_utc}`:
+  proveniência dos arquivos de entrada
 - `bundle.sha256`: hash do bundle (thresholds + metrics em serialização canônica)
 
 Os artefatos markdown e SVG são regenerados a partir desse payload; qualquer
