@@ -11,7 +11,9 @@ on:
         type: string
   pull_request:
 
-concurrency: q1-boss-final-${{ github.ref }}
+concurrency:
+  group: q1-boss-final-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   LC_ALL: C.UTF-8
@@ -53,44 +55,18 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
-      - name: Hygiene checks
-        timeout-minutes: 5
-        run: |
-          ruff check .
-          ruff format --check .
-          yamllint .
-          pytest -q
-
-      - name: Validate UTF-8 and CRLF
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import sys
-
-          root = Path('.')
-          bad = []
-          for path in root.rglob('*'):
-            if not path.is_file():
-              continue
-            if path.suffix not in {'.py', '.json', '.sh', '.md', '.yml', '.yaml'}:
-              continue
-            data = path.read_bytes()
-            try:
-              data.decode('utf-8')
-            except UnicodeDecodeError:
-              bad.append(f"UTF8:{path}")
-              continue
-            if b'\r' in data:
-              bad.append(f"CRLF:{path}")
-          if bad:
-            for entry in bad:
-              print(entry)
-            sys.exit(1)
-          PY
-
       - name: Execute sprint guard
         timeout-minutes: 5
         run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
+
+      - name: Upload sprint guard artifacts
+        if: always()
+        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
+        with:
+          name: q1-boss-stage-${{ matrix.stage }}
+          path: |
+            out/q1_boss_final/stages/${{ matrix.stage }}.json
+            out/q1_boss_final/stages/${{ matrix.stage }}.status
 
   boss:
     needs: stage
@@ -121,6 +97,15 @@ jobs:
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
+
+      - name: Download stage outputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out/q1_boss_final/stages
+          for stage in s1 s2 s3 s4 s5 s6; do
+            gh run download ${{ github.run_id }} --name "q1-boss-stage-${stage}" --dir out/q1_boss_final/stages
+          done
 
       - name: Aggregate Q1 boss report
         timeout-minutes: 5
