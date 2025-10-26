@@ -15,9 +15,7 @@ on:
       - 'docs/scorecards/**'
       - 'Makefile'
 
-concurrency:
-  group: s6-scorecards-${{ github.ref }}
-  cancel-in-progress: true
+concurrency: { group: s6-scorecards-${{ github.ref }}, cancel-in-progress: true }
 
 jobs:
   scorecards:
@@ -70,7 +68,7 @@ jobs:
         timeout-minutes: 5
         run: ruff format --check scripts/
 
-      - name: Validate Grafana dashboard structure
+      - name: Validate Grafana dashboard structure (jq)
         run: |
           jq -e '
             .title == "Scorecards Quorum Failover Staleness" and
@@ -84,7 +82,10 @@ jobs:
             (.panels[4] | .title == "Boss Aggregate Ratio" and .type == "stat" and .targets[0].expr == "avg(q1_boss_final_ratio)")
           ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null
             def has_panel(id; title; expr):
-              any(.panels[]; .id == id and .title == title and .type == "stat" and (.targets | length == 1) and .targets[0].expr == expr);
+              any(
+                .panels[];
+                .id == id and .title == title and .type == "stat" and (.targets | length == 1) and .targets[0].expr == expr
+              );
 
             if
               (.title == "Scorecards Quorum Failover Staleness") and
@@ -171,11 +172,21 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+
             const reportDir = process.env.REPORT_DIR;
-            const commentPath = path.join(reportDir, 'pr_comment.md');
+            const commentPath = reportDir ? path.join(reportDir, 'pr_comment.md') : undefined;
             let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
-            if (fs.existsSync(commentPath)) {
-              body = fs.readFileSync(commentPath, 'utf8');
+
+            if (!reportDir) {
+              core.warning('Variável de ambiente REPORT_DIR não definida; usando mensagem padrão.');
+            } else {
+              try {
+                if (fs.existsSync(commentPath)) {
+                  body = fs.readFileSync(commentPath, 'utf8');
+                }
+              } catch (fileError) {
+                core.warning(`Falha ao ler comentário gerado: ${fileError.message}`);
+              }
             }
 
             try {
@@ -192,7 +203,11 @@ jobs:
             } catch (error) {
               core.warning(`Falha ao criar comentário no PR: ${error.message}`);
             } finally {
-              core.summary.addHeading('S6 Scorecards');
-              core.summary.addRaw(body);
-              await core.summary.write();
+              try {
+                core.summary.addHeading('S6 Scorecards');
+                core.summary.addRaw(body);
+                await core.summary.write();
+              } catch (summaryError) {
+                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+              }
             }
