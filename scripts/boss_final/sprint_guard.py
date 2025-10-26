@@ -66,10 +66,12 @@ def run_stage(stage: str) -> Dict[str, str]:
         return run_static_stage(STATIC_STAGES[stage])
     if stage == "s6":
         report = generate_report()
-        summary = report["summary"]
-        ratio = Decimal(summary["passing"]) / Decimal(max(summary["total_metrics"], 1))
+        metrics = report["metrics"]
+        passing = sum(1 for metric in metrics.values() if metric["ok"])
+        total = max(len(metrics), 1)
+        ratio = Decimal(passing) / Decimal(total)
         formatted_ratio = f"{ratio.quantize(Decimal('0.0001'))}"
-        status = summary["status"]
+        status = "pass" if report["status"] == "PASS" else "fail"
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         return {
             "schema_version": 1,
@@ -79,7 +81,7 @@ def run_stage(stage: str) -> Dict[str, str]:
             "formatted_score": formatted_ratio,
             "generated_at": now,
             "report_path": str(S6_OUTPUT_DIR.relative_to(BASE_DIR)),
-            "bundle_sha256": report["bundle_sha256"],
+            "bundle_sha256": report["bundle"]["sha256"],
             "on_fail": "Executar playbook de estabilização da Sprint 6 e rodar watchers.",
         }
     fail("UNKNOWN-STAGE", f"Stage desconhecido: {stage}")
