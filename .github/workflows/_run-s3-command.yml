@@ -10,7 +10,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
+      - uses: actions/checkout@9bb56186c3b3904c0d7bf6008d63fb09d019f64d
       - run: sudo apt-get update && sudo apt-get install -y python3 jq
       - run: |
           set -euo pipefail

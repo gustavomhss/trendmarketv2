@@ -83,7 +83,7 @@ def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     base = tmp_path
     actions_lock = {
         "actions/checkout": {
-            "sha": "b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
+            "sha": "9bb56186c3b3904c0d7bf6008d63fb09d019f64d",
             "date": "2024-09-15",
             "author": "GitHub Actions",
             "rationale": "Checkout",
@@ -102,7 +102,7 @@ def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
                 "  build:",
                 "    runs-on: ubuntu-latest",
                 "    steps:",
-                "      - uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
+                "      - uses: actions/checkout@9bb56186c3b3904c0d7bf6008d63fb09d019f64d",
             ]
         ),
         encoding="utf-8",

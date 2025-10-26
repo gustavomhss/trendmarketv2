@@ -1,7 +1,7 @@
 {
   "actions/checkout": {
-    "sha": "b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6",
-    "date": "2024-09-15",
+    "sha": "9bb56186c3b3904c0d7bf6008d63fb09d019f64d",
+    "date": "2024-11-12",
     "author": "GitHub Actions",
     "rationale": "Checkout with hardened fetch for deterministic builds."
   },
