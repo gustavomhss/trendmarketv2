@@ -78,7 +78,13 @@ def load_json(path: Path, schema_key: str) -> Dict:
     if not path.exists():
         fail("MISSING", f"Arquivo obrigatório ausente: {path}")
     try:
-        content = json.loads(path.read_text(encoding="utf-8"))
+        raw_text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        fail("ENCODING", f"Arquivo não está em UTF-8: {path}: {exc}")
+    except OSError as exc:
+        fail("IO", f"Falha ao ler {path}: {exc}")
+    try:
+        content = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         fail("INVALID-JSON", f"Falha ao decodificar {path}: {exc}")
     schema_path = SCHEMA_FILES[schema_key]
