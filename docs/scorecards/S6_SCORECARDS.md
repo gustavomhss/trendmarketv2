@@ -20,7 +20,11 @@ Gerar scorecards determinísticos com contratos DbC explícitos, validação por
   - Percentuais: uma casa decimal e sufixo `%` (ex.: `99.7%`).
   - Razões: quatro casas decimais (ex.: `0.1935`).
   - Tempos: três casas decimais + `s` (ex.: `2.103s`).
-- **Ordenação**: respeitar o campo `order` de `thresholds.json` em todos os relatórios.
+- **Ordenação**: métricas sempre avaliadas na ordem fixa `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct`.
+- **Entradas**:
+  - `thresholds.json`: objeto plano com `version`, `timestamp_utc` e chaves de limite (`*_min`/`*_max`) para cada métrica mandatória.
+  - `metrics_static.json`: objeto plano com `version`, `timestamp_utc` e valores observados para as cinco métricas mandatórias.
+- **Saída (`report.json`)**: contém `timestamp_utc`, `status` em maiúsculas e bloco `metrics.<metric>.{observed,target,ok}` para cada métrica.
 - **DbC**: entradas ausentes ou inválidas geram erros `S6-E-*` ou `BOSS-E-*` e encerram com `guard_status=FAIL`.
 
 ## Governança de Actions
@@ -43,6 +47,20 @@ As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e docum
 ## Geração de relatórios
 
 Os relatórios devem ficar em `out/s6_scorecards/` e `out/q1_boss_final/`. Ambos contêm `report.json`, `report.md`, `badge.svg`, `pr_comment.md`, `bundle.sha256` e `guard_status.txt`. Nunca editar manualmente estes arquivos — execute os scripts correspondentes.
+
+### Exemplos de bundles
+
+- `s6_validation/thresholds.json`
+
+  ```json
+  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","quorum_ratio_min":0.6667,"failover_time_p95_s_max":60.0,"staleness_p95_s_max":30.0,"cdc_lag_p95_s_max":120.0,"divergence_pct_max":1.0}
+  ```
+
+- `s6_validation/metrics_static.json`
+
+  ```json
+  {"version":1,"timestamp_utc":"2024-09-01T05:55:00Z","quorum_ratio":0.92,"failover_time_p95_s":7.8,"staleness_p95_s":12.0,"cdc_lag_p95_s":45.0,"divergence_pct":0.4}
+  ```
 
 ## Rotação e fallback
 
