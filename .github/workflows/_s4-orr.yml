@@ -354,10 +354,11 @@ jobs:
           if-no-files-found: warn
 
       - name: dbt run (DuckDB)
-        if: ${{ !inputs.run_tla && hashFiles('dbt_project.yml') != '' }}
+        if: ${{ !inputs.run_tla && hashFiles('data/analytics/dbt/dbt_project.yml') != '' }}
         shell: bash
         run: |
           set -euo pipefail
+          DBT_DIR="data/analytics/dbt"
           python -m pip install --upgrade pip
           python -m pip install 'dbt-duckdb~=1.8.0'
           mkdir -p out/dbt out/dbt/tmp "$HOME/.dbt"
@@ -378,9 +379,9 @@ jobs:
               echo "        memory_limit: \"1GB\""
             } > "$HOME/.dbt/profiles.yml"
           fi
-          dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
-          dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
-          dbt run --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt debug --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt run --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
 
       - name: Iniciar SUT (Compose/npm)
         if: ${{ !inputs.run_tla && inputs.run_sut }}
@@ -418,20 +419,50 @@ jobs:
           SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
       - name: "S5 DBT (DuckDB) — deps/debug/run/test"
-        if: ${{ inputs.run_dbt_ci || hashFiles('dbt_project.yml') != '' }}
+        if: ${{ inputs.run_dbt_ci || hashFiles('data/analytics/dbt/dbt_project.yml') != '' }}
         shell: bash
         run: |
           set -euo pipefail
+          DBT_DIR="data/analytics/dbt"
           python3 -m pip install --upgrade 'dbt-duckdb~=1.8.0'
           mkdir -p out/dbt
           mkdir -p "$HOME/.dbt"
           if [ ! -f "$HOME/.dbt/profiles.yml" ]; then
             python3 -c "from pathlib import Path; profile_path = Path.home() / '.dbt' / 'profiles.yml'; profile_path.write_text('ce_profile:\n  target: duckdb\n  outputs:\n    duckdb:\n      type: duckdb\n      path: out/dbt/ce.duckdb\n      schema: main\n      threads: 4\n')"
           fi
-          dbt deps --profiles-dir "$HOME/.dbt" --profile ce_profile
-          dbt debug --profiles-dir "$HOME/.dbt" --profile ce_profile
-          dbt run --profiles-dir "$HOME/.dbt" --profile ce_profile
-          dbt test --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt deps --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt debug --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt run --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+          dbt test --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
+
+      - name: Preparar ferramentas ORR
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          if ! command -v k6 >/dev/null 2>&1; then
+            sudo apt-get install -y k6
+          fi
+          if ! command -v trivy >/dev/null 2>&1; then
+            sudo apt-get install -y trivy
+          fi
+          if ! command -v semgrep >/dev/null 2>&1; then
+            python3 -m pip install --upgrade 'semgrep<2'
+          fi
+          if ! command -v gitleaks >/dev/null 2>&1; then
+            VER="8.18.1"
+            URL="https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+            curl -fsSL "$URL" -o gitleaks.tgz
+            tar -xzf gitleaks.tgz gitleaks
+            sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+            rm -f gitleaks gitleaks.tgz
+          fi
+
+      - name: Executar Sprint 4 gate (make prega)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make prega
 
       - name: Empacotar evidências (S4)
         if: ${{ always() && !inputs.run_tla }}
@@ -439,59 +470,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          TS=$(date +%Y%m%d_%H%M%S)
-          BUNDLE="out/s4_evidence_bundle_${TS}"
-
-          if [ -x scripts/orr_s4_bundle.sh ]; then
-            echo "[bundle] Executando scripts/orr_s4_bundle.sh"
-            bash scripts/orr_s4_bundle.sh
+          if ! compgen -G "out/s4_evidence_bundle_*.zip" >/dev/null; then
+            echo "[bundle] bundle ausente; executando scripts/s4_bundle.sh"
+            ./scripts/s4_bundle.sh
           else
-            echo "[bundle] Script de bundle ausente; usando fallback"
-            mkdir -p "${BUNDLE}"
-            copy_if_exists() {
-              local path="$1"
-              local dest="$2"
-              if [ -e "$path" ]; then
-                echo "[bundle] Incluindo $path"
-                cp -r "$path" "$dest/" || true
-              else
-                echo "[bundle] Ausente: $path (ok)"
-              fi
-            }
-
-            echo "[bundle] Coletando diretórios alvo"
-            copy_if_exists out/s4_orr "${BUNDLE}"
-            copy_if_exists out/pip-audit "${BUNDLE}"
-
-            if TARGETS=$(find analytics -type d -name target -print -quit 2>/dev/null) && [ -n "${TARGETS:-}" ]; then
-              echo "[bundle] Incluindo analytics/**/target"
-              while IFS= read -r -d '' target; do
-                rel_path="${target#analytics/}"
-                dest_dir="${BUNDLE}/analytics/${rel_path%/target}"
-                mkdir -p "$dest_dir"
-                cp -r "$target" "$dest_dir/" || true
-              done < <(find analytics -type d -name target -print0)
-            else
-              echo "[bundle] Ausente: analytics/**/target (ok)"
-            fi
-
-            copy_if_exists docs/ADRs "${BUNDLE}"
-            copy_if_exists docs/runbooks "${BUNDLE}"
-            copy_if_exists ops/watchers.yml "${BUNDLE}"
-            copy_if_exists scripts/microbench_dec.sh "${BUNDLE}"
-            copy_if_exists benches "${BUNDLE}"
-            copy_if_exists out/sut.log "${BUNDLE}"
-
-            if command -v zip >/dev/null 2>&1; then
-              echo "[bundle] Compactando em zip"
-              (cd out && zip -r "$(basename "${BUNDLE}").zip" "$(basename "${BUNDLE}")")
-              rm -rf "${BUNDLE}"
-            else
-              echo "[bundle] zip ausente; usando tar.gz"
-              tar -C out -czf "${BUNDLE}.tar.gz" "$(basename "${BUNDLE}")"
-              rm -rf "${BUNDLE}"
-            fi
+            echo "[bundle] bundle já disponível"
           fi
+
+      - name: Upload dbt docs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4-dbt-docs
+          path: data/analytics/dbt/target
+          if-no-files-found: error
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
@@ -501,6 +493,7 @@ jobs:
           path: |
             out/s4_evidence_bundle_*.zip
             out/s4_evidence_bundle_*.tar.gz
+            out/s4_evidence_bundle_*.zip.sha256
           if-no-files-found: ignore
 
       - name: Upload auditoria pip

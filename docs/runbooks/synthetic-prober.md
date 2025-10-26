@@ -11,7 +11,7 @@ Restaurar `synthetic_ok_ratio ≥ 0.99` e latência p95 ≤ 500 ms durante incid
    - Painel **Synthetic latency p75 / p95** (com links para Tempo) para identificar rotas degradadas.
    - Painel **Synthetic success ratio (5m avg)** para confirmar violação do limiar 0.99.
 2. Usar o link "Trace quick links" no dashboard para abrir Tempo/Jaeger já filtrado por `service=$service` e `route=$route`.
-3. Correlacionar com métricas de backend (`ops/grafana/D1-Latencia.json`) caso a latência do core também esteja elevada.
+3. Correlacionar com métricas de backend (`obs/ops/grafana/D1-Latencia.json`) caso a latência do core também esteja elevada.
 4. Verificar erros recentes em `loki` (`{service="trendmarket-amm",route="$route"}`) para detectar timeouts/5xx.
 
 ## Mitigar
@@ -20,7 +20,7 @@ Restaurar `synthetic_ok_ratio ≥ 0.99` e latência p95 ≤ 500 ms durante incid
    - Se for rota `pricing`, considerar degradar cálculo avançado (`pricing.mode=basic`).
 2. **Latência generalizada**
    - Escalar horizontalmente o serviço `trendmarket-amm` (`kubectl scale deployment trendmarket-amm --replicas=+$N`).
-   - Reduzir carga opcional suspendendo ganchos não críticos (`ops/watchers/a110_observability.yaml` → comentar hooks `lite_mode`).
+   - Reduzir carga opcional suspendendo ganchos não críticos (`obs/ops/watchers/a110_observability.yaml` → comentar hooks `lite_mode`).
 3. **Falha externa (dependências)**
    - Checar status dos provedores (CDC, oráculos). Se instáveis, acionar runbooks correspondentes antes de retomar o prober.
    - Pausar prober sintético via `scripts/sim_run.sh --probe synthetic --pause` para evitar ruído enquanto a causa raiz é tratada.

@@ -7,7 +7,7 @@ export TZ=UTC
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OUT_DIR="$ROOT/../out/orr_gatecheck/evidence"
-SEED_FILE="$ROOT/seeds/load/cardinality_seed.json"
+SEED_FILE="$ROOT/data/cdc/seeds/load/cardinality_seed.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

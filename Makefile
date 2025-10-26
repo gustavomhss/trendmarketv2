@@ -7,8 +7,8 @@ BUNDLE_DIR := out
 
 .PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean
 
-prega: env.pin orr bundle anchors nb.perf
-	@echo "[prega] pipeline concluída"
+prega: env.pin orr dbt.docs rum.docs flame bundle anchors nb.perf
+        @echo "[prega] pipeline concluída"
 
 env.pin:
 	@set -euo pipefail; ./scripts/env_pin_check.sh
@@ -17,7 +17,7 @@ orr:
 	@set -euo pipefail; ./scripts/orr_s4_run.sh
 
 bundle:
-	@set -euo pipefail; ./scripts/s4_bundle.sh
+        @set -euo pipefail; ./scripts/s4_bundle.sh
 
 anchors:
 	@set -euo pipefail; ./scripts/anchor_integrity.sh
@@ -29,7 +29,7 @@ micro:
 	@set -euo pipefail; ./scripts/microbench_dec.sh
 
 dbt.docs:
-	@set -euo pipefail; dbt docs generate --project-dir analytics/dbt --profiles-dir analytics/dbt/profiles
+        @set -euo pipefail; dbt docs generate --project-dir data/analytics/dbt --profiles-dir data/analytics/dbt/profiles
 
 rum.docs:
 	@set -euo pipefail; node fe/rum/collector_publish.js
@@ -62,7 +62,7 @@ orr-bundle:
 
 s6-scorecards:
 	@set -euo pipefail; PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 python scripts/scorecards/s6_scorecards.py
-	@set -euo pipefail; python -m jsonschema --instance out/s6_scorecards/report.json --schema schemas/report.schema.json
+        @set -euo pipefail; python -m jsonschema --instance out/s6_scorecards/report.json --schema data/cdc/schemas/report.schema.json
 
 q1-boss-final:
 	@set -euo pipefail; for variant in primary clean; do \
@@ -71,4 +71,4 @@ q1-boss-final:
 		done; \
 	done
 	@set -euo pipefail; python scripts/boss_final/aggregate_q1.py
-	@set -euo pipefail; python -m jsonschema --instance out/q1_boss_final/report.json --schema schemas/q1_boss_report.schema.json
+        @set -euo pipefail; python -m jsonschema --instance out/q1_boss_final/report.json --schema data/cdc/schemas/q1_boss_report.schema.json

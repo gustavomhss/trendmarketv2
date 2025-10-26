@@ -6,16 +6,16 @@ A Sprint 2 consolida o pacote ORR fast→real com métricas determinísticas, ga
 ---
 
 ## 1. Burn-rate
-- **Reproduza com:** `bash scripts/analysis/burnrate_report.sh --out out/orr_gatecheck/evidence --seed-file seeds/engine/burnrate_seed.json`
-- **Semente:** `seeds/engine/burnrate_seed.json` (SHA256 `a00f7ebfa430c396e193156a68036692905c3cb253c9f18ca3bd7b8e5db3b3f2`)
+- **Reproduza com:** `bash scripts/analysis/burnrate_report.sh --out out/orr_gatecheck/evidence --seed-file data/cdc/seeds/engine/burnrate_seed.json`
+- **Semente:** `data/cdc/seeds/engine/burnrate_seed.json` (SHA256 `a00f7ebfa430c396e193156a68036692905c3cb253c9f18ca3bd7b8e5db3b3f2`)
 - **Evidências:**
   - `out/orr_gatecheck/evidence/analysis/burnrate_report.csv`
   - `out/orr_gatecheck/evidence/analysis/burnrate_chart.png`
   - `out/orr_gatecheck/evidence/burnrate/forecast_window.json`
 
 ## 2. CWV / INP
-- **Reproduza com:** `bash scripts/analysis/cwv_report.sh --out out/orr_gatecheck/evidence --seed-file seeds/rum/cwv_seed.json`
-- **Semente:** `seeds/rum/cwv_seed.json` (SHA256 `55982c89afcbd673f2a6ea390ebed7dffc6e41eff725c4d38695c4ebd1467f70`)
+- **Reproduza com:** `bash scripts/analysis/cwv_report.sh --out out/orr_gatecheck/evidence --seed-file data/cdc/seeds/rum/cwv_seed.json`
+- **Semente:** `data/cdc/seeds/rum/cwv_seed.json` (SHA256 `55982c89afcbd673f2a6ea390ebed7dffc6e41eff725c4d38695c4ebd1467f70`)
 - **Evidências:**
   - `out/orr_gatecheck/evidence/analysis/cwv_report.csv`
   - `out/orr_gatecheck/evidence/analysis/cwv_chart.png`
@@ -23,16 +23,16 @@ A Sprint 2 consolida o pacote ORR fast→real com métricas determinísticas, ga
   - `out/orr_gatecheck/evidence/rum/confidence_intervals.csv`
 
 ## 3. Spans & Tracing
-- **Reproduza com:** `bash scripts/analysis/spans_report.sh --out out/orr_gatecheck/evidence --seed-file seeds/engine/spans_seed.json`
-- **Semente:** `seeds/engine/spans_seed.json` (SHA256 `44eda8df7df0c95a13a4c54cb2257d326731f3acafffb71290091d3bb44e4804`)
+- **Reproduza com:** `bash scripts/analysis/spans_report.sh --out out/orr_gatecheck/evidence --seed-file data/cdc/seeds/engine/spans_seed.json`
+- **Semente:** `data/cdc/seeds/engine/spans_seed.json` (SHA256 `44eda8df7df0c95a13a4c54cb2257d326731f3acafffb71290091d3bb44e4804`)
 - **Evidências:**
   - `out/orr_gatecheck/evidence/analysis/spans_report.csv`
   - `out/orr_gatecheck/evidence/analysis/spans_chart.png`
   - `out/orr_gatecheck/evidence/traces/span_coverage.txt`
 
 ## 4. Cardinalidade
-- **Reproduza com:** `bash scripts/analysis/cardinality_report.sh --out out/orr_gatecheck/evidence --seed-file seeds/load/cardinality_seed.json`
-- **Semente:** `seeds/load/cardinality_seed.json` (SHA256 `9b7e4d4985710bc6e78366e8fe3a43d21791462622e7ee42a58edc13dbc2119c`)
+- **Reproduza com:** `bash scripts/analysis/cardinality_report.sh --out out/orr_gatecheck/evidence --seed-file data/cdc/seeds/load/cardinality_seed.json`
+- **Semente:** `data/cdc/seeds/load/cardinality_seed.json` (SHA256 `9b7e4d4985710bc6e78366e8fe3a43d21791462622e7ee42a58edc13dbc2119c`)
 - **Evidências:**
   - `out/orr_gatecheck/evidence/cardinality.txt`
   - `out/orr_gatecheck/evidence/analysis/cardinality_budget.csv`
@@ -49,4 +49,4 @@ A Sprint 2 consolida o pacote ORR fast→real com métricas determinísticas, ga
 - **Evidências:** `provenance_onchain.json`, `signatures.json`, `bundle.sha256.txt`.
 
 ## 7. Seeds & Determinismo
-Todas as sementes residem em `seeds/` (separadas por domínio) e são versionadas. O `scripts/analysis/run_all.sh` aceita `--seed-dir` para reusar os mesmos valores e manter o pipeline determinístico.
+Todas as sementes residem em `data/cdc/seeds/` (separadas por domínio) e são versionadas. O `scripts/analysis/run_all.sh` aceita `--seed-dir` para reusar os mesmos valores e manter o pipeline determinístico.

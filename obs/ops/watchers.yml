@@ -19,7 +19,7 @@ watchers:
     threshold: "> 0"
     action: block_merge
     owner: data_platform
-    runbook: analytics/dbt/models/README.md
+    runbook: data/analytics/dbt/models/README.md
     notify:
       slack: "#data-quality"
   - hook: schema_registry_drift
@@ -27,7 +27,7 @@ watchers:
     threshold: "== true"
     action: block_deploy
     owner: data_platform
-    runbook: docs/runbooks/schema-drift.md
+    runbook: docs/runbooks/schema_registry.md
     notify:
       slack: "#dec-incident"
   - hook: slo_budget_breach

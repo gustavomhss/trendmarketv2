@@ -16,7 +16,7 @@ Impedir variação de fee > 20% por 5 minutos e restaurar `mbp:fee:delta_pct_5m 
 
 ## Diagnóstico
 1. **Integridade dos parâmetros** — Capture os limites vigentes `fees.*` via `bash scripts/policy_engine.sh --emit-policy-hash --out out/obs_gatecheck/evidence` e valide `fees.cooldown_ms`, `fees.delta_bound`.
-2. **Volume / Profundidade** — Gere relatório determinístico com `python tools/sim_harness.py --fixtures seeds/s3 --scenario burst --out out/obs_gatecheck/evidence/fee_sim_burst.json` para observar `quorum_ratio`, `divergence_max` e impacto em fees.
+2. **Volume / Profundidade** — Gere relatório determinístico com `python tools/sim_harness.py --fixtures data/cdc/seeds/s3 --scenario burst --out out/obs_gatecheck/evidence/fee_sim_burst.json` para observar `quorum_ratio`, `divergence_max` e impacto em fees.
 3. **Auditoria** — Verifique `out/obs_gatecheck/logs/fee_engine.log` (ou Loki `label=service:fee-engine`) para entradas `reason=cooldown_active` ausentes.
 4. **Dependências** — Se `depth` estiver anômala, consulte o runbook de liquidez/market maker e confirme se não há correlato com `cdc_lag` ou `oracle`.
 

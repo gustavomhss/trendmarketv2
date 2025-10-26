@@ -15,19 +15,30 @@ log() {
 }
 
 EVIDENCES=(
-  "$OUT_DIR/dec_120rps_60m.json"
+  "$OUT_DIR/EVI/dec_120rps_60m.json"
   "$OUT_DIR/EVI/dec_p95_seconds_5m.json"
   "$OUT_DIR/EVI/cdc_lag_p95_seconds_5m.json"
   "$OUT_DIR/EVI/web_inp_snapshot.json"
   "$OUT_DIR/EVI/schema_compat.log"
+  "$OUT_DIR/EVI/schema_diff.txt"
+  "$OUT_DIR/EVI/semgrep.json"
   "$OUT_DIR/EVI/gitleaks.json"
   "$OUT_DIR/EVI/trivy.json"
   "$OUT_DIR/EVI/governance.json"
+  "$OUT_DIR/EVI/ACCEPTANCE_OK"
+  "$OUT_DIR/EVI/GATECHECK_OK"
+  "$OUT_DIR/dec_flame.svg"
+  "$OUT_DIR/dec_flame_p99.svg"
+  "$ROOT/data/analytics/dbt/target/catalog.json"
+  "$ROOT/data/analytics/dbt/target/manifest.json"
+  "$ROOT/data/analytics/dbt/target/index.html"
   "$ROOT/docs/spec/invariants.md"
   "$ROOT/docs/spec/tla/dec_pre_ga.tla"
   "$ROOT/docs/ADRs"
-  "$ROOT/ops/prom"
+  "$ROOT/obs/ops/prom"
   "$ROOT/docs/runbooks"
+  "$ROOT/obs/ops/watchers.yml"
+  "$ROOT/obs/ops/watchers"
 )
 
 TMP_LIST=$(mktemp)

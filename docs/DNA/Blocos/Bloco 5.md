@@ -126,7 +126,7 @@ pack_defaults:
 - `rag_mrr_min`: 0.35
 - `proof_coverage_ratio_min`: 0.80
 
-**Dry‑run:** `ops/watchers/dry_run.sh` — registra `sim_trace_hash`, owners e ações A110 por trigger.
+**Dry‑run:** `obs/ops/watchers/dry_run.sh` — registra `sim_trace_hash`, owners e ações A110 por trigger.
 
 **Trigger sintético registrado (2025‑09‑08 09:12:33‑03:00):**
 ```json
@@ -443,7 +443,7 @@ closeout:
 - **D0 (Dados)**: `fi_dv01_curve.csv`, `irs_pv_curve.csv`, `vol_surface.csv`, `xva_three_numbers.csv`, `amm_hysteresis.csv`.
 - **D1 (QGen & HN)**: 20/10 por pack (`/ops/tests/qgen/…`).
 - **D2 (Probes)**: bordas/refutações; log `…_probes.log`.
-- **D3 (Watchers dry‑run)**: `ops/watchers/config.yaml` + `dry_run.sh`.
+- **D3 (Watchers dry‑run)**: `obs/ops/watchers/config.yaml` + `dry_run.sh`.
 - **D4 (Evidence)**: `merge_evidence.py` / `closeout.py`.
 - **D5 (Gatecheck)**: `gatecheck.py` (C1–C4 / M1–M4).
 - **D6 (Manifest)**: `ops/closeout_manifest.yaml`.

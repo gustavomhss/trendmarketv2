@@ -297,8 +297,8 @@ Comitê envolvido nesta edição: Vitalik (criptoeconomia/governança), Jobs (pr
 
 ## 12) Evidências & Repositório — “Auditable by Design”
 **Código**: `specs/tla/*`, `services/oracle/*`, `core/mbp/*`, `platform/api,v2/*`, `apps/web/*`, `ops/*`, `sdk/*`.  
-**Ops/Status**: `ops/prometheus/*.rules.yml`, `ops/grafana/*.json`, `ops/chaos/*`, `ops/backup/*`, `ops/anchor_job.yml`.  
-**Docs**: `docs/adr/*`, `docs/runbooks/*`, `docs/public/*`, `docs/privacy/*`, `docs/security/*`, `docs/audit/*`.  
+**Ops/Status**: `obs/ops/prometheus/*.rules.yml`, `obs/ops/grafana/*.json`, `ops/chaos/*`, `ops/backup/*`, `ops/anchor_job.yml`.  
+**Docs**: `docs/ADRs/*`, `docs/runbooks/*`, `docs/public/*`, `docs/privacy/*`, `docs/security/*`, `docs/audit/*`.  
 **Evidence**: `out/evidence/{S19_formal_audit,S20_privacy_compliance,S21_sre_dr,S22_platform_public,S23_canary_payouts,S24_ga_public}/` com `manifest.json`, hashes, relatórios e export de métricas.
 
 ---

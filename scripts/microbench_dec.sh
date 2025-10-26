@@ -10,9 +10,9 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 101
 fi
 
-cargo bench --quiet || true
+cargo bench --manifest-path engine/Cargo.toml --quiet || true
 
-THRESHOLDS_FILE="ops/microbench_thresholds.json"
+THRESHOLDS_FILE="obs/ops/microbench_thresholds.json"
 if [ ! -f "$THRESHOLDS_FILE" ]; then
   echo "[microbench] ERRO: $THRESHOLDS_FILE não encontrado" >&2
   exit 101

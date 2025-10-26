@@ -1,5 +1,5 @@
 # Testes sintéticos para promtool (regras acima)
-# Rodar: promtool test rules ops/watchers/tests/a110_rules_test.yaml
+# Rodar: promtool test rules obs/ops/watchers/tests/a110_rules_test.yaml
 
 tests:
 - interval: 1m

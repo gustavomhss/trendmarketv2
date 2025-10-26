@@ -11,7 +11,7 @@ SLO `latency_p95 ≤ 0,8s`.
 ## Passo a passo
 1. **Avaliar contexto**
    - Revisar dashboard `MBP / DEC` (latências, cache hit, failovers).
-   - Confirmar alertas em `ops/watchers.yml` (owner SRE primário).
+   - Confirmar alertas em `obs/ops/watchers.yml` (owner SRE primário).
 2. **Aplicar degrade**
    - Ativar `lite_mode` via `policy_engine.sh set lite_mode=true`.
    - Desabilitar features não críticas: `route_safe_only=true`, `abuse_recheck=false`.
@@ -26,7 +26,7 @@ SLO `latency_p95 ≤ 0,8s`.
    - Executar `python3 scripts/verify_microbench.py` para correlacionar com thresholds históricos.
 5. **Comunicação**
    - Atualizar incidente (`INC-DEC`) e registrar etapas executadas.
-   - Informar produto (`PM DEC`) e Data Platform sobre impacto (ver `ops/watchers.yml`).
+   - Informar produto (`PM DEC`) e Data Platform sobre impacto (ver `obs/ops/watchers.yml`).
 
 ## Evidências obrigatórias
 - Log `out/s4_orr/logs/microbench.txt`.

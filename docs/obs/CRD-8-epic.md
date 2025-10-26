@@ -373,7 +373,7 @@ echo GATECHECK_OK
 
 D6 — Synthetic Prober: `synthetic_requests_total`, `synthetic_latency_seconds` p75/p95, ratio de sucesso e links para traces.
 
-Sprint 1 bundle: `scripts/grafana_snapshot.sh` agrega `ops/grafana/*.json` e `dashboards/grafana/*.json`, garantindo que o export atualizado (incluindo o D6 expandido) seja listado em `out/obs_gatecheck/evidence/dashboards/dashboards_list.txt`.
+Sprint 1 bundle: `scripts/grafana_snapshot.sh` agrega `obs/ops/grafana/*.json` e `dashboards/grafana/*.json`, garantindo que o export atualizado (incluindo o D6 expandido) seja listado em `out/obs_gatecheck/evidence/dashboards/dashboards_list.txt`.
 
 ---
 

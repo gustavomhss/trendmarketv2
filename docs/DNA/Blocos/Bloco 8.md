@@ -869,10 +869,10 @@ update_rag_kpis:
 	python ops/tools/calc_kpis_rag.py evidence/_merged.json --update self
 
 watchers_dry:
-	bash ops/watchers/dry_run.sh
+	bash obs/ops/watchers/dry_run.sh
 
 watchers_fire:
-	python ops/watchers/run_once.py --triggers ops/watchers/watchers_triggers.jsonl
+	python obs/ops/watchers/run_once.py --triggers obs/ops/watchers/watchers_triggers.jsonl
 
 gatecheck:
 	python ops/tools/gatecheck.py --block B08
@@ -929,12 +929,12 @@ for root,_,files in os.walk(sys.argv[1]):
 print(json.dumps(out))
 ```
 
-**ops/watchers/run_once.py**
+**obs/ops/watchers/run_once.py**
 
 ```python
 import argparse, json
 p = argparse.ArgumentParser()
-p.add_argument('--triggers', default='ops/watchers/watchers_triggers.jsonl')
+p.add_argument('--triggers', default='obs/ops/watchers/watchers_triggers.jsonl')
 a = p.parse_args()
 for line in open(a.triggers):
     ev = json.loads(line)
