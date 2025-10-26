@@ -19,6 +19,13 @@
   "panels": [
     {
       "id": 1,
+      "title": "quorum_ratio",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 4, "x": 0, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:quorum_ratio"
       "title": "Quorum Ratio",
       "type": "stat",
       "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
@@ -31,7 +38,14 @@
     },
     {
       "id": 2,
-      "title": "Failover p95 (s)",
+      "title": "failover_time_p95_s",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 4, "x": 4, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:failover_time_p95_s"
+      "title": "Failover Time p95 (s)",
       "type": "stat",
       "gridPos": {"h": 4, "w": 5, "x": 5, "y": 0},
       "targets": [
@@ -43,6 +57,13 @@
     },
     {
       "id": 3,
+      "title": "staleness_p95_s",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:staleness_p95_ms / 1000"
       "title": "Staleness p95 (s)",
       "type": "stat",
       "gridPos": {"h": 4, "w": 5, "x": 10, "y": 0},
@@ -55,6 +76,13 @@
     },
     {
       "id": 4,
+      "title": "cdc_lag_p95_s",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95, cdc_lag_seconds{service=\"trendmarket-amm\", env=\"prod\"}[5m])"
       "title": "CDC Lag p95 (s)",
       "type": "stat",
       "gridPos": {"h": 4, "w": 5, "x": 15, "y": 0},
@@ -67,6 +95,13 @@
     },
     {
       "id": 5,
+      "title": "divergence_pct",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "mbp:oracle:divergence_p95"
       "title": "Divergence (%)",
       "type": "stat",
       "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
@@ -78,6 +113,9 @@
       ]
     }
   ],
-  "schemaVersion": 40,
+  "templating": {
+    "list": []
+  },
+  "schemaVersion": 38,
   "version": 1
 }
