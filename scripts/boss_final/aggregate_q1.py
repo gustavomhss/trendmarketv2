@@ -17,6 +17,7 @@ OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
 ERROR_PREFIX = "BOSS-E"
 
 STAGES = ["s1", "s2", "s3", "s4", "s5", "s6"]
+STAGE_GUARD_SUFFIX = "_guard_status.txt"
 
 SCHEMA_VERSION = 1
 
@@ -41,7 +42,25 @@ def load_stage(stage: str) -> Dict[str, str]:
         fail("STAGE-SCHEMA", f"Campos ausentes para {stage}: {sorted(required - set(data))}")
     if data["stage"].lower() != stage:
         fail("STAGE-MISMATCH", f"ID do estágio divergente em {stage}")
+    guard_status = load_stage_guard_status(stage)
+    if guard_status == "FAIL" and data["status"] != "fail":
+        data["status"] = "fail"
+    if guard_status == "PASS" and data["status"] == "fail":
+        fail("STAGE-GUARD-DIVERGENCE", f"Guard status PASS mas estágio falhou: {stage}")
     return data
+
+
+def load_stage_guard_status(stage: str) -> str:
+    path = STAGES_DIR / f"{stage}{STAGE_GUARD_SUFFIX}"
+    if not path.exists():
+        fail("STAGE-GUARD-MISSING", f"Guard status ausente para {stage}: {path}")
+    try:
+        status = path.read_text(encoding="utf-8").strip().upper()
+    except OSError as exc:
+        fail("STAGE-GUARD-IO", f"Falha ao ler guard status de {stage}: {exc}")
+    if status not in {"PASS", "FAIL"}:
+        fail("STAGE-GUARD-INVALID", f"Valor inválido em guard status de {stage}: {status}")
+    return status
 
 
 def load_all_stages() -> List[Dict[str, str]]:
