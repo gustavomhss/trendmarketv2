@@ -1,46 +1,9 @@
 {
   "version": 1,
   "timestamp_utc": "2024-09-01T06:00:00Z",
-  "metrics": {
-    "quorum_ratio": {
-      "display_name": "Quorum Ratio",
-      "comparison": "gte",
-      "target": 0.6667,
-      "unit": "ratio",
-      "description": "Proporção de feeds ativos no quorum (mínimo 9 nós).",
-      "on_fail": "Ativar fallback TWAP, reiniciar oráculos inativos e revisar alertas de quorum."
-    },
-    "failover_time_p95_s": {
-      "display_name": "Failover p95",
-      "comparison": "lte",
-      "target": 60.0,
-      "unit": "seconds",
-      "description": "Tempo p95 para completar failover automático entre exchanges.",
-      "on_fail": "Executar runbook de failover e validar health-checks das rotas primárias."
-    },
-    "staleness_p95_s": {
-      "display_name": "Staleness p95",
-      "comparison": "lte",
-      "target": 30.0,
-      "unit": "seconds",
-      "description": "Janela p95 de staleness dos dados de mercado na malha MBP.",
-      "on_fail": "Investigar TWAP/heartbeats, checar latência de ingestão e recalibrar buffers."
-    },
-    "cdc_lag_p95_s": {
-      "display_name": "CDC Lag p95",
-      "comparison": "lte",
-      "target": 120.0,
-      "unit": "seconds",
-      "description": "Atraso p95 da replicação CDC para camadas analíticas.",
-      "on_fail": "Acionar squad de dados para reequilibrar consumidores e ampliar throughput do stream."
-    },
-    "divergence_pct": {
-      "display_name": "Divergence %",
-      "comparison": "lte",
-      "target": 1.0,
-      "unit": "percent",
-      "description": "Percentual p95 de divergência entre preços on-chain e fontes de referência.",
-      "on_fail": "Rever pesos de feeds, habilitar overlays e comunicar incident commander."
-    }
-  }
+  "quorum_ratio_min": 0.6667,
+  "failover_time_p95_s_max": 60.0,
+  "staleness_p95_s_max": 30.0,
+  "cdc_lag_p95_s_max": 120.0,
+  "divergence_pct_max": 1.0
 }

@@ -1,282 +1,254 @@
+from __future__ import annotations
+
 import json
-from dataclasses import replace
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-import datetime as dt
 
 import pytest
-from hypothesis import given, seed, strategies as st
-from hypothesis import HealthCheck
-from hypothesis import settings as hp_settings
+from hypothesis import given, strategies as st
 
 from scripts.scorecards import s6_scorecards as scorecards
-
-try:
-    hp_settings.register_profile(
-        "ci",
-        hp_settings(max_examples=50, deadline=None, suppress_health_check=(HealthCheck.too_slow,)),
-    )
-except ValueError:
-    # Profile already registered elsewhere.
-    pass
+from scripts.scorecards.s6_scorecards import (
+    EPSILON,
+    Measurement,
+    ScorecardError,
+    Threshold,
+)
 
 
-def _load_baseline() -> tuple[dict, dict]:
-    thresholds = json.loads(scorecards.THRESHOLD_PATH.read_text(encoding="utf-8"))
-    metrics = json.loads(scorecards.METRICS_PATH.read_text(encoding="utf-8"))
-    return thresholds, metrics
+DECIMAL_VALUES = st.decimals(
+    min_value=-50,
+    max_value=50,
+    places=4,
+    allow_nan=False,
+    allow_infinity=False,
+)
+POSITIVE_DECIMALS = st.decimals(
+    min_value=0,
+    max_value=10,
+    places=4,
+    allow_nan=False,
+    allow_infinity=False,
+)
 
 
-def _write_json(path: Path, payload: dict) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def _make_threshold(
-    *,
-    metric_id: str,
-    comparison: str,
-    target: Decimal,
-    unit: str,
-) -> scorecards.Threshold:
-    return scorecards.Threshold(
+def make_threshold(metric_id: str, comparison: str, target: Decimal, order: int = 1) -> Threshold:
+    return Threshold(
         metric_id=metric_id,
-        display_name=f"metric::{metric_id}",
+        order=order,
+        display_name=f"Metric {metric_id.upper()}",
         comparison=comparison,
-        target=target,
-        unit=unit,
+        target_value=target,
+        unit="percent",
         description="desc",
-        on_fail="runbook",
+        on_fail="fix",
     )
 
 
-def _make_measurement(*, metric_id: str, observed: Decimal, unit: str) -> scorecards.Measurement:
-    return scorecards.Measurement(
+def make_measurement(metric_id: str, value: Decimal) -> Measurement:
+    return Measurement(
         metric_id=metric_id,
-        observed=observed,
-        unit=unit,
-        sample_size=42,
-        window="rolling",
+        value=value,
+        unit="percent",
+        sample_size=100,
+        measurement="2024-01-01/2024-01-02",
     )
 
 
-def test_generate_report_produces_pass_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    thresholds, metrics = _load_baseline()
-    threshold_path = tmp_path / "thresholds.json"
+@given(target=st.integers(-10, 10))
+def test_compare_gte_respects_epsilon_boundary(target: int) -> None:
+    target_decimal = Decimal(target)
+    threshold = make_threshold("m1", "gte", target_decimal)
+    within_epsilon = make_measurement("m1", target_decimal - (EPSILON / 2))
+    status, delta = scorecards.compare(threshold, within_epsilon)
+    assert status == "pass"
+    assert delta == within_epsilon.value - target_decimal
+
+    beyond_epsilon = make_measurement("m1", target_decimal - (EPSILON * 2))
+    status, _ = scorecards.compare(threshold, beyond_epsilon)
+    assert status == "fail"
+
+
+@given(target=st.integers(-10, 10))
+def test_compare_lte_respects_epsilon_boundary(target: int) -> None:
+    target_decimal = Decimal(target)
+    threshold = make_threshold("m2", "lte", target_decimal)
+    within_epsilon = make_measurement("m2", target_decimal + (EPSILON / 2))
+    status, delta = scorecards.compare(threshold, within_epsilon)
+    assert status == "pass"
+    assert delta == target_decimal - within_epsilon.value
+
+    beyond_epsilon = make_measurement("m2", target_decimal + (EPSILON * 2))
+    status, _ = scorecards.compare(threshold, beyond_epsilon)
+    assert status == "fail"
+
+
+@given(
+    target=DECIMAL_VALUES,
+    measurement_delta=DECIMAL_VALUES,
+    relax=POSITIVE_DECIMALS,
+    tighten=POSITIVE_DECIMALS,
+)
+def test_metamorphic_relax_and_tighten_gte(
+    target: Decimal,
+    measurement_delta: Decimal,
+    relax: Decimal,
+    tighten: Decimal,
+) -> None:
+    threshold = make_threshold("m3", "gte", target)
+    measurement_value = target - measurement_delta
+    measurement = make_measurement("m3", measurement_value)
+    status, _ = scorecards.compare(threshold, measurement)
+
+    relaxed_threshold = make_threshold("m3", "gte", target - relax)
+    relaxed_status, _ = scorecards.compare(relaxed_threshold, measurement)
+    if status == "pass":
+        assert relaxed_status == "pass"
+
+    tightened_threshold = make_threshold("m3", "gte", target + tighten)
+    tightened_status, _ = scorecards.compare(tightened_threshold, measurement)
+    if status == "fail":
+        assert tightened_status == "fail"
+
+
+@given(
+    target=DECIMAL_VALUES,
+    measurement_delta=DECIMAL_VALUES,
+    relax=POSITIVE_DECIMALS,
+    tighten=POSITIVE_DECIMALS,
+)
+def test_metamorphic_relax_and_tighten_lte(
+    target: Decimal,
+    measurement_delta: Decimal,
+    relax: Decimal,
+    tighten: Decimal,
+) -> None:
+    threshold = make_threshold("m4", "lte", target)
+    measurement_value = target + measurement_delta
+    measurement = make_measurement("m4", measurement_value)
+    status, _ = scorecards.compare(threshold, measurement)
+
+    relaxed_threshold = make_threshold("m4", "lte", target + relax)
+    relaxed_status, _ = scorecards.compare(relaxed_threshold, measurement)
+    if status == "pass":
+        assert relaxed_status == "pass"
+
+    tightened_threshold = make_threshold("m4", "lte", target - tighten)
+    tightened_status, _ = scorecards.compare(tightened_threshold, measurement)
+    if status == "fail":
+        assert tightened_status == "fail"
+
+
+@pytest.mark.parametrize(
+    "value, unit, expected",
+    [
+        (Decimal("99.94"), "percent", "99.9%"),
+        (Decimal("0.23456"), "ratio", "0.2346"),
+        (Decimal("12.3456"), "seconds", "12.346s"),
+        (Decimal("5"), "other", "5"),
+    ],
+)
+def test_format_value_canonical(value: Decimal, unit: str, expected: str) -> None:
+    assert scorecards.format_value(value, unit) == expected
+
+
+def _write_inputs(tmp_path: Path) -> tuple[Path, Path]:
+    thresholds = {
+        "schema_version": 1,
+        "generated_at": "2024-01-01T00:00:00Z",
+        "metrics": [
+            {
+                "id": "metric_availability",
+                "order": 1,
+                "display_name": "Availability",
+                "comparison": "gte",
+                "target_value": "99.95",
+                "unit": "percent",
+                "description": "Availability target",
+                "on_fail": "Scale the service",
+            }
+        ],
+    }
+    metrics = {
+        "schema_version": 1,
+        "collected_at": "2024-01-01T00:00:00Z",
+        "metrics": [
+            {
+                "id": "metric_availability",
+                "value": "99.97",
+                "unit": "percent",
+                "sample_size": 4800,
+                "measurement": "2024-01-01/2024-01-02",
+            }
+        ],
+    }
+    thresholds_path = tmp_path / "thresholds.json"
     metrics_path = tmp_path / "metrics.json"
-    _write_json(threshold_path, thresholds)
-    _write_json(metrics_path, metrics)
-    output_dir = tmp_path / "artifacts"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-
-    report = scorecards.generate_report(threshold_path, metrics_path)
-
-    assert report["status"] == "PASS"
-    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
-    assert guard_status == "PASS\n"
-    saved_report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
-    assert saved_report["bundle"]["sha256"] == report["bundle"]["sha256"]
+    thresholds_path.write_text(json.dumps(thresholds), encoding="utf-8")
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+    return thresholds_path, metrics_path
 
 
-def test_generate_report_handles_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    thresholds, metrics = _load_baseline()
-    metrics["metrics"]["divergence_pct"]["observed"] = 99.0
-    threshold_path = tmp_path / "thresholds.json"
-    metrics_path = tmp_path / "metrics.json"
-    _write_json(threshold_path, thresholds)
-    _write_json(metrics_path, metrics)
-    output_dir = tmp_path / "artifacts"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-
-    report = scorecards.generate_report(threshold_path, metrics_path)
-
-    assert report["status"] == "FAIL"
-    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
-    assert guard_status == "FAIL\n"
-
-
-def test_generate_report_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    thresholds, metrics = _load_baseline()
-    threshold_path = tmp_path / "thresholds.json"
-    metrics_path = tmp_path / "metrics.json"
-    _write_json(threshold_path, thresholds)
-    _write_json(metrics_path, metrics)
-    output_dir = tmp_path / "artifacts"
-    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
-
-    class FrozenDateTime:
+def _freeze_datetime(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FrozenDateTime(datetime):
         @classmethod
-        def now(cls, tz: dt.tzinfo | None = None) -> dt.datetime:
-            tzinfo = tz or dt.timezone.utc
-            return dt.datetime(2024, 1, 1, 12, 0, 0, tzinfo=tzinfo)
+        def now(cls, tz: timezone | None = None) -> datetime:
+            return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz or timezone.utc)
 
     monkeypatch.setattr(scorecards, "datetime", FrozenDateTime)
 
-    scorecards.generate_report(threshold_path, metrics_path)
-    first_snapshot = {
-        item.name: item.read_text(encoding="utf-8") for item in sorted(output_dir.iterdir())
-    }
 
-    scorecards.generate_report(threshold_path, metrics_path)
-    second_snapshot = {
-        item.name: item.read_text(encoding="utf-8") for item in sorted(output_dir.iterdir())
-    }
-
-    assert first_snapshot == second_snapshot
-
-
-def test_compare_respects_epsilon_bounds() -> None:
-    target = Decimal("1.0")
-    threshold_gte = _make_threshold(metric_id="quorum_ratio", comparison="gte", target=target, unit="ratio")
-    close_pass = target - (scorecards.EPSILON / Decimal("2"))
-    close_fail = target - (scorecards.EPSILON * 2)
-    measurement_pass = _make_measurement(metric_id="quorum_ratio", observed=close_pass, unit="ratio")
-    measurement_fail = _make_measurement(metric_id="quorum_ratio", observed=close_fail, unit="ratio")
-
-    assert scorecards.compare(threshold_gte, measurement_pass).ok
-    assert not scorecards.compare(threshold_gte, measurement_fail).ok
-
-    threshold_lte = _make_threshold(metric_id="staleness_p95_s", comparison="lte", target=target, unit="seconds")
-    lte_pass = target + (scorecards.EPSILON / Decimal("2"))
-    lte_fail = target + (scorecards.EPSILON * 2)
-    measurement_lte_pass = _make_measurement(
-        metric_id="staleness_p95_s", observed=lte_pass, unit="seconds"
-    )
-    measurement_lte_fail = _make_measurement(
-        metric_id="staleness_p95_s", observed=lte_fail, unit="seconds"
-    )
-
-    assert scorecards.compare(threshold_lte, measurement_lte_pass).ok
-    assert not scorecards.compare(threshold_lte, measurement_lte_fail).ok
-
-
-def test_canonical_dump_is_stable() -> None:
-    payload = {"b": 1, "a": 2}
-    dumped = scorecards.canonical_dump(payload)
-    assert dumped.endswith("\n")
-    expected = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
-    assert dumped == expected
-
-
-@given(
-    base=st.integers(min_value=1, max_value=5000),
-    wiggle=st.integers(min_value=0, max_value=2000),
-    relax=st.integers(min_value=0, max_value=2000),
-)
-@hp_settings(profile="ci")
-@seed(12345)
-def test_relaxing_gte_threshold_preserves_pass(base: int, wiggle: int, relax: int) -> None:
-    target = Decimal(base) / Decimal("1000")
-    measurement_value = target + Decimal(wiggle) / Decimal("1000")
-    threshold = _make_threshold(metric_id="quorum_ratio", comparison="gte", target=target, unit="ratio")
-    measurement = _make_measurement(metric_id="quorum_ratio", observed=measurement_value, unit="ratio")
-    assert scorecards.compare(threshold, measurement).ok
-    relaxed_target = target - Decimal(relax) / Decimal("1000")
-    if relaxed_target < Decimal("0"):
-        relaxed_target = Decimal("0")
-    relaxed = replace(threshold, target=relaxed_target)
-    assert scorecards.compare(relaxed, measurement).ok
-
-
-@given(
-    base=st.integers(min_value=1, max_value=5000),
-    deficit=st.integers(min_value=1, max_value=2000),
-    tighten=st.integers(min_value=0, max_value=2000),
-)
-@hp_settings(profile="ci")
-@seed(12345)
-def test_tightening_gte_threshold_preserves_failure(base: int, deficit: int, tighten: int) -> None:
-    target = Decimal(base) / Decimal("1000")
-    measurement_value = target - Decimal(deficit) / Decimal("1000")
-    threshold = _make_threshold(metric_id="quorum_ratio", comparison="gte", target=target, unit="ratio")
-    measurement = _make_measurement(metric_id="quorum_ratio", observed=measurement_value, unit="ratio")
-    assert not scorecards.compare(threshold, measurement).ok
-    tightened_target = target + Decimal(tighten) / Decimal("1000")
-    tightened = replace(threshold, target=tightened_target)
-    assert not scorecards.compare(tightened, measurement).ok
-
-
-@given(
-    base=st.integers(min_value=1, max_value=5000),
-    wiggle=st.integers(min_value=0, max_value=2000),
-    relax=st.integers(min_value=0, max_value=2000),
-)
-@hp_settings(profile="ci")
-@seed(12345)
-def test_relaxing_lte_threshold_preserves_pass(base: int, wiggle: int, relax: int) -> None:
-    target = Decimal(base) / Decimal("1000")
-    measurement_value = target - Decimal(wiggle) / Decimal("1000")
-    threshold = _make_threshold(metric_id="staleness_p95_s", comparison="lte", target=target, unit="seconds")
-    measurement = _make_measurement(
-        metric_id="staleness_p95_s", observed=measurement_value, unit="seconds"
-    )
-    assert scorecards.compare(threshold, measurement).ok
-    relaxed_target = target + Decimal(relax) / Decimal("1000")
-    relaxed = replace(threshold, target=relaxed_target)
-    assert scorecards.compare(relaxed, measurement).ok
-
-
-@given(
-    base=st.integers(min_value=1, max_value=5000),
-    excess=st.integers(min_value=1, max_value=2000),
-    tighten=st.integers(min_value=0, max_value=2000),
-)
-@hp_settings(profile="ci")
-@seed(12345)
-def test_tightening_lte_threshold_preserves_failure(base: int, excess: int, tighten: int) -> None:
-    target = Decimal(base) / Decimal("1000")
-    measurement_value = target + Decimal(excess) / Decimal("1000")
-    threshold = _make_threshold(metric_id="staleness_p95_s", comparison="lte", target=target, unit="seconds")
-    measurement = _make_measurement(
-        metric_id="staleness_p95_s", observed=measurement_value, unit="seconds"
-    )
-    assert not scorecards.compare(threshold, measurement).ok
-    tightened_target = target - Decimal(tighten) / Decimal("1000")
-    if tightened_target < Decimal("0"):
-        tightened_target = Decimal("0")
-    tightened = replace(threshold, target=tightened_target)
-    assert not scorecards.compare(tightened, measurement).ok
-
-
-def test_contract_failure_missing_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    metrics_path = tmp_path / "metrics.json"
-    metrics_path.write_text("{}", encoding="utf-8")
-    output_dir = tmp_path / "artifacts"
+def test_generate_report_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    output_dir = tmp_path / "out"
     monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
+    _freeze_datetime(monkeypatch)
+    thresholds_path, metrics_path = _write_inputs(tmp_path)
 
-    with pytest.raises(RuntimeError) as excinfo:
+    report_first = scorecards.generate_report(thresholds_path, metrics_path)
+    markdown_first = (output_dir / "report.md").read_text(encoding="utf-8")
+    bundle_hash_first = report_first["bundle_sha256"]
+
+    report_second = scorecards.generate_report(thresholds_path, metrics_path)
+    markdown_second = (output_dir / "report.md").read_text(encoding="utf-8")
+
+    assert report_second["bundle_sha256"] == bundle_hash_first
+    assert markdown_first == markdown_second
+    assert (output_dir / "bundle.sha256").read_text(encoding="utf-8").strip() == bundle_hash_first
+    assert (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip() == "PASS"
+    assert "| Métrica | Valor |" in markdown_first
+
+
+def test_generate_report_missing_thresholds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    output_dir = tmp_path / "out"
+    monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
+    _, metrics_path = _write_inputs(tmp_path)
+
+    with pytest.raises(ScorecardError) as exc:
         scorecards.generate_report(tmp_path / "missing.json", metrics_path)
-    assert "S6-E-MISSING" in str(excinfo.value)
-    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
-    assert guard_status == "FAIL\n"
+    assert exc.value.code == "S6-E-MISSING"
 
 
-def test_contract_failure_schema_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    thresholds = {"version": 1, "timestamp_utc": "2024-01-01T00:00:00Z"}
-    metrics = {"version": 1, "timestamp_utc": "2024-01-01T00:00:00Z", "metrics": {}}
-    threshold_path = tmp_path / "thresholds.json"
-    metrics_path = tmp_path / "metrics.json"
-    _write_json(threshold_path, thresholds)
-    _write_json(metrics_path, metrics)
-    output_dir = tmp_path / "artifacts"
+def test_generate_report_schema_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    output_dir = tmp_path / "out"
     monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
+    thresholds_path, metrics_path = _write_inputs(tmp_path)
+    thresholds_path.write_text(
+        json.dumps({"schema_version": 1, "generated_at": "2024-01-01T00:00:00Z"}),
+        encoding="utf-8",
+    )
 
-    with pytest.raises(RuntimeError) as excinfo:
-        scorecards.generate_report(threshold_path, metrics_path)
-    assert "S6-E-SCHEMA" in str(excinfo.value)
-    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
-    assert guard_status == "FAIL\n"
+    with pytest.raises(ScorecardError) as exc:
+        scorecards.generate_report(thresholds_path, metrics_path)
+    assert exc.value.code == "S6-E-SCHEMA"
 
 
-def test_contract_failure_encoding_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    threshold_path = tmp_path / "thresholds.json"
-    threshold_path.write_bytes(b"\xff\xfe")
-    metrics_path = tmp_path / "metrics.json"
-    metrics_path.write_text("{}", encoding="utf-8")
-    output_dir = tmp_path / "artifacts"
+def test_generate_report_invalid_encoding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    output_dir = tmp_path / "out"
     monkeypatch.setattr(scorecards, "OUTPUT_DIR", output_dir)
+    thresholds_path, metrics_path = _write_inputs(tmp_path)
+    thresholds_path.write_bytes(b"\xff\xfe\x00invalid")
 
-    with pytest.raises(RuntimeError) as excinfo:
-        scorecards.generate_report(threshold_path, metrics_path)
-    assert "S6-E-ENCODING" in str(excinfo.value)
-    guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8")
-    assert guard_status == "FAIL\n"
+    with pytest.raises(ScorecardError) as exc:
+        scorecards.generate_report(thresholds_path, metrics_path)
+    assert exc.value.code == "S6-E-ENCODING"
