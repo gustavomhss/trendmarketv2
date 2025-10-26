@@ -40,7 +40,8 @@ class MetricSpec:
     label: str
     comparison: str
 from jsonschema import Draft7Validator, ValidationError
-import jsonschema  
+
+BASE_DIR = Path(__file__).resolve().parents[2]
 
 getcontext().prec = 28
 getcontext().rounding = ROUND_HALF_EVEN
@@ -51,6 +52,21 @@ ERROR_PREFIX = "S6"
 SCHEMA_VERSION = 1
 
 
+class ScorecardError(RuntimeError):
+    """Exception raised for scorecard failures with a canonical code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = f"{ERROR_PREFIX}-E-{code}"
+        self.message = message
+        super().__init__(f"{self.code}:{message}")
+
+
+def fail(code: str, message: str) -> None:
+    raise ScorecardError(code, message)
+
+
+@dataclass(frozen=True)
+class MetricSpec:
 SCHEMA_FILES = {
     "thresholds": SCHEMAS_DIR / "thresholds.schema.json",
     "metrics": SCHEMAS_DIR / "metrics.schema.json",
@@ -65,6 +81,9 @@ class MetricDefinition:
     comparator: str
     unit: str
     quantize: Decimal
+    markdown_suffix: str
+    unit: str
+    on_fail: str
     runbook: str
 
 
@@ -135,6 +154,9 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
         comparator="gte",
         unit="ratio",
         quantize=Decimal("0.0001"),
+        markdown_suffix="",
+        unit="ratio",
+        on_fail="Ativar fallback TWAP, reiniciar oráculos inativos e revisar alertas de quorum.",
         runbook="Ativar fallback TWAP, reiniciar oráculos inativos e revisar alertas de quorum.",
     ),
     MetricDefinition(
@@ -142,6 +164,9 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
         label="Failover Time p95 (s)",
         comparison="lte",
         quantize=Decimal("0.001"),
+        markdown_suffix="s",
+        unit="seconds",
+        on_fail="Executar runbook de failover e validar health-checks das rotas primárias.",
       
         unit="seconds",
         quantize=Decimal("0.001"),
@@ -153,6 +178,9 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
         comparator="lte",
         unit="seconds",
         quantize=Decimal("0.001"),
+        markdown_suffix="s",
+        unit="seconds",
+        on_fail="Investigar TWAP/heartbeats, checar latência de ingestão e recalibrar buffers.",
         runbook="Investigar TWAP/heartbeats, checar latência de ingestão e recalibrar buffers.",
     ),
     MetricDefinition(
@@ -161,11 +189,18 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
         comparator="lte",
         unit="seconds",
         quantize=Decimal("0.001"),
+        markdown_suffix="s",
+        unit="seconds",
+        on_fail="Acionar squad de dados para reequilibrar consumidores e ampliar throughput do stream.",
         runbook="Acionar squad de dados para reequilibrar consumidores e ampliar throughput do stream.",
     ),
     MetricDefinition(
         key="divergence_pct",
         label="Divergence (%)",
+        threshold_key="divergence_pct_max",
+        comparison="lte",
+        quantize=Decimal("0.1"),
+        markdown_suffix="%",
         comparator="lte",
         unit="percent",
         quantize=Decimal("0.1"),
@@ -173,6 +208,12 @@ METRIC_DEFINITIONS: List[MetricDefinition] = [
     ),
 ]
 
+
+SCHEMA_FILES = {
+    "thresholds": SCHEMAS_DIR / "thresholds.schema.json",
+    "metrics": SCHEMAS_DIR / "metrics.schema.json",
+    "report": SCHEMAS_DIR / "report.schema.json",
+}
 
 def fail(code_suffix: str, message: str) -> None:
     raise ScorecardError(f"{ERROR_PREFIX}-E-{code_suffix}", message)
@@ -195,8 +236,12 @@ def _validator_for(schema_key: str) -> jsonschema.Draft7Validator:
 @lru_cache(maxsize=None)
 def _load_schema(schema_key: str) -> Dict[str, Any]:
     schema_path = SCHEMA_FILES[schema_key]
-    with schema_path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        return json.loads(schema_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:  # pragma: no cover - configuration error
+        fail("SCHEMA-MISSING", f"Schema ausente: {schema_path}: {exc}")
+    except json.JSONDecodeError as exc:  # pragma: no cover - configuration error
+        fail("SCHEMA-INVALID", f"Schema inválido em {schema_path}: {exc}")
 
 
 @lru_cache(maxsize=None)
@@ -205,8 +250,7 @@ def _get_validator(schema_key: str) -> Draft7Validator:
     return Draft7Validator(schema)
 
 
-def load_json(path: Path, schema_key: str) -> Dict:
-def load_json(path: Path, schema_key: str) -> Dict[str, object]:
+def load_json(path: Path, schema_key: str) -> Dict[str, Any]:
     if not path.exists():
         fail("MISSING", f"Arquivo obrigatório ausente: {path}")
     try:
@@ -219,6 +263,7 @@ def load_json(path: Path, schema_key: str) -> Dict[str, object]:
         content = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         fail("INVALID-JSON", f"Falha ao decodificar {path}: {exc}")
+    validator = _get_validator(schema_key)
     try:
         validator = _validator_for(schema_key)
         validator.validate(content)
@@ -230,7 +275,6 @@ def load_json(path: Path, schema_key: str) -> Dict[str, object]:
     schema_path = SCHEMA_FILES[schema_key]
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     try:
-        validator = _get_validator(schema_key)
         validator.validate(content)
     except ValidationError as exc:
         fail("SCHEMA", f"Violação de schema em {path}: {exc.message}")
@@ -243,6 +287,30 @@ def decimal_from(value: object) -> Decimal:
     if isinstance(value, (int, float, str)):
         try:
             return Decimal(str(value))
+        except Exception as exc:  # pragma: no cover - defensive
+            fail("DECIMAL", f"Valor inválido para Decimal: {value} ({exc})")
+    fail("DECIMAL", f"Valor não numérico: {value}")
+
+
+def evaluate_metrics(thresholds: Dict[str, Any], metrics: Dict[str, Any]) -> List[MetricResult]:
+    results: List[MetricResult] = []
+    for spec in METRIC_SPECS:
+        if spec.threshold_key not in thresholds:
+            fail("MISSING-THRESHOLD", f"Threshold ausente para {spec.threshold_key}")
+        if spec.key not in metrics:
+            fail("MISSING-METRIC", f"Métrica sem coleta: {spec.key}")
+        observed = decimal_from(metrics[spec.key])
+        target = decimal_from(thresholds[spec.threshold_key])
+        if spec.comparison == "gte":
+            ok = observed + EPSILON >= target
+        elif spec.comparison == "lte":
+            ok = observed - EPSILON <= target
+        else:  # pragma: no cover - configuration error
+            fail("COMPARISON", f"Operador desconhecido: {spec.comparison}")
+        results.append(MetricResult(spec=spec, observed=observed, target=target, ok=bool(ok)))
+    return results
+
+
         except Exception as exc:  # pragma: no cover - Decimal conversion errors
             fail("DECIMAL", f"Valor inválido {value!r}: {exc}")
     fail("DECIMAL", f"Valor não numérico: {value!r}")
@@ -342,6 +410,29 @@ def isoformat_utc() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def canonical_dumps(data: Dict[str, Any]) -> str:
+    return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "
+"
+
+
+def ensure_output_dir() -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def render_markdown(
+    report: Dict[str, Any],
+    results: List[MetricResult],
+    bundle_sha256: str,
+    thresholds_version: int,
+    metrics_version: int,
+) -> str:
+    lines = ["# Sprint 6 Scorecards", ""]
+    status = report["status"]
+    lines.append(f"{'✅' if status == 'PASS' else '❌'} Status geral: **{status}**")
+    lines.append("")
+    lines.append(f"- Timestamp UTC: {report['timestamp_utc']}")
+    lines.append(f"- Versão dos thresholds: {thresholds_version}")
+    lines.append(f"- Versão das métricas: {metrics_version}")
 def canonical_dumps(data: Dict[str, object]) -> str:
     return json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
 
@@ -466,6 +557,9 @@ def render_markdown(
     lines.append("| Métrica | Observado | Alvo | Status |")
     lines.append("| --- | --- | --- | --- |")
     for result in results:
+        emoji = "✅" if result.ok else "❌"
+        lines.append(
+            f"| {result.spec.label} | {result.formatted_observed()} | {result.formatted_target()} | {emoji} {result.status_text()} |"
         metric_emoji = "✅" if result.ok else "❌"
         lines.append(
             f"| {result.spec.label} | {result.formatted_observed()} | {result.formatted_target()} | "
@@ -491,10 +585,36 @@ def render_markdown(
     failing = [result for result in results if not result.ok]
     if failing:
         for result in failing:
+            lines.append(f"- {result.spec.label}: {result.spec.on_fail}")
             lines.append(f"- {result.definition.label}: {result.definition.runbook}")
     else:
         lines.append("- Nenhuma ação imediata necessária; manter monitoramento de rotina.")
     lines.append("")
+    return "
+".join(lines) + "
+"
+
+
+def build_pr_comment(report: Dict[str, Any], results: List[MetricResult], bundle_sha256: str) -> str:
+    emoji = "✅" if report["status"] == "PASS" else "❌"
+    lines = [f"{emoji} [Sprint 6 report](./report.md)"]
+    lines.append("")
+    lines.append("![Status](./badge.svg)")
+    lines.append("")
+    lines.append("## O que fazer agora")
+    failing = [result for result in results if not result.ok]
+    if failing:
+        for result in failing:
+            lines.append(f"- {result.spec.label}: {result.spec.on_fail}")
+    else:
+        lines.append("- Nenhuma ação imediata necessária.")
+    lines.append("")
+    lines.append(f"Bundle SHA-256: `{bundle_sha256}`")
+    lines.append("")
+    lines.append("Relatório completo disponível em [report.md](./report.md).")
+    return "
+".join(lines) + "
+"
     return "\n".join(lines) + "\n"
 
 
@@ -553,6 +673,10 @@ def build_pr_comment(report: Dict[str, object], bundle_sha256: str, results: Lis
 def render_svg_badge(status: str) -> str:
     color = "#2e8540" if status == "PASS" else "#c92a2a"
     return (
+        "<svg xmlns="http://www.w3.org/2000/svg" width="160" height="40">"
+        f"<rect width="160" height="40" fill="{color}" rx="6"/>"
+        f"<text x="80" y="25" text-anchor="middle" fill="#ffffff" font-size="20""
+        " font-family="Helvetica,Arial,sans-serif">S6 {status}</text>"
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"150\" height=\"40\">"
         f"<rect width=\"150\" height=\"40\" rx=\"6\" fill=\"{color}\"/>"
         f"<text x=\"75\" y=\"25\" text-anchor=\"middle\" fill=\"#ffffff\" font-size=\"18\""
@@ -569,6 +693,26 @@ def render_svg_badge(status: str) -> str:
 
 def render_scorecard_svg(results: List[MetricResult]) -> str:
     rows = len(results)
+    height = 80 + rows * 30
+    svg = [
+        f"<svg xmlns="http://www.w3.org/2000/svg" width="520" height="{height}">",
+        "<style>text{font-family:Helvetica,Arial,sans-serif;font-size:14px;}</style>",
+        f"<rect width="520" height="{height}" fill="#ffffff" stroke="#1f2933" rx="8"/>",
+        "<text x="20" y="30" font-size="18" font-weight="bold">Sprint 6 Scorecards</text>",
+        f"<text x="420" y="30" text-anchor="end" font-size="16">Status: {status}</text>",
+        "<text x="20" y="60" font-weight="bold">Métrica</text>",
+        "<text x="260" y="60" font-weight="bold">Observado</text>",
+        "<text x="370" y="60" font-weight="bold">Alvo</text>",
+        "<text x="470" y="60" font-weight="bold">Status</text>",
+    ]
+    y = 90
+    for result in results:
+        status_color = "#2e8540" if result.ok else "#c92a2a"
+        svg.append(f"<text x="20" y="{y}">{result.spec.label}</text>")
+        svg.append(f"<text x="260" y="{y}">{result.formatted_observed()}</text>")
+        svg.append(f"<text x="370" y="{y}">{result.formatted_target()}</text>")
+        svg.append(
+            f"<text x="470" y="{y}" fill="{status_color}" text-anchor="end">{result.status_text()}</text>"
     height = 70 + rows * 30
     status = compute_status(results)
     height = 60 + 30 * rows
@@ -605,8 +749,8 @@ def render_scorecard_svg(results: List[MetricResult]) -> str:
             f"<text x=\"470\" y=\"{y}\" fill=\"{color}\">{result.status_text()}</text>"
         )
         y += 30
-    lines.append("</svg>")
-    return "".join(lines)
+    svg.append("</svg>")
+    return "".join(svg)
 
 
 def ensure_output_dir() -> None:
@@ -614,7 +758,7 @@ def ensure_output_dir() -> None:
 
 
 def write_outputs(
-    report: Dict[str, object],
+    report: Dict[str, Any],
     results: List[MetricResult],
     thresholds_raw: Dict[str, object],
     metrics_raw: Dict[str, object],
@@ -622,6 +766,11 @@ def write_outputs(
 ) -> None:
     ensure_output_dir()
     (OUTPUT_DIR / "report.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "
+",
+        encoding="utf-8",
+    )
+    markdown = render_markdown(report, results, bundle_sha256, thresholds_version, metrics_version)
         json.dumps(report, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
@@ -633,6 +782,15 @@ def write_outputs(
     pr_comment = build_pr_comment(report, bundle_sha256, results)
     (OUTPUT_DIR / "pr_comment.md").write_text(pr_comment, encoding="utf-8")
     badge_svg = render_svg_badge(report["status"])
+    (OUTPUT_DIR / "badge.svg").write_text(badge_svg + "
+", encoding="utf-8")
+    scorecard_svg = render_scorecard_svg(report["status"], results)
+    (OUTPUT_DIR / "scorecard.svg").write_text(scorecard_svg + "
+", encoding="utf-8")
+    (OUTPUT_DIR / "guard_status.txt").write_text(report["status"] + "
+", encoding="utf-8")
+    (OUTPUT_DIR / "bundle.sha256").write_text(bundle_sha256 + "
+", encoding="utf-8")
     (OUTPUT_DIR / "badge.svg").write_text(badge_svg + "\n", encoding="utf-8")
     scorecard_svg = render_scorecard_svg(results)
     (OUTPUT_DIR / "scorecard.svg").write_text(scorecard_svg + "\n", encoding="utf-8")
@@ -655,6 +813,38 @@ def generate_report(
 ) -> Dict[str, object]:
     thresholds_raw = load_json(threshold_path, "thresholds")
     metrics_raw = load_json(metrics_path, "metrics")
+    results = evaluate_metrics(thresholds_raw, metrics_raw)
+    status = compute_status(results)
+    timestamp = isoformat_utc()
+    thresholds_version = int(thresholds_raw["version"])
+    metrics_version = int(metrics_raw["version"])
+    report: Dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "timestamp_utc": timestamp,
+        "status": status,
+        "metrics": {
+            result.spec.key: {
+                "observed": result.observed_for_json(),
+                "target": result.target_for_json(),
+                "ok": result.ok,
+            }
+            for result in results
+        },
+        "inputs": {
+            "thresholds": {
+                "version": thresholds_version,
+                "timestamp_utc": thresholds_raw["timestamp_utc"],
+            },
+            "metrics": {
+                "version": metrics_version,
+                "timestamp_utc": metrics_raw["timestamp_utc"],
+            },
+        },
+    }
+    bundle_payload = canonical_dumps(thresholds_raw) + canonical_dumps(metrics_raw)
+    bundle_hash = hashlib.sha256(bundle_payload.encode("utf-8")).hexdigest()
+    report["bundle"] = {"sha256": bundle_hash}
+    write_outputs(report, results, bundle_hash, thresholds_version, metrics_version)
     targets, threshold_versions = extract_threshold_targets(thresholds_raw)
     observations, metric_versions = extract_metric_observations(metrics_raw)
     results = evaluate_metrics(targets, observations)
@@ -678,8 +868,8 @@ def generate_report(
         report=report,
         results=results,
         bundle_sha256=bundle_hash,
-        thresholds_version=int(thresholds_raw["version"]),
-        metrics_version=int(metrics_raw["version"]),
+        thresholds_version=thresholds_version,
+        metrics_version=metrics_version,
     )
     validate_report_schema(report)
     write_outputs(report, results, thresholds_raw, metrics_raw, bundle_hash)
@@ -704,6 +894,10 @@ def main() -> int:
         artifacts = generate_report()
     except ScorecardError as exc:
         ensure_output_dir()
+        (OUTPUT_DIR / "guard_status.txt").write_text("FAIL
+", encoding="utf-8")
+        return 1
+    else:
         (OUTPUT_DIR / "guard_status.txt").write_text("FAIL\n", encoding="utf-8")
         print(f"FAIL {exc}")
         return 1
