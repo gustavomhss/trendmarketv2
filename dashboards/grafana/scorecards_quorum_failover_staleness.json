@@ -16,65 +16,68 @@
   "panels": [
     {
       "id": 1,
-      "title": "Guard Status",
+      "title": "quorum_ratio",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "gridPos": {"h": 6, "w": 4, "x": 0, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(scorecard_guard_status)"
+          "expr": "mbp:oracle:quorum_ratio"
         }
       ]
     },
     {
       "id": 2,
-      "title": "Latency p50",
+      "title": "failover_time_p95_s",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "gridPos": {"h": 6, "w": 4, "x": 4, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum(rate(scorecard_latency_bucket[5m])) by (le))"
+          "expr": "mbp:oracle:failover_time_p95_s"
         }
       ]
     },
     {
       "id": 3,
-      "title": "Latency p95",
+      "title": "staleness_p95_s",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(scorecard_latency_bucket[5m])) by (le))"
+          "expr": "mbp:oracle:staleness_p95_ms / 1000"
         }
       ]
     },
     {
       "id": 4,
-      "title": "Scorecard Freshness (m)",
+      "title": "cdc_lag_p95_s",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "(time() - max(scorecard_last_run_timestamp)) / 60"
+          "expr": "quantile_over_time(0.95, cdc_lag_seconds{service=\"trendmarket-amm\", env=\"prod\"}[5m])"
         }
       ]
     },
     {
       "id": 5,
-      "title": "Boss Aggregate Ratio",
+      "title": "divergence_pct",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 4},
+      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0},
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(q1_boss_final_ratio)"
+          "expr": "mbp:oracle:divergence_p95"
         }
       ]
     }
   ],
+  "templating": {
+    "list": []
+  },
   "schemaVersion": 38,
   "version": 1
 }
