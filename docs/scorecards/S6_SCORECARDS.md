@@ -1,82 +1,109 @@
 # Sprint 6 Scorecards — Runbook
 
-Este runbook consolida as instruções finais da Sprint 6 (Q1) conforme a SPEC vMasterpiece-Final.
+Este runbook descreve o contrato da Sprint 6 para gerar scorecards determinísticos,
+alimentar os guardas de CI/CD e publicar evidências auditáveis. A fonte de verdade
+continua sendo a [especificação Sprint 6 (Q1)](../DNA/quarters/Q1/Sprint%206%20(Q1).md);
+este documento consolida os passos operacionais exigidos pela governança.
 
 ## Objetivo
 
-Gerar scorecards determinísticos com contratos DbC explícitos, validação por schema e publicação automática via GitHub Actions.
+Calcular o veredito PASS/FAIL para os cinco indicadores mandatórios — `quorum_ratio`,
+`failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s` e `divergence_pct` — a
+partir dos contratos versionados em `s6_validation/`. Os resultados alimentam o
+workflow `s6-scorecards` e o estágio S6 do pipeline Boss Final.
 
-## Fluxo operacional
+## Entradas canônicas
 
-1. `python scripts/scorecards/s6_scorecards.py`
-2. Validar `out/s6_scorecards/report.json` contra `schemas/report.schema.json`.
-3. Rodar `scripts/watchers/s6_scorecard_guard.sh` para garantir `guard_status.txt == PASS`.
-4. Executar `python scripts/boss_final/aggregate_q1.py` para consolidar no Boss Final.
+Os arquivos em `s6_validation/` são as únicas entradas para o cálculo offline:
 
-## Contratos e formatos
+- `thresholds.json`: objeto plano com `schema`, `version`, `timestamp_utc` e os
+  limites (`*_min` ou `*_max`) para cada métrica.
+- `metrics_static.json`: objeto plano com `schema`, `version`, `timestamp_utc` e os
+  valores observados correspondentes.
 
-- **Decimal**: contexto `prec=28`, `ROUND_HALF_EVEN`, epsilon `1e-12` aplicado nas comparações.
-- **Formatação**:
-  - Percentuais: uma casa decimal e sufixo `%` (ex.: `99.7%`).
-  - Razões: quatro casas decimais (ex.: `0.1935`).
-  - Tempos: três casas decimais + `s` (ex.: `2.103s`).
-- **Ordenação**: métricas sempre avaliadas na ordem fixa `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct`.
-- **Entradas**:
-  - `thresholds.json`: declara `version`, `timestamp_utc` e o bloco `metrics.<metric>.{version,comparison,target}` para as cinco métricas em ordem fixa.
-  - `metrics_static.json`: declara `version`, `timestamp_utc` e o bloco `metrics.<metric>.{version,observed}` espelhando os mesmos identificadores.
-  - `thresholds.json`: objeto plano com `version`, `timestamp_utc` e chaves fixas `quorum_ratio`, `failover_time_p95_s`, `staleness_p95_s`, `cdc_lag_p95_s`, `divergence_pct` representando os alvos.
-  - `metrics_static.json`: objeto plano com `version`, `timestamp_utc` e valores observados para as cinco métricas mandatórias.
-- **Saída (`report.json`)**: contém `timestamp_utc`, `status` em maiúsculas e bloco `metrics.<metric>.{observed,target,ok}` para cada métrica.
-- **DbC**: entradas ausentes ou inválidas geram erros `S6-E-*` ou `BOSS-E-*` e encerram com `guard_status=FAIL`.
+Ambos validam contra os schemas Draft‑07 (`schemas/thresholds.schema.json` e
+`schemas/metrics.schema.json`) e permanecem bloqueados em `version: 1` e
+`schema` `*.v1`. Formatação canônica (`sort_keys=true`, newline final e UTF‑8) é
+obrigatória para preservar o hash do bundle.
 
-## Governança de Actions
+## Aritmética e EPS
 
-As ações GitHub devem ser fixadas por SHA em `.github/workflows/*.yml` e documentadas em `actions.lock`. Cada slug mapeia para um objeto com as chaves `sha`, `date`, `author` e `rationale`. Rotacionar SHAs a cada 30 dias ou quando surgir CVE crítico. Procedimento:
+A avaliação utiliza `Decimal` (precisão 28, `ROUND_HALF_EVEN`) com epsilon fixo
+`1e-12`. Cada métrica aplica o comparador definido no contrato (`gte` para
+`quorum_ratio`, `lte` para as demais). O resultado global é PASS apenas se todos
+os indicadores estiverem dentro dos limites após considerar o epsilon.
 
-1. Abrir PR dedicado com atualização das versões.
-2. Validar hash/assinatura do commit da action.
-3. Atualizar a entrada `actions.<slug>` em `actions.lock` garantindo o objeto `{sha, date, author, rationale}`.
+## Execução local
 
-O arquivo `actions.lock` deve mapear cada slug de action em `actions:` para um objeto com os campos `sha`, `date`, `author`
-e `rationale`, garantindo leitura determinística por ferramentas automatizadas.
+```bash
+PYTHONHASHSEED=0 PYTHONUTF8=1 HYPOTHESIS_PROFILE=ci HYPOTHESIS_SEED=12345 \
+  python scripts/scorecards/s6_scorecards.py
+python -m jsonschema --instance out/s6_scorecards/report.json --schema schemas/report.schema.json
+```
+
+A execução gera `out/s6_scorecards/` contendo `report.json`, `report.md`,
+`pr_comment.md`, `badge.svg`, `scorecard.svg`, `bundle.sha256` e `guard_status.txt`.
+O guard é FAIL se qualquer métrica reprovar; o watcher `scripts/watchers/s6_scorecard_guard.sh`
+exige `guard_status.txt` = `PASS`.
+
+## Estrutura do report
+
+`report.json` segue o schema Draft‑07 `schemas/report.schema.json`:
+
+- `schema`: `trendmarketv2.sprint6.report`
+- `schema_version`: `1`
+- `timestamp_utc`: instante da avaliação
+- `status`: `PASS` ou `FAIL`
+- `metrics.<metric>.{observed,target,ok}`: valores em ponto flutuante
+- `inputs.{thresholds,metrics}.{schema,version,timestamp_utc}`: proveniência dos
+  arquivos de entrada
+- `bundle.sha256`: hash do bundle (thresholds + metrics em serialização canônica)
+
+Os artefatos markdown e SVG são regenerados a partir desse payload; qualquer
+edição manual é proibida.
+
+## Governança
+
+1. Alterações em `s6_validation/**` exigem validação contra os schemas, execução
+   do script e atualização dos artefatos em `out/s6_scorecards/`.
+2. `actions.lock` deve listar cada ação por SHA, data, autor e justificativa.
+3. Toda revisão precisa de aprovação dupla (scorecards + observabilidade) e deve
+   referenciar a seção aplicável da especificação.
+4. Pull requests devem anexar o hash do bundle (`out/s6_scorecards/bundle.sha256`).
+
+## CI (`.github/workflows/s6-scorecards.yml`)
+
+O workflow executa em matriz (`clean_runner: [false,true]`) com `concurrency`
+por branch. As etapas principais:
+
+1. Instalação de dependências (`ruff`, `pytest`, `hypothesis`, `jsonschema`, `jq`).
+2. Linters (`yamllint`, `ruff check`, `ruff format --check`).
+3. Validação do painel Grafana via `jq` com as cinco métricas exigidas.
+4. `pytest -q` para a suíte de scorecards/Boss Final.
+5. Higiene UTF‑8/EOL.
+6. Execução do script `scripts/scorecards/s6_scorecards.py` e validação do schema
+do relatório gerado.
+7. Upload de artefatos, leitura do guard e comentário no PR com fallback para o
+   `GITHUB_STEP_SUMMARY` em caso de falha da API.
+
+O job falha se qualquer etapa crítica retornar status diferente de `PASS` ou se o
+`guard_status.txt` não contiver `PASS`.
+
+## Pipeline Boss Final
+
+O estágio S6 do `q1-boss-final` reutiliza o mesmo script e valida o guard antes de
+agregar os resultados. O agregador (`scripts/boss_final/aggregate_q1.py`) só emite
+PASS se todos os estágios (S1–S6) passaram nas variantes `primary` e `clean`.
 
 ## Troubleshooting
 
-| Sintoma | Ação |
-| --- | --- |
-| `UTF8:path` ao rodar pipeline | Converter arquivo para UTF-8 puro e remover BOM. |
-| `CRLF:path` | Aplicar `dos2unix` ou regravar o arquivo com finais de linha `\n`. |
-| `S6-E-SCHEMA` ou `BOSS-E-STAGE-SCHEMA` | Validar JSONs com `python -m jsonschema --instance ... --schema ...`. |
-| `guard_status.txt` = `FAIL` | Consultar `report.md` e executar plano de ação da métrica descrito na seção “O que fazer agora”. |
+- **Schema**: use `python -m jsonschema` para diagnosticar mensagens específicas.
+- **Hash divergente**: verifique ordenação de chaves e newline final nos JSONs.
+- **Falha em métricas**: inspeccione `out/s6_scorecards/report.md` para detalhes
+  de cada indicador e siga o runbook indicado pela sprint.
 
-## Geração de relatórios
+## Auditoria
 
-Os relatórios devem ficar em `out/s6_scorecards/` e `out/q1_boss_final/`. Ambos contêm `report.json`, `report.md`, `badge.svg`, `pr_comment.md`, `bundle.sha256` e `guard_status.txt`. Nunca editar manualmente estes arquivos — execute os scripts correspondentes.
-
-### Exemplos de bundles
-
-- `s6_validation/thresholds.json`
-
-  ```json
-  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","metrics":{"quorum_ratio":{"version":1,"comparison":"gte","target":0.6667},"failover_time_p95_s":{"version":1,"comparison":"lte","target":60.0},"staleness_p95_s":{"version":1,"comparison":"lte","target":30.0},"cdc_lag_p95_s":{"version":1,"comparison":"lte","target":120.0},"divergence_pct":{"version":1,"comparison":"lte","target":1.0}}}
-  {"version":1,"timestamp_utc":"2024-09-01T06:00:00Z","quorum_ratio":0.6667,"failover_time_p95_s":60.0,"staleness_p95_s":30.0,"cdc_lag_p95_s":120.0,"divergence_pct":1.0}
-  ```
-
-- `s6_validation/metrics_static.json`
-
-  ```json
-  {"version":1,"timestamp_utc":"2024-09-01T05:55:00Z","metrics":{"quorum_ratio":{"version":1,"observed":0.92},"failover_time_p95_s":{"version":1,"observed":7.8},"staleness_p95_s":{"version":1,"observed":12.0},"cdc_lag_p95_s":{"version":1,"observed":45.0},"divergence_pct":{"version":1,"observed":0.4}}}
-  ```
-
-## Rotação e fallback
-
-- Scorecards diários às 06:00 UTC (workflow `s6-scorecards`).
-- Boss Final às 07:00 UTC com agregação das etapas `s1..s6` (workflow `q1-boss-final`).
-- Comentários de PR sempre acompanham badge; fallback escreve no `GITHUB_STEP_SUMMARY`.
-
-## Referências adicionais
-
-- Schemas: `schemas/thresholds.schema.json`, `schemas/metrics.schema.json`, `schemas/report.schema.json`, `schemas/q1_boss_report.schema.json`.
-- Dados de validação: `s6_validation/thresholds.json`, `s6_validation/metrics_static.json`.
-- Dashboards: `dashboards/grafana/scorecards_quorum_failover_staleness.json` (janela `now-24h → now`).
-
+Arquive sempre os artefatos regenerados (Markdown, SVG, bundle hash) e cite o
+commit correspondente na revisão. Isso garante rastreabilidade completa conforme
+as exigências da Sprint 6.

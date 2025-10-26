@@ -39,6 +39,9 @@ jobs:
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
         clean_runner: [false, true]
+    env:
+      STAGE: ${{ matrix.stage }}
+      CLEAN_RUNNER: ${{ matrix.clean_runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
@@ -50,10 +53,11 @@ jobs:
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        timeout-minutes: 5
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
+        timeout-minutes: 5
         run: |
           python -m pip install \
             -r requirements.lock \
@@ -63,218 +67,121 @@ jobs:
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
-      - name: Install jq
-        if: matrix.stage != 's2'
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Install build tooling
-        if: matrix.stage == 's2'
-        run: sudo apt-get update && sudo apt-get install -y jq rustc cargo pkg-config libssl-dev
-
-      - name: Execute sprint guard
-        run: python scripts/boss_final/sprint_guard.py --stage ${{ matrix.stage }}
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y jq
+        timeout-minutes: 5
+        run: sudo apt-get update && sudo apt-get install -y jq yamllint
 
       - name: Execute sprint guard
+        id: run
+        continue-on-error: true
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          if [ "${{ matrix.clean_runner }}" = "true" ]; then
+          if [ "$CLEAN_RUNNER" = "true" ]; then
             variant="clean"
           else
             variant="primary"
           fi
-          python scripts/boss_final/sprint_guard.py --stage "${{ matrix.stage }}" --variant "$variant"
+          echo "variant=$variant" >> "$GITHUB_OUTPUT"
+          python scripts/boss_final/sprint_guard.py --stage "$STAGE" --variant "$variant"
 
       - name: Capture guard result
         id: guard
+        if: always()
         run: |
           set -euo pipefail
-          if [ "${{ matrix.clean_runner }}" = "true" ]; then
-            variant="clean"
-          else
-            variant="primary"
-          fi
-          result_dir="out/q1_boss_final/stages/${{ matrix.stage }}/$variant"
+          variant="${{ steps.run.outputs.variant }}"
+          result_dir="out/q1_boss_final/stages/${STAGE}/${variant}"
           python - <<'PY' "$result_dir" "$GITHUB_OUTPUT"
-from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-variant_dir = Path(sys.argv[1])
+result_dir = Path(sys.argv[1])
 output_path = Path(sys.argv[2])
-result_path = variant_dir / "result.json"
+result_path = result_dir / "result.json"
 if not result_path.exists():
     raise SystemExit(f"resultado ausente: {result_path}")
 result = json.loads(result_path.read_text(encoding="utf-8"))
+status = str(result.get("status", "FAIL")).upper()
 notes = result.get("notes", "").replace("\n", " ").strip()
 with output_path.open("a", encoding="utf-8") as handle:
-    handle.write(f"status={result.get('status', '').upper()}\n")
+    handle.write(f"status={status}\n")
     handle.write(f"notes={notes}\n")
-    handle.write(f"variant={result.get('variant', variant_dir.name)}\n")
-    handle.write(f"variant_dir={variant_dir.as_posix()}\n")
-    handle.write(f"stage_dir={variant_dir.parent.as_posix()}\n")
-    handle.write(f"artifact_name=q1-boss-final-{result.get('stage', '')}-{result.get('variant', variant_dir.name)}\n")
+    handle.write(f"variant={result.get('variant', variant)}\n")
+    handle.write(f"result_dir={result_dir.as_posix()}\n")
 PY
 
-      - name: Publish stage summary
-        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
-        env:
-          STAGE: ${{ matrix.stage }}
-          STATUS: ${{ steps.guard.outputs.status }}
-          NOTES: ${{ steps.guard.outputs.notes }}
-          VARIANT: ${{ steps.guard.outputs.variant }}
-          IS_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
-        with:
-          script: |
-            const stage = process.env.STAGE.toUpperCase();
-            const status = (process.env.STATUS || '').toUpperCase();
-            const notes = process.env.NOTES || '';
-            const variant = process.env.VARIANT || 'primary';
-            const isPr = process.env.IS_PR === 'true';
-            const heading = `Stage ${stage} (${variant})`;
-            const body = `${status === 'PASS' ? '✅' : '❌'} ${heading} — **${status}**\n\n${notes}`;
-            async function writeSummary() {
-              core.summary.addHeading(heading, 3);
-              core.summary.addRaw(`Status: **${status}**\n\n${notes}`);
-              await core.summary.write();
-            }
-            try {
-              if (isPr && variant === 'primary') {
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body,
-                });
-              }
-            } catch (error) {
-              core.warning(`Falha ao comentar na PR: ${error.message}`);
-            } finally {
-              await writeSummary();
-            }
-
       - name: Upload guard bundle
+        if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
-          name: ${{ steps.guard.outputs.artifact_name }}
-          path: ${{ steps.guard.outputs.stage_dir }}
+          name: q1-boss-final-${{ matrix.stage }}-${{ steps.guard.outputs.variant }}
+          path: ${{ steps.guard.outputs.result_dir }}
           if-no-files-found: error
 
-      - name: Upload guard artifacts
+      - name: Upload stage directory
         if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
           name: q1-boss-final-stage-${{ matrix.stage }}
           path: out/q1_boss_final/stages/${{ matrix.stage }}
 
-      - name: Stage summary
+      - name: Publish stage summary
         if: always()
-        run: |
-          stage='${{ matrix.stage }}'
-          comment="out/q1_boss_final/stages/${stage}/comment.md"
-          if [ -f "$comment" ]; then
-            cat "$comment" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          else
-            {
-              echo "### Stage ${stage^^}";
-              echo "";
-              echo "⚠️ Stage ${stage^^} feedback indisponível. Confira os logs do job.";
-              echo "";
-            } >> "$GITHUB_STEP_SUMMARY"
-          
-      - name: Publish stage feedback
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const stage = '${{ matrix.stage }}'.toUpperCase();
-            const base = path.join(process.cwd(), 'out', 'q1_boss_final', 'stages', '${{ matrix.stage }}');
-            const commentPath = path.join(base, 'comment.md');
-            let body = `⚠️ Stage ${stage} feedback indisponível. Consulte o GITHUB_STEP_SUMMARY.`;
-            try {
-              if (fs.existsSync(commentPath)) {
-                body = fs.readFileSync(commentPath, 'utf8');
-              }
-            } catch (readError) {
-              core.warning(`Falha ao ler comentário do estágio ${stage}: ${readError.message}`);
-            }
-            try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            } catch (apiError) {
-              core.warning(`Falha ao publicar comentário do estágio ${stage}: ${apiError.message}`);
-            }
-
-      - name: Upload stage bundle
-        if: always()
-        uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
-        with:
-          name: boss-stage-${{ matrix.stage }}
-          path: out/q1_boss_final/stages/${{ matrix.stage }}
-
-      - name: Comment on PR
-        if: ${{ always() && github.event_name == 'pull_request' }}
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
         env:
-          STAGE_NAME: ${{ matrix.stage }}
-          STAGE_DIR: out/q1_boss_final/stages/${{ matrix.stage }}
+          STAGE: ${{ matrix.stage }}
+          VARIANT: ${{ steps.guard.outputs.variant }}
+          STATUS: ${{ steps.guard.outputs.status }}
+          NOTES: ${{ steps.guard.outputs.notes }}
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
+            const stage = process.env.STAGE.toUpperCase();
+            const variant = process.env.VARIANT || 'primary';
+            const status = (process.env.STATUS || 'FAIL').toUpperCase();
+            const notes = process.env.NOTES || '';
+            const heading = `Stage ${stage} (${variant})`;
+            const body = `${status === 'PASS' ? '✅' : '❌'} ${heading} — **${status}**\n\n${notes}`;
 
-            const stage = process.env.STAGE_NAME;
-            const stageDir = path.join(process.cwd(), process.env.STAGE_DIR || '');
-            let body = `⚠️ Stage ${stage.toUpperCase()} — resultados indisponíveis. Consulte o GITHUB_STEP_SUMMARY.`;
-
-            try {
-              const resultPath = path.join(stageDir, 'result.json');
-              const raw = fs.readFileSync(resultPath, 'utf8');
-              const data = JSON.parse(raw);
-              const status = String(data.status || 'UNKNOWN').toUpperCase();
-              const notes = data.notes ? String(data.notes) : 'Sem observações registradas.';
-              const emoji = status === 'PASS' ? '✅' : '❌';
-              body = `${emoji} Stage ${stage.toUpperCase()} — ${status}\n\n${notes}`;
-            } catch (error) {
-              core.warning(`Falha ao preparar comentário do estágio ${stage}: ${error.message}`);
-            }
+            const writeSummary = async () => {
+              try {
+                core.summary.addHeading(heading, 3);
+                core.summary.addRaw(`Status: **${status}**\n\n${notes}`);
+                await core.summary.write();
+              } catch (error) {
+                core.warning(`Falha ao escrever summary: ${error.message}`);
+              }
+            };
 
             try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            } catch (error) {
-              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
+              if (context.eventName === 'pull_request' && variant === 'primary') {
+                try {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body,
+                  });
+                } catch (error) {
+                  core.warning(`Falha ao comentar no PR: ${error.message}`);
+                }
+              }
+            } finally {
+              await writeSummary();
             }
 
-            try {
-              core.summary.addHeading(`Stage ${stage.toUpperCase()}`);
-              core.summary.addRaw(body);
-              await core.summary.write();
-            } catch (summaryError) {
-              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
-            }
+      - name: Enforce guard status
+        if: ${{ steps.guard.outputs.status != 'PASS' }}
+        run: exit 1
 
-  boss:
-    name: Boss aggregator
-    runs-on: ubuntu-latest
+  aggregate:
+    name: Aggregate Boss Final
     needs: stage
-    if: ${{ always() }}
-    timeout-minutes: 60
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
-      REPORT_DIR: out/q1_boss_final
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab3f3460e4f9d6a7152fb7a3b6
@@ -286,196 +193,93 @@ PY
           cache: 'pip'
 
       - name: Upgrade packaging toolchain
-        run: |
-          python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
+        timeout-minutes: 5
+        run: python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0
 
       - name: Install Python dependencies
+        timeout-minutes: 5
         run: |
           python -m pip install \
             -r requirements.lock \
-            ruff==0.6.8 \
-            yamllint==1.35.1 \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
 
-      - name: Download stage bundles
-        if: always()
-        uses: actions/download-artifact@9bc31d1110da1a34f4cfcc1c4dfd4ad73752c86f
-        with:
-          path: out/q1_boss_final/stages
-          merge-multiple: true
-      - name: Download stage artifacts
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p out/q1_boss_final/stages
-          for stage in s1 s2 s3 s4 s5 s6; do
-            gh run download ${{ github.run_id }} --name "q1-boss-final-stage-${stage}" --dir out/q1_boss_final/stages || true
-            inner="out/q1_boss_final/stages/q1-boss-final-stage-${stage}"
-            if [ -d "$inner/out/q1_boss_final/stages/${stage}" ]; then
-              rm -rf "out/q1_boss_final/stages/${stage}"
-              mv "$inner/out/q1_boss_final/stages/${stage}" "out/q1_boss_final/stages/${stage}"
-            fi
-            rm -rf "$inner"
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          mkdir -p out/q1_boss_final/stages
-          gh run download ${{ github.run_id }} --repo "$GITHUB_REPOSITORY" --pattern 'q1-boss-final-*' --dir out/q1_boss_final/stages
-
-      - name: Normalize stage artifacts
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-from __future__ import annotations
-import json
-import shutil
-from pathlib import Path
-root = Path('out/q1_boss_final/stages')
-if root.exists():
-    variant_dirs = {guard.parent.resolve() for guard in root.rglob('guard_status.txt')}
-    for variant_dir in sorted(variant_dirs, key=lambda p: len(p.parts), reverse=True):
-        if not variant_dir.exists():
-            continue
-        result_path = variant_dir / 'result.json'
-        if not result_path.exists():
-            continue
-        data = json.loads(result_path.read_text(encoding='utf-8'))
-        stage = (data.get('stage') or '').strip()
-        variant = (data.get('variant') or variant_dir.name).strip() or variant_dir.name
-        if not stage:
-            continue
-        target = root / stage / variant
-        if target.resolve() == variant_dir:
-            continue
-        if target.exists():
-            shutil.rmtree(target)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(variant_dir), str(target))
-    for path in sorted(root.glob('**/*'), key=lambda p: len(p.parts), reverse=True):
-        if path.is_dir() and not any(path.iterdir()):
-            path.rmdir()
-PY
-
-      - name: Aggregate Q1 boss report
+      - name: Aggregate stages
         id: aggregate
         continue-on-error: true
-        run: python scripts/boss_final/aggregate_q1.py
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          if [ -n "$RELEASE_TAG" ]; then
+            python scripts/boss_final/aggregate_q1.py --release-tag "$RELEASE_TAG"
+          else
+            python scripts/boss_final/aggregate_q1.py
+          fi
 
-      - name: Upload artifacts
-      - name: Upload aggregated artifacts
+      - name: Validate aggregated report schema
+        if: always()
+        timeout-minutes: 3
+        run: python -m jsonschema --instance out/q1_boss_final/report.json --schema schemas/q1_boss_report.schema.json
+
+      - name: Upload aggregate bundle
         if: always()
         uses: actions/upload-artifact@89ef406dd8d7e03cde85f3b4a7a6b5483c8f8c7a
         with:
-          name: q1-boss-final-report
-          path: ${{ env.REPORT_DIR }}
+          name: q1-boss-final-aggregate
+          path: out/q1_boss_final
 
-      - name: Validate report schema
+      - name: Publish Boss Final summary
         if: always()
-        run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
-
-      - name: Evaluate guard status
-        if: always()
-        id: guard
-        run: |
-          status=$(cat "$REPORT_DIR/guard_status.txt")
-          status=${status%%$'\n'}
-          echo "guard_status=$status" >> $GITHUB_OUTPUT
-          if [ "$status" != "PASS" ]; then
-            exit 1
-          fi
-
-      - name: Comment on PR
-        if: ${{ always() && github.event_name == 'pull_request' }}
-      - name: Boss summary
-        if: always()
-        run: |
-          comment="$REPORT_DIR/pr_comment.md"
-          if [ -f "$comment" ]; then
-            cat "$comment" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          else
-            {
-              echo '### Q1 Boss Final';
-              echo "";
-              echo '⚠️ Relatório não encontrado. Veja logs do job.';
-              echo "";
-            } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Publish boss feedback
-        if: ${{ always() && github.event_name == 'pull_request' }}
-      - name: Publish boss summary
-        if: github.event_name == 'pull_request'
         uses: actions/github-script@11c33d7e17af65c2f8f5c38bf6e8f1525ba9a4d3
-        env:
-          REPORT_DIR: ${{ env.REPORT_DIR }}
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const base = path.join(process.cwd(), 'out', 'q1_boss_final');
+            const commentPath = path.join(base, 'pr_comment.md');
+            let body = '⚠️ Relatório do Boss Final indisponível. Consulte o GITHUB_STEP_SUMMARY.';
 
-            const reportDir = process.env.REPORT_DIR || '';
-            let body = '⚠️ Relatório não encontrado. Veja o GITHUB_STEP_SUMMARY para detalhes.';
-
-            try {
-              const commentPath = path.join(process.cwd(), reportDir, 'pr_comment.md');
-              const raw = fs.readFileSync(commentPath, 'utf8');
-              body = raw;
-            } catch (error) {
-              core.warning(`Falha ao ler comentário agregado: ${error.message}`);
-            }
-
-            const reportDir = process.env.REPORT_DIR || path.join(process.cwd(), 'out', 'q1_boss_final');
-            const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
             try {
               if (fs.existsSync(commentPath)) {
                 body = fs.readFileSync(commentPath, 'utf8');
               }
-            } catch (readError) {
-              core.warning(`Falha ao ler comentário do boss: ${readError.message}`);
-            const reportDir = process.env.REPORT_DIR;
-            const summaryPath = path.join(reportDir, 'pr_comment.md');
-            const badgePath = path.join(reportDir, 'badge.svg');
-            let body = '⚠️ Relatório não encontrado.';
-            if (fs.existsSync(summaryPath)) {
-              body = fs.readFileSync(summaryPath, 'utf8');
-            }
-            const heading = 'Q1 Boss Final';
-            const badgeMarkup = fs.existsSync(badgePath) ? '![Status](./badge.svg)' : '';
-            async function writeSummary() {
-              core.summary.addHeading(heading);
-              if (badgeMarkup) {
-                core.summary.addRaw(badgeMarkup + '\n\n');
-              }
-              core.summary.addRaw(body);
-              await core.summary.write();
-            }
-            try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
             } catch (error) {
-              core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+              core.warning(`Falha ao ler pr_comment.md: ${error.message}`);
             }
 
+            const writeSummary = async () => {
+              try {
+                core.summary.addHeading('Q1 Boss Final');
+                core.summary.addRaw(body);
+                core.summary.addEOL();
+                await core.summary.write();
+              } catch (error) {
+                core.warning(`Falha ao escrever summary: ${error.message}`);
+              }
+            };
+
             try {
-              core.summary.addHeading('Q1 Boss Final');
-              core.summary.addRaw(body);
-              await core.summary.write();
-            } catch (summaryError) {
-              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
-            } catch (apiError) {
-              core.warning(`Falha ao publicar comentário do boss: ${apiError.message}`);
-            } catch (error) {
-              core.warning(`Falha ao comentar Boss Final: ${error.message}`);
+              if (context.eventName === 'pull_request') {
+                try {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body,
+                  });
+                } catch (error) {
+                  core.warning(`Falha ao comentar no PR: ${error.message}`);
+                }
+              }
             } finally {
               await writeSummary();
             }
+
+      - name: Enforce aggregate status
+        if: ${{ steps.aggregate.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Fail on guard result
+        if: ${{ always() && needs.stage.result == 'failure' }}
+        run: exit 1

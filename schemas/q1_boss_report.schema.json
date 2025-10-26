@@ -1,17 +1,22 @@
 {
-  "$id": "https://ce.local/schemas/q1_boss_report.schema.json",
+  "$id": "https://trendmarketv2.local/schemas/q1_boss_report.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Q1 Boss Final Report",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "schema",
     "schema_version",
     "timestamp_utc",
     "status",
     "sprints",
-    "bundle_sha256"
+    "bundle"
   ],
   "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trendmarketv2.q1.boss.report"
+    },
     "schema_version": {
       "type": "integer",
       "const": 1
@@ -29,75 +34,43 @@
       "additionalProperties": false,
       "required": ["s1", "s2", "s3", "s4", "s5", "s6"],
       "properties": {
-        "s1": { "$ref": "#/$defs/stage" },
-        "s2": { "$ref": "#/$defs/stage" },
-        "s3": { "$ref": "#/$defs/stage" },
-        "s4": { "$ref": "#/$defs/stage" },
-        "s5": { "$ref": "#/$defs/stage" },
-        "s6": { "$ref": "#/$defs/stage" }
         "s1": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         },
         "s2": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         },
         "s3": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         },
         "s4": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         },
         "s5": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         },
         "s6": {
-          "type": "object",
-          "required": ["status", "notes"],
-          "additionalProperties": false,
-          "properties": {
-            "status": {"type": "string", "enum": ["PASS", "FAIL"]},
-            "notes": {"type": "string"}
-          }
+          "$ref": "#/definitions/stage_result"
         }
       }
     },
-    "status": {
-      "type": "string",
-      "enum": ["PASS", "FAIL"]
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256"],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "release_tag": {
+      "type": "string"
     }
   },
-  "$defs": {
-    "stage": {
+  "definitions": {
+    "stage_result": {
       "type": "object",
       "additionalProperties": false,
       "required": ["status", "notes"],
@@ -107,8 +80,7 @@
           "enum": ["PASS", "FAIL"]
         },
         "notes": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         }
       }
     }

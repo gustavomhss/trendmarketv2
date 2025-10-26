@@ -1,77 +1,80 @@
 from __future__ import annotations
 
-import os
-import random
-from typing import Any, Callable, Dict, List, Tuple
+import itertools
+from decimal import Decimal
+from typing import Any, Dict, Iterable, List, Sequence
 
-from . import strategies
+from . import strategies as st
+
+__all__ = [
+    "given",
+    "settings",
+    "HealthCheck",
+    "Phase",
+    "strategies",
+]
+
+strategies = st
 
 
-class SettingsRegistry:
+class HealthCheck:
+    too_slow = "too_slow"
+
+
+class Phase:
+    explicit = "explicit"
+    reuse = "reuse"
+    generate = "generate"
+
+
+class _Settings:
     def __init__(self) -> None:
         self._profiles: Dict[str, Dict[str, Any]] = {}
-        self._current: Dict[str, Any] = {"max_examples": 10}
+        self._active = "default"
 
-    def register_profile(self, name: str, **kwargs: Any) -> None:
-        self._profiles[name] = dict(kwargs)
+    def register_profile(self, name: str, *args: Any, **kwargs: Any) -> None:
+        profile: Dict[str, Any] = {}
+        if args:
+            profile_arg = args[0]
+            if isinstance(profile_arg, dict):
+                profile.update(profile_arg)
+        profile.update(kwargs)
+        self._profiles[name] = profile
 
     def load_profile(self, name: str) -> None:
-        profile = self._profiles.get(name)
-        if profile is None:
-            raise KeyError(f"Hypothesis profile not registered: {name}")
-        self._current.update(profile)
+        self._active = name
 
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._current.get(key, default)
+    def __call__(self, **kwargs: Any) -> Dict[str, Any]:
+        return kwargs
 
 
-settings = SettingsRegistry()
+settings = _Settings()
 
 
-def _resolve_seed(explicit: Any) -> int:
-    if explicit is not None:
-        try:
-            return int(explicit)
-        except (TypeError, ValueError):
-            pass
-    env_seed = os.getenv("HYPOTHESIS_SEED")
-    if env_seed is not None:
-        try:
-            return int(env_seed)
-        except ValueError:
-            pass
-    profile_seed = settings.get("seed")
-    if profile_seed is not None:
-        try:
-            return int(profile_seed)
-        except (TypeError, ValueError):
-            pass
-    return 0
+def given(*positional: st._Strategy, **keyword: st._Strategy):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            pos_values = [strategy.examples for strategy in positional]
+            kw_items = list(keyword.items())
+            kw_values = [strategy.examples for _, strategy in kw_items]
 
+            pos_combos: Iterable[Sequence[Any]]
+            if pos_values:
+                pos_combos = itertools.product(*pos_values)
+            else:
+                pos_combos = [()]
 
-def given(*strategies_args: strategies.Strategy, **strategies_kwargs: strategies.Strategy) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    def decorator(test_func: Callable[..., Any]) -> Callable[..., Any]:
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            max_examples = settings.get("max_examples", 10)
-            max_examples = int(max_examples)
-            seed = _resolve_seed(strategies_kwargs.get("seed"))
-            rng = random.Random(seed)
-            arg_strategies: Tuple[strategies.Strategy, ...] = strategies_args
-            kw_strategies: Dict[str, strategies.Strategy] = strategies_kwargs.copy()
-            kw_strategies.pop("seed", None)
-            for example_index in range(max_examples):
-                drawn_args: List[Any] = [strategy.draw(rng, example_index) for strategy in arg_strategies]
-                drawn_kwargs: Dict[str, Any] = {
-                    name: strategy.draw(rng, example_index) for name, strategy in kw_strategies.items()
-                }
-                test_func(*args, *drawn_args, **kwargs, **drawn_kwargs)
-        wrapper.__name__ = getattr(test_func, "__name__", "hypothesis_wrapped")
-        wrapper.__qualname__ = getattr(test_func, "__qualname__", wrapper.__name__)
-        wrapper.__doc__ = getattr(test_func, "__doc__", None)
-        wrapper.__module__ = getattr(test_func, "__module__", __name__)
+            kw_combos: Iterable[Sequence[Any]]
+            if kw_values:
+                kw_combos = itertools.product(*kw_values)
+            else:
+                kw_combos = [()]
+
+            for pos_combo in pos_combos:
+                for kw_combo in kw_combos:
+                    local_kwargs = dict(zip((name for name, _ in kw_items), kw_combo))
+                    function(*args, *pos_combo, **kwargs, **local_kwargs)
+
         return wrapper
 
     return decorator
-
-
-__all__ = ["given", "settings", "strategies"]

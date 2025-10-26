@@ -1,10 +1,11 @@
 {
   "$id": "https://trendmarketv2.local/schemas/report.schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Sprint 6 Report",
+  "title": "Sprint 6 Scorecard Report",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "schema",
     "schema_version",
     "timestamp_utc",
     "status",
@@ -13,6 +14,10 @@
     "bundle"
   ],
   "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trendmarketv2.sprint6.report"
+    },
     "schema_version": {
       "type": "integer",
       "const": 1
@@ -23,10 +28,7 @@
     },
     "status": {
       "type": "string",
-      "enum": [
-        "PASS",
-        "FAIL"
-      ]
+      "enum": ["PASS", "FAIL"]
     },
     "metrics": {
       "type": "object",
@@ -40,346 +42,78 @@
       ],
       "properties": {
         "quorum_ratio": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "observed",
-            "target",
-            "ok"
-          ],
-          "properties": {
-            "observed": {
-              "type": "number"
-            },
-            "target": {
-              "type": "number"
-            },
-            "ok": {
-              "type": "boolean"
-            }
-          }
+          "$ref": "#/definitions/metric_result"
         },
         "failover_time_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "observed",
-            "target",
-            "ok"
-          ],
-          "properties": {
-            "observed": {
-              "type": "number"
-            },
-            "target": {
-              "type": "number"
-            },
-            "ok": {
-              "type": "boolean"
-            }
-          }
+          "$ref": "#/definitions/metric_result"
         },
         "staleness_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "observed",
-            "target",
-            "ok"
-          ],
-          "properties": {
-            "observed": {
-              "type": "number"
-            },
-            "target": {
-              "type": "number"
-            },
-            "ok": {
-              "type": "boolean"
-            }
-          }
+          "$ref": "#/definitions/metric_result"
         },
         "cdc_lag_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "observed",
-            "target",
-            "ok"
-          ],
-          "properties": {
-            "observed": {
-              "type": "number"
-            },
-            "target": {
-              "type": "number"
-            },
-            "ok": {
-              "type": "boolean"
-            }
-          }
+          "$ref": "#/definitions/metric_result"
         },
         "divergence_pct": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "observed",
-            "target",
-            "ok"
-          ],
-          "properties": {
-            "observed": {
-              "type": "number"
-            },
-            "target": {
-              "type": "number"
-            },
-            "ok": {
-              "type": "boolean"
-            }
-          }
+          "$ref": "#/definitions/metric_result"
         }
       }
     },
     "inputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "thresholds",
-        "metrics"
-      ],
+      "required": ["thresholds", "metrics"],
       "properties": {
         "thresholds": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "timestamp_utc",
-            "metrics"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "const": 1
-            },
-            "timestamp_utc": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "metrics": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "quorum_ratio",
-                "failover_time_p95_s",
-                "staleness_p95_s",
-                "cdc_lag_p95_s",
-                "divergence_pct"
-              ],
-              "properties": {
-                "quorum_ratio": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version",
-                    "comparison"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "comparison": {
-                      "type": "string",
-                      "const": "gte"
-                    }
-                  }
-                },
-                "failover_time_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version",
-                    "comparison"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "comparison": {
-                      "type": "string",
-                      "const": "lte"
-                    }
-                  }
-                },
-                "staleness_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version",
-                    "comparison"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "comparison": {
-                      "type": "string",
-                      "const": "lte"
-                    }
-                  }
-                },
-                "cdc_lag_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version",
-                    "comparison"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "comparison": {
-                      "type": "string",
-                      "const": "lte"
-                    }
-                  }
-                },
-                "divergence_pct": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version",
-                    "comparison"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "comparison": {
-                      "type": "string",
-                      "const": "lte"
-                    }
-                  }
-                }
-              }
-            }
-          }
+          "$ref": "#/definitions/input_descriptor"
         },
         "metrics": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "timestamp_utc",
-            "metrics"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "const": 1
-            },
-            "timestamp_utc": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "metrics": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "quorum_ratio",
-                "failover_time_p95_s",
-                "staleness_p95_s",
-                "cdc_lag_p95_s",
-                "divergence_pct"
-              ],
-              "properties": {
-                "quorum_ratio": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  }
-                },
-                "failover_time_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  }
-                },
-                "staleness_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  }
-                },
-                "cdc_lag_p95_s": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  }
-                },
-                "divergence_pct": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "version"
-                  ],
-                  "properties": {
-                    "version": {
-                      "type": "integer",
-                      "minimum": 1
-                    }
-                  }
-                }
-              }
-            }
-          }
+          "$ref": "#/definitions/input_descriptor"
         }
       }
     },
     "bundle": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sha256"
-      ],
+      "required": ["sha256"],
       "properties": {
         "sha256": {
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "metric_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observed", "target", "ok"],
+      "properties": {
+        "observed": {
+          "type": "number"
+        },
+        "target": {
+          "type": "number"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      }
+    },
+    "input_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "version", "timestamp_utc"],
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "timestamp_utc": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     }

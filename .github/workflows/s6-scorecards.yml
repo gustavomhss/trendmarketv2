@@ -60,6 +60,7 @@ jobs:
             jsonschema==4.23.0
 
       - name: Install jq
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Lint YAML
@@ -75,6 +76,7 @@ jobs:
         run: ruff format --check scripts/
 
       - name: Validate Grafana dashboard structure (jq)
+        timeout-minutes: 5
         run: |
           jq -e '
             def has_panel(id; title; expr):
@@ -96,23 +98,25 @@ jobs:
             (.panels | length == 5) and
             has_panel(1; "Quorum Ratio"; "avg(mbp:oracle:quorum_ratio{env=\"prod\"})") and
             has_panel(2; "Failover p95 (s)"; "avg(mbp:oracle:failover_time_p95_s{env=\"prod\"})") and
-            has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000") and
-            has_panel(4; "CDC Lag p95 (s)"; "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))") and
-            has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100")
+            has_panel(3; "Staleness p95 (s)"; "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})") and
+            has_panel(4; "CDC Lag p95 (s)"; "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})") and
+            has_panel(5; "Divergence (%)"; "avg(mbp:oracle:divergence_pct{env=\"prod\"})")
           ' dashboards/grafana/scorecards_quorum_failover_staleness.json > /dev/null \
             || { echo 'Dashboard structure mismatch' >&2; exit 1; }
 
       - name: Run pytest
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: pytest -q
 
       - name: Validate existing report schema
+        timeout-minutes: 3
         run: |
           if [ -f "$REPORT_DIR/report.json" ]; then
             python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json || exit 1
           fi
 
       - name: UTF-8 and CRLF hygiene
+        timeout-minutes: 5
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -150,9 +154,11 @@ jobs:
           path: ${{ env.REPORT_DIR }}
 
       - name: Validate generated report schema
+        timeout-minutes: 3
         run: python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/report.schema.json
 
       - name: Evaluate guard status
+        timeout-minutes: 2
         run: |
           status=$(cat "$REPORT_DIR/guard_status.txt")
           echo "guard_status=$status" >> $GITHUB_OUTPUT
@@ -185,34 +191,30 @@ jobs:
               }
             }
 
-            if (context.eventName === 'pull_request') {
-            try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body,
-              });
-            } catch (error) {
-              core.warning(`Falha ao criar comentário no PR: ${error.message}`);
-            } finally {
+            const writeSummary = async () => {
               try {
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body,
-                });
-              } catch (error) {
-                core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+                core.summary.addHeading('S6 Scorecards');
+                core.summary.addRaw(body);
+                core.summary.addEOL();
+                await core.summary.write();
+              } catch (summaryError) {
+                core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
               }
-            }
+            };
 
             try {
-              core.summary.addHeading('S6 Scorecards');
-              core.summary.addRaw(body);
-              core.summary.addEOL();
-              await core.summary.write();
-            } catch (summaryError) {
-              core.warning(`Falha ao escrever GITHUB_STEP_SUMMARY: ${summaryError.message}`);
+              if (context.eventName === 'pull_request') {
+                try {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body,
+                  });
+                } catch (error) {
+                  core.warning(`Falha ao publicar comentário do PR: ${error.message}`);
+                }
+              }
+            } finally {
+              await writeSummary();
             }

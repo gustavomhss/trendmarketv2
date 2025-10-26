@@ -1,5 +1,10 @@
 {
   "title": "Scorecards Quorum Failover Staleness",
+  "uid": "s6-scorecards",
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "5m",
   "time": {
     "from": "now-24h",
     "to": "now"
@@ -7,39 +12,12 @@
   "templating": {
     "list": []
   },
-  "schemaVersion": 40,
-  "version": 1,
   "panels": [
     {
       "id": 1,
-      "title": "Quorum Ratio",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 5, "x": 0, "y": 0},
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 0.66}
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
+      "title": "Quorum Ratio",
+      "datasource": null,
       "targets": [
         {
           "refId": "A",
@@ -49,34 +27,9 @@
     },
     {
       "id": 2,
-      "title": "Failover p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 5, "x": 5, "y": 0},
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 60}
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
+      "title": "Failover p95 (s)",
+      "datasource": null,
       "targets": [
         {
           "refId": "A",
@@ -86,112 +39,37 @@
     },
     {
       "id": 3,
-      "title": "Staleness p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 5, "x": 10, "y": 0},
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 30}
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
+      "title": "Staleness p95 (s)",
+      "datasource": null,
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(mbp:oracle:staleness_p95_ms{env=\"prod\"}) / 1000"
+          "expr": "avg(mbp:oracle:staleness_p95_s{env=\"prod\"})"
         }
       ]
     },
     {
       "id": 4,
-      "title": "CDC Lag p95 (s)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 5, "x": 15, "y": 0},
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 120}
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
+      "title": "CDC Lag p95 (s)",
+      "datasource": null,
       "targets": [
         {
           "refId": "A",
-          "expr": "max(quantile_over_time(0.95, cdc_lag_seconds{env=\"prod\"}[5m]))"
+          "expr": "avg(mbp:oracle:cdc_lag_p95_s{env=\"prod\"})"
         }
       ]
     },
     {
       "id": 5,
-      "title": "Divergence (%)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 5, "x": 20, "y": 0},
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 1}
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
+      "title": "Divergence (%)",
+      "datasource": null,
       "targets": [
         {
           "refId": "A",
-          "expr": "avg(mbp:oracle:divergence_p95{env=\"prod\"}) * 100"
+          "expr": "avg(mbp:oracle:divergence_pct{env=\"prod\"})"
         }
       ]
     }

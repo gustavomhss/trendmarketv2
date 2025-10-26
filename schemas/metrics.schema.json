@@ -5,11 +5,20 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "schema",
     "version",
     "timestamp_utc",
-    "metrics"
+    "quorum_ratio",
+    "failover_time_p95_s",
+    "staleness_p95_s",
+    "cdc_lag_p95_s",
+    "divergence_pct"
   ],
   "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trendmarketv2.sprint6.metrics.v1"
+    },
     "version": {
       "type": "integer",
       "const": 1
@@ -18,109 +27,26 @@
       "type": "string",
       "format": "date-time"
     },
-    "metrics": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "quorum_ratio",
-        "failover_time_p95_s",
-        "staleness_p95_s",
-        "cdc_lag_p95_s",
-        "divergence_pct"
-      ],
-      "properties": {
-        "quorum_ratio": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "observed"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "observed": {
-              "type": "number",
-              "minimum": 0.0,
-              "maximum": 1.0
-            }
-          }
-        },
-        "failover_time_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "observed"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "observed": {
-              "type": "number",
-              "minimum": 0.0
-            }
-          }
-        },
-        "staleness_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "observed"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "observed": {
-              "type": "number",
-              "minimum": 0.0
-            }
-          }
-        },
-        "cdc_lag_p95_s": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "observed"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "observed": {
-              "type": "number",
-              "minimum": 0.0
-            }
-          }
-        },
-        "divergence_pct": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "version",
-            "observed"
-          ],
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "observed": {
-              "type": "number",
-              "minimum": 0.0
-            }
-          }
-        }
-      }
+    "quorum_ratio": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "failover_time_p95_s": {
+      "type": "number",
+      "minimum": 0.0
+    },
+    "staleness_p95_s": {
+      "type": "number",
+      "minimum": 0.0
+    },
+    "cdc_lag_p95_s": {
+      "type": "number",
+      "minimum": 0.0
+    },
+    "divergence_pct": {
+      "type": "number",
+      "minimum": 0.0
     }
   }
 }

@@ -1,36 +1,10 @@
 {
-  "metrics": {
-    "cdc_lag_p95_s": {
-      "comparison": "lte",
-      "target": 120.0,
-      "version": 1
-    },
-    "divergence_pct": {
-      "comparison": "lte",
-      "target": 1.0,
-      "version": 1
-    },
-    "failover_time_p95_s": {
-      "comparison": "lte",
-      "target": 60.0,
-      "version": 1
-    },
-    "quorum_ratio": {
-      "comparison": "gte",
-      "target": 0.6667,
-      "version": 1
-    },
-    "staleness_p95_s": {
-      "comparison": "lte",
-      "target": 30.0,
-      "version": 1
-    }
-  },
+  "schema": "trendmarketv2.sprint6.thresholds.v1",
+  "version": 1,
   "timestamp_utc": "2024-09-01T06:00:00Z",
-  "version": 1
-  "quorum_ratio": 0.6667,
-  "failover_time_p95_s": 60.0,
-  "staleness_p95_s": 30.0,
-  "cdc_lag_p95_s": 120.0,
-  "divergence_pct": 1.0
+  "quorum_ratio_min": 0.6667,
+  "failover_time_p95_s_max": 60.0,
+  "staleness_p95_s_max": 30.0,
+  "cdc_lag_p95_s_max": 120.0,
+  "divergence_pct_max": 1.0
 }
