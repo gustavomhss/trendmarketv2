@@ -24,6 +24,7 @@ getcontext().rounding = ROUND_HALF_EVEN
 
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 ERROR_PREFIX = "BOSS-E"
+SCHEMA_VERSION = 1
 STAGE_GUARD_SUFFIX = "_guard_status.txt"
 
 
@@ -55,7 +56,7 @@ def ensure_output_dir() -> None:
 def run_static_stage(definition: StageDefinition) -> Dict[str, str]:
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "stage": definition.stage,
         "status": "pass",
         "score": str(definition.target_ratio),
@@ -85,7 +86,7 @@ def run_stage(stage: str) -> Dict[str, str]:
         status = "pass" if report["status"] == "PASS" else "fail"
         now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         return {
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "stage": "s6",
             "status": status,
             "score": str(ratio),
