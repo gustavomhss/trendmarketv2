@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 from decimal import Decimal, ROUND_HALF_EVEN
 from typing import Iterable, List
 

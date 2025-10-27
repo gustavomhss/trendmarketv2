@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from decimal import Decimal
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, Sequence
 
 from . import strategies as st
 

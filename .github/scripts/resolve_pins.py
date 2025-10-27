@@ -1,106 +1,212 @@
-import re,os,sys,json,subprocess,urllib.request
-FALLBACKS={
-  "actions/checkout":"v4.2.2",
-  "actions/upload-artifact":"v4",
-  "actions/download-artifact":"v4",
-  "actions/setup-python":"v5.3.0",
-  "actions/cache":"v4",
-  "actions/github-script":"v7"
-}
-pat_inline=re.compile(r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
-pat_key=re.compile(r'^\s*(?:-\s*)?uses:\s*$')
-pat_val=re.compile(r'^\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
+#!/usr/bin/env python3
+"""Resolve GitHub Action refs to immutable SHAs and update lock files."""
 
-def gh(url, token=None):
-  req=urllib.request.Request(url,headers={"User-Agent":"pin-sweep","Authorization":f"Bearer {token}"} if token else {"User-Agent":"pin-sweep"})
-  try:
-    with urllib.request.urlopen(req) as r:
-      return json.load(r)
-  except Exception:
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.request import Request, urlopen
+
+FALLBACKS: Dict[str, str] = {
+    "actions/checkout": "v4.2.2",
+    "actions/upload-artifact": "v4",
+    "actions/download-artifact": "v4",
+    "actions/setup-python": "v5.3.0",
+    "actions/cache": "v4",
+    "actions/github-script": "v7",
+}
+
+PAT_INLINE = re.compile(
+    r"^\s*(?:-\s*)?uses:\s*([\"\']?)([\w_.-]+\/[\w_.-]+)@([^\"\'\s#]+)\1\s*$"
+)
+PAT_KEY = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
+PAT_VALUE = re.compile(r"^\s*([\"\']?)([\w_.-]+\/[\w_.-]+)@([^\"\'\s#]+)\1\s*$")
+
+ReportEntry = Tuple[str, str, str, str, str]
+
+
+def _iter(obj: object | Sequence[object]) -> Iterable[object]:
+    if obj is None:
+        return []
+    if isinstance(obj, Sequence) and not isinstance(obj, (str, bytes, bytearray)):
+        return obj
+    return [obj]
+
+
+def _gh(url: str, token: Optional[str]) -> Optional[object]:
+    headers = {"User-Agent": "pin-sweep"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        with urlopen(Request(url, headers=headers)) as response:
+            return json.load(response)
+    except Exception:
+        return None
+
+
+def resolve(owner_repo: str, ref: str, token: Optional[str]) -> Optional[str]:
+    if re.fullmatch(r"[0-9a-fA-F]{40}", ref):
+        return ref
+
+    commit = _gh(f"https://api.github.com/repos/{owner_repo}/commits/{ref}", token)
+    if isinstance(commit, dict):
+        sha = commit.get("sha")
+        if isinstance(sha, str):
+            return sha
+
+    tag_refs = _gh(f"https://api.github.com/repos/{owner_repo}/git/refs/tags/{ref}", token)
+    for entry in _iter(tag_refs):
+        if not isinstance(entry, dict):
+            continue
+        obj = entry.get("object")
+        if not isinstance(obj, dict):
+            continue
+        sha = obj.get("sha")
+        entry_type = obj.get("type")
+        if not isinstance(sha, str):
+            continue
+        if entry_type == "tag":
+            tag = _gh(f"https://api.github.com/repos/{owner_repo}/git/tags/{sha}", token)
+            if isinstance(tag, dict):
+                peeled = tag.get("object", {}).get("sha") if isinstance(tag.get("object"), dict) else None
+                if isinstance(peeled, str):
+                    return peeled
+        return sha
+
+    head_refs = _gh(f"https://api.github.com/repos/{owner_repo}/git/refs/heads/{ref}", token)
+    for entry in _iter(head_refs):
+        if not isinstance(entry, dict):
+            continue
+        obj = entry.get("object")
+        if isinstance(obj, dict):
+            sha = obj.get("sha")
+            if isinstance(sha, str):
+                return sha
+
+    fallback = FALLBACKS.get(owner_repo)
+    if fallback and fallback != ref:
+        return resolve(owner_repo, fallback, token)
     return None
 
-def resolve(owner_repo, ref, token=None):
-  # already SHA?
-  if re.fullmatch(r"[0-9a-fA-F]{40}", ref):
-    j=gh(f"https://api.github.com/repos/{owner_repo}/commits/{ref}", token)
-    if j and j.get('sha'):
-      return ref
-    return ref
-  # commit
-  j=gh(f"https://api.github.com/repos/{owner_repo}/commits/{ref}", token)
-  if j and j.get('sha'): return j['sha']
-  # tag peel
-  t=gh(f"https://api.github.com/repos/{owner_repo}/git/refs/tags/{ref}", token)
-  if t:
-    arr=[t] if isinstance(t,dict) else t
-    for e in arr:
-      sha=e.get('object',{}).get('sha'); typ=e.get('object',{}).get('type')
-      if sha:
-        if typ=='tag':
-          tag=gh(f"https://api.github.com/repos/{owner_repo}/git/tags/{sha}", token)
-          peeled=tag and tag.get('object',{}).get('sha')
-          if peeled: return peeled
-        return sha
-  # branch head
-  h=gh(f"https://api.github.com/repos/{owner_repo}/git/refs/heads/{ref}", token)
-  if h:
-    arr=[h] if isinstance(h,dict) else h
-    for e in arr:
-      sha=e.get('object',{}).get('sha')
-      if sha: return sha
-  # fallback known
-  fb=FALLBACKS.get(owner_repo)
-  if fb and fb!=ref:
-    return resolve(owner_repo, fb, token)
-  return None
 
-files=[]
-for d,_,fs in os.walk('.github'):
-  for f in fs:
-    if f.endswith(('.yml','.yaml')):
-      files.append(os.path.join(d,f))
-files.sort()
-GITHUB_TOKEN=os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
-report=[]; mapping={}
-for path in files:
-  L=open(path,'r',encoding='utf-8',errors='ignore').read().splitlines(True)
-  out=[]; i=0; changed=False
-  while i<len(L):
-    ln=L[i]
-    m=pat_inline.match(ln)
-    if m:
-      q,a,r=m.groups()
-      if not (a.startswith('./') or a.startswith('docker://')):
-        sha=resolve(a,r,GITHUB_TOKEN)
-        if sha and r!=sha:
-          ln=re.sub(r'@[^"\'"\s#]+', '@'+sha, ln); changed=True
-          report.append(('PIN',a,r,sha,path))
-        elif not sha:
-          report.append(('FAIL',a,r,'',path))
-        else:
-          report.append(('OK',a,r,'',path))
-      out.append(ln); i+=1; continue
-    if pat_key.match(ln) and i+1<len(L):
-      v=L[i+1]; m2=pat_val.match(v)
-      if m2:
-        q,a,r=m2.groups()
-        if not (a.startswith('./') or a.startswith('docker://')):
-          sha=resolve(a,r,GITHUB_TOKEN)
-          if sha and r!=sha:
-            v=re.sub(r'@[^"\'"\s#]+','@'+sha,v); changed=True
-            report.append(('PIN',a,r,sha,path))
-          elif not sha:
-            report.append(('FAIL',a,r,'',path))
-          else:
-            report.append(('OK',a,r,'',path))
-        out.append(ln); out.append(v); i+=2; continue
-    out.append(ln); i+=1
-  if changed:
-    open(path,'w',encoding='utf-8').write(''.join(out))
+def _should_skip(action: str) -> bool:
+    return action.startswith("./") or action.startswith("docker://")
 
-# lock
-for kind,a,old,new,p in report:
-  if kind in ('PIN','OK'):
-    mapping[a]=new or old
-open('.pins.report','w',encoding='utf-8').write('\n'.join('\t'.join(x) for x in report))
-open('actions.lock','w',encoding='utf-8').write('actions:\n'+'\n'.join(f'  {k}: {v}' for k,v in sorted(mapping.items()))+f"\nmetadata:\n  updated_at: ")
+
+def _replace_ref(line: str, sha: str) -> str:
+    return re.sub(r"@[^\"'\s#]+", f"@{sha}", line)
+
+
+def _record(
+    entries: List[ReportEntry],
+    kind: str,
+    action: str,
+    ref: str,
+    sha: Optional[str],
+    path: Path,
+) -> None:
+    entries.append((kind, action, ref, sha or "", str(path)))
+
+
+def _process_reference(action: str, ref: str, token: Optional[str], path: Path, line: str, report: List[ReportEntry]) -> Tuple[str, bool]:
+    if _should_skip(action):
+        return line, False
+
+    sha = resolve(action, ref, token)
+    if sha and sha != ref:
+        _record(report, "PIN", action, ref, sha, path)
+        return _replace_ref(line, sha), True
+    if sha:
+        _record(report, "OK", action, ref, None, path)
+        return line, False
+
+    _record(report, "FAIL", action, ref, None, path)
+    return line, False
+
+
+def _process_file(path: Path, token: Optional[str]) -> Tuple[bool, List[ReportEntry]]:
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines(keepends=True)
+    report: List[ReportEntry] = []
+    output: List[str] = []
+    changed = False
+    index = 0
+
+    while index < len(lines):
+        line = lines[index]
+        match = PAT_INLINE.match(line)
+        if match:
+            _, action, ref = match.groups()
+            line, did_change = _process_reference(action, ref, token, path, line, report)
+            changed = changed or did_change
+            output.append(line)
+            index += 1
+            continue
+
+        if PAT_KEY.match(line) and index + 1 < len(lines):
+            next_line = lines[index + 1]
+            value_match = PAT_VALUE.match(next_line)
+            if value_match:
+                _, action, ref = value_match.groups()
+                new_line, did_change = _process_reference(action, ref, token, path, next_line, report)
+                changed = changed or did_change
+                output.append(line)
+                output.append(new_line)
+                index += 2
+                continue
+
+        output.append(line)
+        index += 1
+
+    if changed:
+        path.write_text("".join(output), encoding="utf-8")
+
+    return changed, report
+
+
+def _collect_workflow_files() -> List[Path]:
+    files: List[Path] = []
+    root = Path(".github")
+    if not root.exists():
+        return files
+    for path in root.rglob("*.yml"):
+        files.append(path)
+    for path in root.rglob("*.yaml"):
+        files.append(path)
+    files.sort()
+    return files
+
+
+def _write_reports(report: List[ReportEntry]) -> None:
+    mapping: Dict[str, str] = {}
+    for kind, action, ref, sha, _ in report:
+        if kind in {"PIN", "OK"}:
+            mapping[action] = sha or ref
+
+    Path(".pins.report").write_text(
+        "\n".join("\t".join(entry) for entry in report),
+        encoding="utf-8",
+    )
+    lock_lines = ["actions:"]
+    for action, ref in sorted(mapping.items()):
+        lock_lines.append(f"  {action}: {ref}")
+    lock_lines.append("metadata:")
+    lock_lines.append("  updated_at: ")
+    Path("actions.lock").write_text("\n".join(lock_lines), encoding="utf-8")
+
+
+def main() -> int:
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    report: List[ReportEntry] = []
+    for path in _collect_workflow_files():
+        _, entries = _process_file(path, token)
+        report.extend(entries)
+    if report:
+        _write_reports(report)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -15,8 +15,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _telemetry import AuditLog, TelemetryEmitter, ensure_evidence_dir
-from _yaml import load as yaml_load
+from _telemetry import AuditLog, TelemetryEmitter, ensure_evidence_dir  # noqa: E402
+from _yaml import load as yaml_load  # noqa: E402
 
 CAT_PATH = Path(os.getenv("MBP_TEMPLATE_CATALOG", "configs/templates/catalog.json"))
 POLICY_PATH = Path(os.getenv("MBP_POLICY_FILE", "configs/policies/mbp_s3.yml"))

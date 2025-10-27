@@ -8,7 +8,6 @@ import time
 
 from .service import (
     AutoResolutionService,
-    DecisionRule,
     IdempotencyKeyConflict,
     ResolutionRecord,
     TruthSourceSignal,

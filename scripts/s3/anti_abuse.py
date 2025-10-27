@@ -14,8 +14,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _telemetry import TelemetryEmitter, ensure_evidence_dir
-from _yaml import load as yaml_load
+from _telemetry import TelemetryEmitter, ensure_evidence_dir  # noqa: E402
+from _yaml import load as yaml_load  # noqa: E402
 
 POLICY_PATH = Path(os.getenv("MBP_POLICY_FILE", "configs/policies/mbp_s3.yml"))
 EVIDENCE_PATH = Path(os.getenv("MBP_ABUSE_FLAGS", "out/s3_gatecheck/abuse_flags.json"))

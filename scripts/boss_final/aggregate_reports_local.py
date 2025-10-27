@@ -1,25 +1,67 @@
-import os, json, sys
-ARTS=os.environ.get('ARTS_DIR') or os.path.join(os.environ.get('RUNNER_TEMP','.'),'boss-arts')
-OUT=os.environ.get('REPORT_DIR') or os.path.join(os.environ.get('RUNNER_TEMP','.'),'boss-aggregate')
-os.makedirs(OUT,exist_ok=True)
-found=[]
-for d,_,fs in os.walk(ARTS):
-  for f in fs:
-    if f=='report.json':
-      try:
-        j=json.load(open(os.path.join(d,f),encoding='utf-8'))
-        if isinstance(j,dict) and isinstance(j.get('stages'),list):
-          found.extend(j['stages'])
-      except Exception as e:
-        found.append({'name':'unknown','status':'error','errors':[str(e)]})
-# sintetiza ausentes s1..s6
-names={s.get('name') for s in found}
-for i in range(1,7):
-  n=f's{i}'
-  if n not in names:
-    found.append({'name':n,'status':'missing','errors':['artifact not found']})
-agg={'stages':found}
-json.dump(agg,open(os.path.join(OUT,'report.json'),'w',encoding='utf-8'),ensure_ascii=False)
-# imprime status resumido para uso no step seguinte
-status={s['name']:s.get('status','missing').upper() for s in found}
-print(json.dumps({'status':'FAIL' if any(v!='PASSED' for v in status.values()) else 'PASS','stages':status}))
+#!/usr/bin/env python3
+"""Aggregate guard stage reports from local artifacts."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, List
+
+RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
+ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
+OUT_DIR = Path(os.environ.get("REPORT_DIR") or RUNNER_TEMP / "boss-aggregate")
+
+
+def _load_report(path: Path) -> List[Dict[str, Any]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001 - safe aggregation
+        return [{"name": "unknown", "status": "error", "errors": [str(exc)]}]
+    if isinstance(data, dict) and isinstance(data.get("stages"), list):
+        return [entry for entry in data["stages"] if isinstance(entry, dict)]
+    return []
+
+
+def collect_stage_results(root: Path) -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+    if not root.exists():
+        return results
+    for report_path in root.rglob("report.json"):
+        results.extend(_load_report(report_path))
+    return results
+
+
+def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
+    present = {entry.get("name") for entry in results}
+    for index in range(1, 7):
+        name = f"s{index}"
+        if name not in present:
+            results.append({"name": name, "status": "missing", "errors": ["artifact not found"]})
+
+
+def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    aggregate = {"stages": results}
+    (out_dir / "report.json").write_text(
+        json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    status = {entry["name"]: str(entry.get("status", "missing")).upper() for entry in results if "name" in entry}
+    overall = "FAIL" if any(value != "PASSED" for value in status.values()) else "PASS"
+    return {"status": overall, "stages": status}
+
+
+def main() -> int:
+    results = collect_stage_results(ARTS_DIR)
+    ensure_missing_stages(results)
+    write_aggregate(results, OUT_DIR)
+    summary = summarize_status(results)
+    print(json.dumps(summary))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

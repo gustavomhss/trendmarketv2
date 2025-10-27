@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
+#!/usr/bin/env python3
 """Boss Final sprint guard executor."""
 
 from __future__ import annotations
 
-import logging, traceback
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-LOG=logging.getLogger("sprint_guard")
-
 import argparse
 import hashlib
 import json
+import logging
 import os
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
+
+LOG = logging.getLogger("sprint_guard")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
@@ -550,13 +551,13 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
 
 
 def main(argv: List[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args(argv or sys.argv[1:])
     run_stage(stage=args.stage, variant=args.variant)
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
-    import sys
     try:
         raise SystemExit(main(sys.argv[1:]))
     except Exception as exc:
