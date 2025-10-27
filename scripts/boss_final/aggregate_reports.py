@@ -13,6 +13,8 @@ from typing import Dict, List
 from urllib import request
 from urllib.error import HTTPError, URLError
 
+from ensure_schema import ensure_schema_metadata
+
 STAGE_COUNT = 6
 ARTIFACT_PREFIX = "boss-stage-"
 
@@ -218,6 +220,7 @@ def main() -> int:
         "stages": stages,
         "summary": {"counts": summary_counts},
     }
+    ensure_schema_metadata(report)
     report_path = os.path.join(out_dir, "report.json")
     with open(report_path, "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)

@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+from ensure_schema import ensure_schema_metadata
+
 RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
 ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
 OUT_DIR = Path(os.environ.get("REPORT_DIR") or RUNNER_TEMP / "boss-aggregate")
@@ -46,7 +48,7 @@ def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
 def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     aggregate: Dict[str, Any] = {"stages": results}
-    aggregate.setdefault("schema", "boss_final.report@v1")
+    ensure_schema_metadata(aggregate)
     aggregate.setdefault(
         "generated_at",
         datetime.now(timezone.utc).isoformat(timespec="seconds"),
