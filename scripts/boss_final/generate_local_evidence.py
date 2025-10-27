@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate local evidence metadata for Boss Final reports."""
+
 from __future__ import annotations
 
 import argparse
@@ -10,7 +11,11 @@ import pathlib
 from typing import Optional
 
 
-def _format_lines(path: pathlib.Path, schema: Optional[str], generated_at: Optional[str]) -> list[str]:
+def _format_lines(
+    path: pathlib.Path,
+    schema: Optional[str],
+    generated_at: Optional[str],
+) -> list[str]:
     return [
         f"report_path: {path.resolve()}",
         f"schema: {schema or '<missing>'}",
@@ -20,7 +25,11 @@ def _format_lines(path: pathlib.Path, schema: Optional[str], generated_at: Optio
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("report_path", type=pathlib.Path, help="Path to the report JSON file")
+    parser.add_argument(
+        "report_path",
+        type=pathlib.Path,
+        help="Path to the report JSON file",
+    )
     parser.add_argument(
         "--diagnostics-path",
         type=pathlib.Path,
