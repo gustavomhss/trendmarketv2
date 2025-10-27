@@ -7,11 +7,12 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_EVEN, getcontext
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, List
 
 import jsonschema
 
