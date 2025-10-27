@@ -50,14 +50,22 @@ def test_rule_engine_outputs(tmp_path):
         MBP_RULE_SEEDS_DIR=str(tmp_path),
         MBP_EVIDENCE_DIR=str(evidence),
     )
-    subprocess.check_call(["python3", "scripts/s3/rule_engine.py", "evaluate", str(seeds_path)], env=env)
+    subprocess.check_call(
+        ["python3", "scripts/s3/rule_engine.py", "evaluate", str(seeds_path)], env=env
+    )
 
     rule_eval = json.loads((evidence / "rule_eval.json").read_text())
-    table_statuses = [row["result"]["status"] for row in rule_eval if row["rule_id"] == "RS-TEST-TABLE"]
+    table_statuses = [
+        row["result"]["status"]
+        for row in rule_eval
+        if row["rule_id"] == "RS-TEST-TABLE"
+    ]
     assert "ok" in table_statuses
     statuses = {row["rule_id"]: row["result"]["status"] for row in rule_eval}
     assert statuses["RS-TEST-ENDPOINT"] == "ok"
     manual_entries = [row for row in rule_eval if row["result"]["status"] == "manual"]
     assert manual_entries, "expected manual fallback"
-    approvals = (evidence / "rule_manual_approvals.jsonl").read_text().strip().splitlines()
+    approvals = (
+        (evidence / "rule_manual_approvals.jsonl").read_text().strip().splitlines()
+    )
     assert any("MBP-1" in line for line in approvals)

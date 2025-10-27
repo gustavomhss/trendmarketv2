@@ -66,7 +66,10 @@ def test_resolve_decision_event_conforms_to_schema(
 def test_resolve_decision_schema_version_const_enforced(
     resolve_decision_event: dict, resolve_decision_validator: jsonschema.Draft7Validator
 ) -> None:
-    invalid_event = {**resolve_decision_event, "schema_version": resolve_decision_event["schema_version"] + 1}
+    invalid_event = {
+        **resolve_decision_event,
+        "schema_version": resolve_decision_event["schema_version"] + 1,
+    }
 
     with pytest.raises(jsonschema.ValidationError):
         resolve_decision_validator.validate(invalid_event)

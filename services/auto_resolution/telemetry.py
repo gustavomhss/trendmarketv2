@@ -1,4 +1,5 @@
 """Telemetry helpers for the auto-resolution service."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -113,7 +114,9 @@ class AutoResolutionTelemetry:
         self._latency.record(duration_ms, attributes=latency_attrs)
 
     def record_failure(self, *, mode: str, duration_ms: float, reason: str) -> None:
-        attributes = self._attributes({"mode": mode, "status": "failure", "reason": reason})
+        attributes = self._attributes(
+            {"mode": mode, "status": "failure", "reason": reason}
+        )
         self._attempts.add(1, attributes=attributes)
         latency_attrs = self._attributes({"mode": mode, "status": "failure"})
         self._latency.record(duration_ms, attributes=latency_attrs)
@@ -123,13 +126,17 @@ class AutoResolutionTelemetry:
         self._backlog.add(delta, attributes=attributes)
 
     @contextmanager
-    def span(self, name: str, *, attributes: Optional[Dict[str, Any]] = None) -> Iterator[Any]:
+    def span(
+        self, name: str, *, attributes: Optional[Dict[str, Any]] = None
+    ) -> Iterator[Any]:
         if self._tracer is None:
             yield None
             return
 
         span_attributes = self._attributes(attributes or {})
-        with self._tracer.start_as_current_span(name, attributes=span_attributes) as span:
+        with self._tracer.start_as_current_span(
+            name, attributes=span_attributes
+        ) as span:
             yield span
 
     def span_record_error(self, span: Any, exc: Exception) -> None:
@@ -137,7 +144,11 @@ class AutoResolutionTelemetry:
             return
         if hasattr(span, "record_exception"):
             span.record_exception(exc)
-        if Status is not None and StatusCode is not None and hasattr(span, "set_status"):
+        if (
+            Status is not None
+            and StatusCode is not None
+            and hasattr(span, "set_status")
+        ):
             span.set_status(Status(StatusCode.ERROR, str(exc)))
 
     def _attributes(self, extra: Dict[str, Any]) -> Dict[str, Any]:

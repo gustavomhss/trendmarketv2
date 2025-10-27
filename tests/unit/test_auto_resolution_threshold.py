@@ -10,8 +10,12 @@ from services.auto_resolution.service import AGREEMENT_THRESHOLD, AutoResolution
 
 def test_quorum_requires_agreement_threshold(tmp_path: Path):
     service = AutoResolutionService(audit_log=tmp_path / "audit.log")
-    votes = {"votes": [{"verdict": "yes", "weight": 0.5}, {"verdict": "no", "weight": 0.5}]}
-    normalized, agreement, majority, quorum_ok, divergence = service._summarize_votes(votes)  # type: ignore[attr-defined]
+    votes = {
+        "votes": [{"verdict": "yes", "weight": 0.5}, {"verdict": "no", "weight": 0.5}]
+    }
+    normalized, agreement, majority, quorum_ok, divergence = service._summarize_votes(
+        votes
+    )  # type: ignore[attr-defined]
     assert normalized
     assert majority in {"accepted", "rejected"}
     assert agreement < AGREEMENT_THRESHOLD

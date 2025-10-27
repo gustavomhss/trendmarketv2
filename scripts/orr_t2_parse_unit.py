@@ -42,6 +42,7 @@ def _find_value(points, **expected_labels):
             return point.get("value")
     return None
 
+
 summary = {
     "p95_swap_seconds": sample_swap.get("p95"),
     "count_swap": sample_swap.get("count"),
@@ -59,9 +60,7 @@ summary = {
 cardinality = snapshot.get("cardinality", {})
 summary.update(
     {
-        "total_estimated_cost_usd_month": cardinality.get(
-            "total_estimated_usd_month"
-        ),
+        "total_estimated_cost_usd_month": cardinality.get("total_estimated_usd_month"),
         "max_cardinality_ratio": cardinality.get("max_ratio"),
         "max_cardinality_metric": cardinality.get("max_ratio_metric"),
     }
@@ -69,5 +68,7 @@ summary.update(
 summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 # Enforce label contract.
-subprocess.run([sys.executable, str(ROOT / "scripts" / "prom_label_lint.py")], check=True, cwd=ROOT)
+subprocess.run(
+    [sys.executable, str(ROOT / "scripts" / "prom_label_lint.py")], check=True, cwd=ROOT
+)
 print("T2_OK")

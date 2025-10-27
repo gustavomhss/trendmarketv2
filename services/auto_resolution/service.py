@@ -1,4 +1,5 @@
 """Auto-resolution service with RBAC, audit logging, and metrics."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -190,7 +191,9 @@ class AutoResolutionService:
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
         self.event_log = event_log or self.audit_log.parent / "resolve_events.jsonl"
         self.event_log.parent.mkdir(parents=True, exist_ok=True)
-        self.metrics = AutoResolutionMetrics(metrics_log or self.audit_log.parent / "metrics.jsonl")
+        self.metrics = AutoResolutionMetrics(
+            metrics_log or self.audit_log.parent / "metrics.jsonl"
+        )
         self.divergence_threshold = divergence_threshold
 
         self._records: Dict[str, ResolutionRecord] = {}
@@ -271,7 +274,9 @@ class AutoResolutionService:
         if not role:
             raise ValueError("role is required")
         if role not in ALLOWED_AUTO_ROLES:
-            raise PermissionError(f"Role '{role}' not permitted to apply auto-resolution")
+            raise PermissionError(
+                f"Role '{role}' not permitted to apply auto-resolution"
+            )
 
         resource_version = payload.get("resource_version")
         if resource_version is None:
@@ -397,8 +402,8 @@ class AutoResolutionService:
         if quorum_votes is None:
             raise ValueError("quorum_votes is required")
 
-        normalized_votes, agreement_score, majority_vote, quorum_ok, divergence = self._summarize_votes(
-            quorum_votes
+        normalized_votes, agreement_score, majority_vote, quorum_ok, divergence = (
+            self._summarize_votes(quorum_votes)
         )
         if not normalized_votes:
             raise ResolutionError("Quorum votes required to resolve event")
@@ -419,7 +424,9 @@ class AutoResolutionService:
             status = "applied_manual"
             truth_used = False
         elif truth_source is not None:
-            truth_used, outcome, rule = self._resolve_with_truth(truth_source, majority_vote, quorum_ok)
+            truth_used, outcome, rule = self._resolve_with_truth(
+                truth_source, majority_vote, quorum_ok
+            )
             status = "applied"
         elif quorum_ok:
             outcome = _stringify_decision(majority_vote)
@@ -427,7 +434,9 @@ class AutoResolutionService:
             status = "applied"
             truth_used = False
         else:
-            raise ResolutionError("Unable to resolve automatically; quorum requirement failed")
+            raise ResolutionError(
+                "Unable to resolve automatically; quorum requirement failed"
+            )
 
         decision_id = uuid.uuid4().hex
         extra_metadata: Dict[str, Any] = {}
@@ -456,7 +465,9 @@ class AutoResolutionService:
             metadata={
                 "quorum_votes": normalized_votes,
                 "divergence_pct": divergence,
-                "truth_source": truth_source.to_event_payload() if truth_source else None,
+                "truth_source": truth_source.to_event_payload()
+                if truth_source
+                else None,
                 "truth_rule_ok": truth_used or quorum_ok,
                 "agreement_threshold": AGREEMENT_THRESHOLD,
                 "metadata": extra_metadata if extra_metadata else None,
@@ -482,20 +493,34 @@ class AutoResolutionService:
         status = getattr(truth, "status", "pending").lower()
         if truth.verdict is None:
             if quorum_ok and majority_vote is not None:
-                return False, _stringify_decision(majority_vote), DecisionRule.QUORUM_CONSENSUS
-            raise ResolutionError("Truth source verdict missing and quorum not decisive")
+                return (
+                    False,
+                    _stringify_decision(majority_vote),
+                    DecisionRule.QUORUM_CONSENSUS,
+                )
+            raise ResolutionError(
+                "Truth source verdict missing and quorum not decisive"
+            )
 
         truth_decision = _stringify_decision(truth.verdict)
         truth_norm = _as_event_decision(truth_decision)
         truth_is_final = status in _FINAL_TRUTH_STATUSES
         if truth_is_final:
-            majority_norm = None if majority_vote is None else _as_event_decision(_stringify_decision(majority_vote))
+            majority_norm = (
+                None
+                if majority_vote is None
+                else _as_event_decision(_stringify_decision(majority_vote))
+            )
             if quorum_ok and majority_norm is not None and majority_norm != truth_norm:
                 return True, truth_decision, DecisionRule.TRUTH_SOURCE_OVERRIDE
             return True, truth_decision, DecisionRule.TRUTH_SOURCE_FINAL
 
         if quorum_ok and majority_vote is not None:
-            return False, _stringify_decision(majority_vote), DecisionRule.QUORUM_CONSENSUS
+            return (
+                False,
+                _stringify_decision(majority_vote),
+                DecisionRule.QUORUM_CONSENSUS,
+            )
         raise ResolutionError("Truth source not final and quorum requirement failed")
 
     # ------------------------------------------------------------------
@@ -548,7 +573,9 @@ class AutoResolutionService:
             "rule": record.rule,
             "quorum_ok": record.quorum_ok,
             "truth_source_used": record.truth_source_used,
-            "manual_override": record.manual_reason if record.manual_override and record.manual_reason else record.manual_override,
+            "manual_override": record.manual_reason
+            if record.manual_override and record.manual_reason
+            else record.manual_override,
             "agreement_score": record.agreement_score,
             "resource_version": record.resource_version,
             "idempotency_key": record.idempotency_key,
@@ -608,7 +635,9 @@ class AutoResolutionService:
         metrics_payload = {
             "ts": _isoformat(record.decided_at),
             "span": "auto_resolve.eval",
-            "status": "success" if record.status != "manual_required" else "manual_required",
+            "status": "success"
+            if record.status != "manual_required"
+            else "manual_required",
             "event_id": record.event_id,
             "trace_id": record.trace_id,
             "duration_ms": round(duration * 1000, 3),
@@ -619,7 +648,9 @@ class AutoResolutionService:
             "quorum_ok": record.quorum_ok,
             "agreement_score": record.agreement_score,
             "agreement_threshold": AGREEMENT_THRESHOLD,
-            "truth_rule_ok": record.metadata.get("truth_rule_ok", record.truth_source_used or record.quorum_ok),
+            "truth_rule_ok": record.metadata.get(
+                "truth_rule_ok", record.truth_source_used or record.quorum_ok
+            ),
         }
         self.metrics.emit(metrics_payload)
 

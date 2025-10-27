@@ -546,9 +546,7 @@ def _write_guard_summary(stage: str, variant: str, lines: Sequence[str]) -> Path
     return stage_path
 
 
-def _build_summary_lines(
-    context: StageContext, status: str, notes: str
-) -> List[str]:
+def _build_summary_lines(context: StageContext, status: str, notes: str) -> List[str]:
     header = f"Stage {context.stage.upper()} ({context.variant}) — {status.upper()}"
     lines: List[str] = [header]
     for record in context.records:
@@ -601,7 +599,9 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
 
 
 def main(argv: List[str] | None = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     args = parse_args(argv or sys.argv[1:])
     run_stage(stage=args.stage, variant=args.variant)
     return 0

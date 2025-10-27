@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Calcula raiz de Merkle determinística para o Evidence Pack."""
+
 from __future__ import annotations
 
 import argparse

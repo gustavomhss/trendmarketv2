@@ -4,6 +4,7 @@ This module implements the Sprint 5 quorum aggregation logic for the
 MBP oracles. Quotes are filtered by staleness, aggregated via the
 median (quorum price) and scored for divergence.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -136,7 +137,9 @@ def aggregate_quorum(
 
             quorum_needed = max(2, math.ceil((2 * total) / 3))
             quorum_ratio = len(valid) / total if total else 0.0
-            quorum_ok = len(valid) >= quorum_needed and divergence <= DIVERGENCE_THRESHOLD
+            quorum_ok = (
+                len(valid) >= quorum_needed and divergence <= DIVERGENCE_THRESHOLD
+            )
 
             result = AggregateResult(
                 symbol=symbol,

@@ -34,4 +34,3 @@ def test_quorum_fails_on_high_divergence():
     result = aggregate_quorum("BRLUSD", quotes, now_ms=now_ms)
     assert result.quorum_ok is False
     assert result.divergence_pct is not None and result.divergence_pct > 0.01
-

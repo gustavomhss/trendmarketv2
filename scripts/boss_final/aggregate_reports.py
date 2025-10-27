@@ -126,7 +126,9 @@ def _stage_missing(stage_name: str, error: str) -> Dict[str, object]:
     }
 
 
-def _fetch_stage_entry(stage_index: int, artifacts: Dict[str, dict], token: str, repository: str) -> Dict[str, object]:
+def _fetch_stage_entry(
+    stage_index: int, artifacts: Dict[str, dict], token: str, repository: str
+) -> Dict[str, object]:
     stage_name = f"s{stage_index}"
     prefix = f"{ARTIFACT_PREFIX}{stage_name}"
     matching = [info for name, info in artifacts.items() if name.startswith(prefix)]
@@ -179,7 +181,12 @@ def _fetch_stage_entry(stage_index: int, artifacts: Dict[str, dict], token: str,
 
 
 def _now_utc() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def main() -> int:

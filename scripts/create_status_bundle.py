@@ -45,10 +45,16 @@ def compute_sha256(path: Path) -> str:
 
 
 def write_checksum(hash_value: str) -> None:
-    payload = json.dumps(
-        {"file": BUNDLE_PATH.relative_to(REPO_ROOT).as_posix(), "sha256": hash_value},
-        indent=2,
-    ) + "\n"
+    payload = (
+        json.dumps(
+            {
+                "file": BUNDLE_PATH.relative_to(REPO_ROOT).as_posix(),
+                "sha256": hash_value,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     CHECKSUM_PATH.write_text(payload, encoding="utf-8")
 
 

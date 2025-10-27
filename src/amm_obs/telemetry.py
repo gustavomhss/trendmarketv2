@@ -70,8 +70,14 @@ HOOK_CATALOG: Tuple[str, ...] = (
 
 HOOK_EXECUTIONS_BY_OPERATION: Dict[str, Sequence[Tuple[str, str]]] = {
     "swap": [("hook_pre_trade", "success"), ("hook_risk_checks", "success")],
-    "add_liquidity": [("hook_pre_trade", "success"), ("hook_settlement_dispatch", "success")],
-    "remove_liquidity": [("hook_pre_trade", "success"), ("hook_settlement_dispatch", "success")],
+    "add_liquidity": [
+        ("hook_pre_trade", "success"),
+        ("hook_settlement_dispatch", "success"),
+    ],
+    "remove_liquidity": [
+        ("hook_pre_trade", "success"),
+        ("hook_settlement_dispatch", "success"),
+    ],
     "pricing": [("hook_risk_checks", "success")],
     "cdc_consume": [("hook_cdc_sync", "success")],
 }
@@ -197,7 +203,9 @@ class AMMObservability:
         operation_profile: Optional[Dict[str, Sequence[float]]] = None,
         observability_level: Optional[str] = None,
     ) -> None:
-        level = (observability_level or os.getenv("OBSERVABILITY_LEVEL", "full")).lower()
+        level = (
+            observability_level or os.getenv("OBSERVABILITY_LEVEL", "full")
+        ).lower()
         if level not in {"off", "min", "full"}:
             raise ValueError("observability_level must be one of {'off','min','full'}")
 
@@ -207,7 +215,9 @@ class AMMObservability:
         self._level = level
 
         profile = operation_profile or DEFAULT_OPERATION_PROFILE
-        self._profile: Dict[str, List[float]] = {op: list(values) for op, values in profile.items()}
+        self._profile: Dict[str, List[float]] = {
+            op: list(values) for op, values in profile.items()
+        }
         self._profile_index: Dict[str, int] = {op: 0 for op in self._profile}
 
         self._rng = random.Random(seed)
@@ -222,8 +232,12 @@ class AMMObservability:
         self._data_freshness = self._build_gauge_samples(
             "data_freshness_seconds", DEFAULT_DATA_FRESHNESS, "seconds"
         )
-        self._cdc_lag = self._build_gauge_samples("cdc_lag_seconds", DEFAULT_CDC_LAG, "seconds")
-        self._drift_scores = self._build_gauge_samples("drift_score", DEFAULT_DRIFT_SCORE, "score")
+        self._cdc_lag = self._build_gauge_samples(
+            "cdc_lag_seconds", DEFAULT_CDC_LAG, "seconds"
+        )
+        self._drift_scores = self._build_gauge_samples(
+            "drift_score", DEFAULT_DRIFT_SCORE, "score"
+        )
 
         self._hook_executions: Dict[Tuple[str, str], int] = {}
         self._executed_hooks: Set[str] = set()
@@ -293,9 +307,13 @@ class AMMObservability:
 
             if synthetic:
                 route_name = (route or f"/{op}").lstrip("/") or op
-                self._synthetic_counts[route_name] = self._synthetic_counts.get(route_name, 0) + 1
+                self._synthetic_counts[route_name] = (
+                    self._synthetic_counts.get(route_name, 0) + 1
+                )
                 if status.upper() == "OK":
-                    self._synthetic_success[route_name] = self._synthetic_success.get(route_name, 0) + 1
+                    self._synthetic_success[route_name] = (
+                        self._synthetic_success.get(route_name, 0) + 1
+                    )
                 self._synthetic_latencies.setdefault(route_name, []).append(latency)
 
             if self._level != "off":
@@ -377,7 +395,11 @@ class AMMObservability:
         snapshot = {
             "metric": "amm_op_latency_seconds",
             "unit": "seconds",
-            "labels": {"env": self.env, "service": self.service, "version": self.version},
+            "labels": {
+                "env": self.env,
+                "service": self.service,
+                "version": self.version,
+            },
             "operations": operations,
             "exemplars": dict(self._exemplars),
             "supporting": supporting,
@@ -403,8 +425,12 @@ class AMMObservability:
                 lines.append(f"amm_op_latency_seconds_bucket{{{labels}}} {count}")
             total = len(values)
             total_sum = _round(sum(values))
-            lines.append(f"amm_op_latency_seconds_sum{{{self._label_pairs(op)}}} {total_sum}")
-            lines.append(f"amm_op_latency_seconds_count{{{self._label_pairs(op)}}} {total}")
+            lines.append(
+                f"amm_op_latency_seconds_sum{{{self._label_pairs(op)}}} {total_sum}"
+            )
+            lines.append(
+                f"amm_op_latency_seconds_count{{{self._label_pairs(op)}}} {total}"
+            )
 
         if self._data_freshness:
             lines.extend(
@@ -415,7 +441,9 @@ class AMMObservability:
                 ]
             )
             for sample in self._data_freshness:
-                labels = self._format_metric_labels("data_freshness_seconds", sample["labels"])
+                labels = self._format_metric_labels(
+                    "data_freshness_seconds", sample["labels"]
+                )
                 lines.append(f"data_freshness_seconds{{{labels}}} {sample['value']}")
 
         if self._cdc_lag:
@@ -449,7 +477,9 @@ class AMMObservability:
                 ]
             )
             for sample in self._counter_samples():
-                labels = self._format_metric_labels("hook_executions_total", sample["labels"])
+                labels = self._format_metric_labels(
+                    "hook_executions_total", sample["labels"]
+                )
                 lines.append(f"hook_executions_total{{{labels}}} {sample['value']}")
 
         if self._hook_coverage:
@@ -459,8 +489,12 @@ class AMMObservability:
                     "# TYPE hook_coverage_ratio gauge",
                 ]
             )
-            labels = self._format_metric_labels("hook_coverage_ratio", self._hook_coverage["labels"])
-            lines.append(f"hook_coverage_ratio{{{labels}}} {self._hook_coverage['value']}")
+            labels = self._format_metric_labels(
+                "hook_coverage_ratio", self._hook_coverage["labels"]
+            )
+            lines.append(
+                f"hook_coverage_ratio{{{labels}}} {self._hook_coverage['value']}"
+            )
 
         if self._synthetic_counts:
             lines.extend(
@@ -484,7 +518,9 @@ class AMMObservability:
                 cumulative = self._cumulative_buckets(latencies, SYNTHETIC_BUCKETS)
                 for bucket, count in cumulative.items():
                     labels = self._synthetic_label_pairs(route, {"le": bucket})
-                    lines.append(f"synthetic_latency_seconds_bucket{{{labels}}} {count}")
+                    lines.append(
+                        f"synthetic_latency_seconds_bucket{{{labels}}} {count}"
+                    )
                 total = len(latencies)
                 total_sum = _round(sum(latencies))
                 labels = self._synthetic_label_pairs(route)
@@ -516,12 +552,18 @@ class AMMObservability:
         metrics["drift_score"] = {"series": float(len(self._drift_scores))}
 
         hook_exec_series = len(
-            {(hook, status) for hooks in HOOK_EXECUTIONS_BY_OPERATION.values() for hook, status in hooks}
+            {
+                (hook, status)
+                for hooks in HOOK_EXECUTIONS_BY_OPERATION.values()
+                for hook, status in hooks
+            }
         )
         metrics["hook_executions_total"] = {"series": float(hook_exec_series)}
         metrics["hook_coverage_ratio"] = {"series": 1.0}
 
-        synthetic_routes = max(len(self._synthetic_latencies), len(self._profile)) or len(self._profile)
+        synthetic_routes = max(
+            len(self._synthetic_latencies), len(self._profile)
+        ) or len(self._profile)
         metrics["synthetic_latency_seconds_bucket"] = {
             "series": float(synthetic_routes * (len(SYNTHETIC_BUCKETS) + 1))
         }
@@ -544,7 +586,11 @@ class AMMObservability:
                     max_ratio = ratio
                     worst_metric = metric
             cost = round(
-                series * _SAMPLES_PER_DAY * RETENTION_DAYS * PRICE_PER_MILLION_SAMPLES / 1e6,
+                series
+                * _SAMPLES_PER_DAY
+                * RETENTION_DAYS
+                * PRICE_PER_MILLION_SAMPLES
+                / 1e6,
                 2,
             )
             payload["est_usd_month"] = cost
@@ -586,10 +632,15 @@ class AMMObservability:
 
     def write_metrics_unit(self, path: Path) -> None:
         payload = self.metrics_snapshot()
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     def write_state(self, path: Path) -> None:
-        path.write_text(json.dumps(self.serialize(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(self.serialize(), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
     # ---------------------------------------------------------------- private
     def _next_latency(self, op: str) -> float:
@@ -623,7 +674,9 @@ class AMMObservability:
         return counts
 
     @staticmethod
-    def _cumulative_buckets(values: Sequence[float], buckets: Sequence[float]) -> Dict[str, int]:
+    def _cumulative_buckets(
+        values: Sequence[float], buckets: Sequence[float]
+    ) -> Dict[str, int]:
         cumulative: Dict[str, int] = {}
         for bucket in buckets:
             cumulative[str(bucket)] = sum(1 for value in values if value <= bucket)
@@ -641,7 +694,9 @@ class AMMObservability:
             labels.extend(extra.items())
         return ",".join(f'{key}="{value}"' for key, value in labels)
 
-    def _synthetic_label_pairs(self, route: str, extra: Optional[Dict[str, object]] = None) -> str:
+    def _synthetic_label_pairs(
+        self, route: str, extra: Optional[Dict[str, object]] = None
+    ) -> str:
         labels = [("route", route), ("env", self.env), ("service", self.service)]
         if extra:
             labels.extend(extra.items())
@@ -716,7 +771,9 @@ class AMMObservability:
         return snapshot
 
     @staticmethod
-    def _samples_to_dict(samples: Iterable[Dict[str, object]]) -> List[Dict[str, object]]:
+    def _samples_to_dict(
+        samples: Iterable[Dict[str, object]],
+    ) -> List[Dict[str, object]]:
         return [
             {"labels": dict(sample["labels"]), "value": sample["value"]}
             for sample in samples
@@ -770,7 +827,9 @@ def run_dev_server(
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
             if path == "/health":
-                self._write_json({"status": "ok", "operations": list(telemetry._profile.keys())})
+                self._write_json(
+                    {"status": "ok", "operations": list(telemetry._profile.keys())}
+                )
                 return
             if path == "/metrics":
                 body = telemetry.export_prometheus().encode("utf-8")

@@ -1,4 +1,5 @@
 """Auto-resolution service with Prometheus and tracing instrumentation."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -129,9 +130,13 @@ def _observe_metrics(
     count_decision: bool,
 ) -> None:
     if _DECISION_LATENCY is not None:
-        _DECISION_LATENCY.labels(truth_source=truth_source, env=OBS_ENV).observe(duration_seconds)
+        _DECISION_LATENCY.labels(truth_source=truth_source, env=OBS_ENV).observe(
+            duration_seconds
+        )
     if _BACKLOG_GAUGE is not None:
-        _BACKLOG_GAUGE.labels(truth_source=truth_source, env=OBS_ENV).set(backlog_for_source)
+        _BACKLOG_GAUGE.labels(truth_source=truth_source, env=OBS_ENV).set(
+            backlog_for_source
+        )
         _BACKLOG_GAUGE.labels(truth_source="__total__", env=OBS_ENV).set(total_backlog)
     if not count_decision:
         return
@@ -194,7 +199,9 @@ class AutoResolverService:
                     if StatusCode is not None and Status is not None:
                         span.set_status(Status(StatusCode.ERROR, "conflict"))
                     span.record_exception(DecisionConflictError(decision_id))
-                raise DecisionConflictError(f"Decision '{decision_id}' already processed")
+                raise DecisionConflictError(
+                    f"Decision '{decision_id}' already processed"
+                )
 
             if quorum:
                 outcome = "applied"
@@ -270,7 +277,9 @@ class AutoResolverService:
                 resolved_at=resolved_at,
                 latency_ms=latency_ms,
                 trace_id=pending.trace_id,
-                payload={**pending.payload, "finalized_reason": reason} if reason else pending.payload,
+                payload={**pending.payload, "finalized_reason": reason}
+                if reason
+                else pending.payload,
             )
             self._resolved[decision_id] = record
             del self._pending[decision_id]
@@ -300,7 +309,9 @@ class AutoResolverService:
         return len(self._pending)
 
     def backlog_for_source(self, truth_source: str) -> int:
-        return sum(1 for item in self._pending.values() if item.truth_source == truth_source)
+        return sum(
+            1 for item in self._pending.values() if item.truth_source == truth_source
+        )
 
     def pending_decisions(self) -> Iterable[PendingDecision]:
         return list(self._pending.values())

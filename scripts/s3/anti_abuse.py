@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Anti-abuse detector for S3 gatecheck."""
+
 from __future__ import annotations
 
 import json
@@ -77,7 +78,8 @@ def detect_abuse(orders: Iterable[Dict[str, object]]) -> List[Dict[str, object]]
                     "reason": "burst",
                     "severity": "medium",
                     "trace_id": TELEMETRY.emit(
-                        "abuse.detect", {"user": user, "market_id": market, "reason": "burst"}
+                        "abuse.detect",
+                        {"user": user, "market_id": market, "reason": "burst"},
                     )["trace_id"],
                 }
             )
@@ -93,7 +95,8 @@ def detect_abuse(orders: Iterable[Dict[str, object]]) -> List[Dict[str, object]]
                     "reason": "exposure",
                     "severity": "high",
                     "trace_id": TELEMETRY.emit(
-                        "abuse.detect", {"user": user, "market_id": market, "reason": "exposure"}
+                        "abuse.detect",
+                        {"user": user, "market_id": market, "reason": "exposure"},
                     )["trace_id"],
                 }
             )
@@ -108,7 +111,8 @@ def detect_abuse(orders: Iterable[Dict[str, object]]) -> List[Dict[str, object]]
                     "reason": "cooldown_violation",
                     "severity": "medium",
                     "trace_id": TELEMETRY.emit(
-                        "abuse.detect", {"user": user, "market_id": market, "reason": "cooldown"}
+                        "abuse.detect",
+                        {"user": user, "market_id": market, "reason": "cooldown"},
                     )["trace_id"],
                 }
             )
@@ -126,7 +130,9 @@ def main() -> int:
     events = detect_abuse(orders)
     ensure_evidence_dir()
     EVIDENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    EVIDENCE_PATH.write_text(json.dumps(events, indent=2, ensure_ascii=False), encoding="utf-8")
+    EVIDENCE_PATH.write_text(
+        json.dumps(events, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     print(len(events))
     return 0
 

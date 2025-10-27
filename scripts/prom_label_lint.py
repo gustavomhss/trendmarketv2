@@ -37,9 +37,13 @@ def main() -> int:
             labels = match.group(2)
             keys = {kv.split("=")[0].strip() for kv in labels.split(",") if "=" in kv}
             if not keys.issubset(allow.get(name, set())):
-                violations.append({"file": str(path), "metric": name, "labels": sorted(keys)})
+                violations.append(
+                    {"file": str(path), "metric": name, "labels": sorted(keys)}
+                )
 
-    (evidence_dir / "label_lint.json").write_text(json.dumps({"violations": violations}, indent=2))
+    (evidence_dir / "label_lint.json").write_text(
+        json.dumps({"violations": violations}, indent=2)
+    )
     if violations:
         print("LABELS_FAIL")
         return 1

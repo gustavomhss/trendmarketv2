@@ -10,6 +10,7 @@ import uuid
 try:  # pragma: no cover - FastAPI optional in this environment
     from fastapi import Depends, FastAPI, HTTPException, Query
 except Exception:  # pragma: no cover - provide lightweight fallbacks
+
     class HTTPException(Exception):
         def __init__(self, status_code: int, detail: str) -> None:
             super().__init__(detail)
@@ -41,6 +42,7 @@ except Exception:  # pragma: no cover - provide lightweight fallbacks
                 return func
 
             return decorator
+
 
 from services.auto_resolution.service import AutoResolutionService, TruthSourceSignal
 from services.moderation.service import ModerationService
@@ -82,7 +84,11 @@ class QuoteRepository:
         for idx, (ts_ms, price) in enumerate(reversed(rows)):
             source = sources[idx % len(sources)]
             jitter = 1 + (idx - 1) * 0.0002
-            quotes.append(Quote(symbol=self.symbol, price=price * jitter, ts_ms=ts_ms, source=source))
+            quotes.append(
+                Quote(
+                    symbol=self.symbol, price=price * jitter, ts_ms=ts_ms, source=source
+                )
+            )
         return quotes
 
     def all_samples(self) -> List[tuple[int, float]]:
@@ -195,7 +201,9 @@ class ResolveApplyRequest:
     def parse_obj(cls, data: Dict[str, object]) -> "ResolveApplyRequest":
         parsed = dict(data)
         parsed["truth"] = ResolveTruthPayload.parse_obj(parsed["truth"])
-        parsed["quorum_details"] = ResolveQuorumPayload.parse_obj(parsed["quorum_details"])
+        parsed["quorum_details"] = ResolveQuorumPayload.parse_obj(
+            parsed["quorum_details"]
+        )
         return cls(**parsed)
 
 
@@ -231,13 +239,19 @@ def get_auto_resolver() -> AutoResolutionService:
     return RESOLUTION_SERVICE
 
 
-@app.get("/oracle/quote", response_model=OracleQuoteResponse, responses={503: {"model": ErrorResponse}})
+@app.get(
+    "/oracle/quote",
+    response_model=OracleQuoteResponse,
+    responses={503: {"model": ErrorResponse}},
+)
 async def get_oracle_quote(
     symbol: str = Query(DEFAULT_SYMBOL),
     repo: QuoteRepository = Depends(get_repository),
 ) -> OracleQuoteResponse:
     trace_id = uuid.uuid4().hex
-    with _TELEMETRY.span("api.oracle.quote", attributes={"oracle.symbol": symbol, "trace_id": trace_id}):
+    with _TELEMETRY.span(
+        "api.oracle.quote", attributes={"oracle.symbol": symbol, "trace_id": trace_id}
+    ):
         try:
             quotes = repo.latest_quotes()
         except RuntimeError as exc:
@@ -269,7 +283,11 @@ async def get_oracle_quote(
     return response
 
 
-@app.post("/moderation/pause", response_model=ModerationAction, responses={403: {"model": ErrorResponse}})
+@app.post(
+    "/moderation/pause",
+    response_model=ModerationAction,
+    responses={403: {"model": ErrorResponse}},
+)
 async def moderation_pause(
     payload: ModerationAction,
     service: ModerationService = Depends(get_moderation),
@@ -277,7 +295,10 @@ async def moderation_pause(
     detected_at = payload.ts.timestamp()
     with _TELEMETRY.span(
         "api.moderation.pause",
-        attributes={"moderation.symbol": payload.symbol, "moderation.trace_id": payload.trace_id},
+        attributes={
+            "moderation.symbol": payload.symbol,
+            "moderation.trace_id": payload.trace_id,
+        },
     ):
         record = service.pause(
             symbol=payload.symbol,
@@ -303,7 +324,11 @@ async def moderation_pause(
     return response
 
 
-@app.post("/resolve/apply", response_model=ResolveApplyResponse, responses={400: {"model": ErrorResponse}})
+@app.post(
+    "/resolve/apply",
+    response_model=ResolveApplyResponse,
+    responses={400: {"model": ErrorResponse}},
+)
 async def resolve_apply(
     request: ResolveApplyRequest,
     resolver: AutoResolutionService = Depends(get_auto_resolver),
@@ -328,7 +353,10 @@ async def resolve_apply(
         role=role,
         resource_version=request.resource_version,
         idempotency_key=request.idempotency_key,
-        quorum_votes={"votes": votes, "divergence_pct": request.quorum_details.diverg_pct or 0.0},
+        quorum_votes={
+            "votes": votes,
+            "divergence_pct": request.quorum_details.diverg_pct or 0.0,
+        },
         quorum=request.quorum,
         manual_override=request.manual_decision,
         manual_reason=request.reason,

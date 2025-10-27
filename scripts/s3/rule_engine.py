@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Rule engine evaluator for Sprint 3 gatecheck."""
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,9 @@ class Rule:
     @classmethod
     def from_yaml(cls, raw: Dict[str, Any]) -> "Rule":
         cfg = raw.copy()
-        return cls(id=str(cfg.pop("id")), source_kind=str(cfg.pop("source_kind")), config=cfg)
+        return cls(
+            id=str(cfg.pop("id")), source_kind=str(cfg.pop("source_kind")), config=cfg
+        )
 
 
 class Ruleset:
@@ -101,12 +104,16 @@ def evaluate_endpoint(rule: Rule, payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def manual_fallback(rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]) -> Dict[str, Any]:
+def manual_fallback(
+    rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]
+) -> Dict[str, Any]:
     manual = seed.get("manual") or {}
     approver = manual.get("approver")
     ticket = manual.get("ticket")
     if not approver or not ticket:
-        raise ValueError(f"manual fallback requires approver and ticket (rule {rule.id})")
+        raise ValueError(
+            f"manual fallback requires approver and ticket (rule {rule.id})"
+        )
     approval_record = {
         "rule_id": rule.id,
         "approver": approver,
@@ -115,17 +122,21 @@ def manual_fallback(rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]) -
     }
     with APPROVALS_PATH.open("a", encoding="utf-8") as fp:
         fp.write(json.dumps(approval_record, ensure_ascii=False) + "\n")
-    AUDIT.append({
-        "event": "manual_fallback",
-        "rule_id": rule.id,
-        "approver": approver,
-        "ticket": ticket,
-        "payload": payload,
-    })
+    AUDIT.append(
+        {
+            "event": "manual_fallback",
+            "rule_id": rule.id,
+            "approver": approver,
+            "ticket": ticket,
+            "payload": payload,
+        }
+    )
     return {"status": "manual", "approver": approver, "ticket": ticket}
 
 
-def evaluate_rule(rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_rule(
+    rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]
+) -> Dict[str, Any]:
     if rule.source_kind == "table":
         result = evaluate_table(rule, payload)
         if result.get("status") == "ok":
@@ -138,7 +149,9 @@ def evaluate_rule(rule: Rule, payload: Dict[str, Any], seed: Dict[str, Any]) -> 
     raise ValueError(f"unsupported source_kind {rule.source_kind}")
 
 
-def evaluate_seeds(ruleset: Ruleset, seeds: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def evaluate_seeds(
+    ruleset: Ruleset, seeds: Iterable[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     evaluations: List[Dict[str, Any]] = []
     for seed in seeds:
         rule_id = seed["rule_id"]
@@ -159,7 +172,9 @@ def evaluate_seeds(ruleset: Ruleset, seeds: Iterable[Dict[str, Any]]) -> List[Di
                 "trace_id": trace["trace_id"],
             }
         )
-    RULE_EVAL_PATH.write_text(json.dumps(evaluations, indent=2, ensure_ascii=False), encoding="utf-8")
+    RULE_EVAL_PATH.write_text(
+        json.dumps(evaluations, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     return evaluations
 
 
@@ -174,7 +189,9 @@ def load_seeds(path: Optional[Path]) -> List[Dict[str, Any]]:
 def cli(argv: Optional[Iterable[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Evaluate rule seeds for S3 gatecheck")
     parser.add_argument("command", choices=["evaluate"], help="Command to execute")
-    parser.add_argument("seed_file", nargs="?", help="JSON file with seeds", default=str(SEEDS_DEFAULT))
+    parser.add_argument(
+        "seed_file", nargs="?", help="JSON file with seeds", default=str(SEEDS_DEFAULT)
+    )
     args = parser.parse_args(argv)
 
     if args.command == "evaluate":

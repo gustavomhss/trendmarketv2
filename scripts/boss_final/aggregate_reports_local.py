@@ -37,7 +37,9 @@ def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
     for index in range(1, 7):
         name = f"s{index}"
         if name not in present:
-            results.append({"name": name, "status": "missing", "errors": ["artifact not found"]})
+            results.append(
+                {"name": name, "status": "missing", "errors": ["artifact not found"]}
+            )
 
 
 def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
@@ -49,7 +51,11 @@ def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
 
 
 def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    status = {entry["name"]: str(entry.get("status", "missing")).upper() for entry in results if "name" in entry}
+    status = {
+        entry["name"]: str(entry.get("status", "missing")).upper()
+        for entry in results
+        if "name" in entry
+    }
     overall = "FAIL" if any(value != "PASSED" for value in status.values()) else "PASS"
     return {"status": overall, "stages": status}
 

@@ -80,9 +80,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     "observability_level": "full",
                 },
             )
-            _write_json(
-                evidence / "pii_probe.json", {"status": "OK", "cpf": False}
-            )
+            _write_json(evidence / "pii_probe.json", {"status": "OK", "cpf": False})
             (evidence / "pii_labels.ok").write_text("LABELS_OK\n", encoding="utf-8")
             _write_json(evidence / "chaos_summary.json", {"status": "GREEN"})
             _write_json(evidence / "baseline_perf.json", {"qps": 125})

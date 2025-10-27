@@ -25,4 +25,3 @@ def test_twap_failover_to_secondary_when_primary_stale():
     assert snapshot["failover_time_s"] <= FAILOVER_THRESHOLD_MS / 1000
     events = engine.snapshot_events()
     assert any(evt.kind == "failover" for evt in events)
-

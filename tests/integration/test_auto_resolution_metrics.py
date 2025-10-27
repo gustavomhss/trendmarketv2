@@ -20,7 +20,12 @@ def test_metrics_and_events_written(tmp_path: Path) -> None:
         event_id="evt-m-1",
         symbol="ETHUSD",
         truth={"value": 2300.0, "source": "truth_feed", "ts": 1700001234},
-        quorum={"value": 2300.5, "quorum_ok": True, "diverg_pct": 0.0002, "staleness_ms": 1200},
+        quorum={
+            "value": 2300.5,
+            "quorum_ok": True,
+            "diverg_pct": 0.0002,
+            "staleness_ms": 1200,
+        },
         actor="auto_resolver",
         role="system",
     )

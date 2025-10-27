@@ -62,7 +62,9 @@ class ObservabilityLevelOffTests(unittest.TestCase):
     def test_metrics_disabled_when_off(self) -> None:
         obs = AMMObservability(observability_level="off")
         obs.simulate_unit_load()
-        self.assertEqual(obs.export_prometheus().strip(), "# Observability disabled (level=off)")
+        self.assertEqual(
+            obs.export_prometheus().strip(), "# Observability disabled (level=off)"
+        )
         snapshot = obs.metrics_snapshot()
         self.assertEqual(snapshot["operations"], {})
         # Even in off mode synthetic probes record their latest runs so that

@@ -27,4 +27,3 @@ def test_fee_engine_enforces_bounds_and_cooldown():
     assert abs(third.delta_pct) <= DELTA_LIMIT
     assert third.fee <= bounds.maximum
     assert len(engine.history) == 3
-
