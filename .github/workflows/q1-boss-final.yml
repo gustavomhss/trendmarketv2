@@ -82,6 +82,11 @@ jobs:
           python -m pip install -r requirements.lock -c constraints-app.txt
           python -m pip check
 
+      - name: Configure stage artifact directory
+        run: |
+          echo "STAGE_ARTIFACT_DIR=$RUNNER_TEMP/boss-stage-${STAGE}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_DIR=$RUNNER_TEMP/boss-stage-${STAGE}" >> "$GITHUB_ENV"
+
       - name: Ensure clean workspace
         if: ${{ matrix.clean_runner }}
         run: |
@@ -96,7 +101,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-stage-${{ env.STAGE }}
-          path: ${{ runner.temp }}/boss-stage-${{ env.STAGE }}
+          path: ${{ env.STAGE_ARTIFACT_DIR }}
           retention-days: 7
           overwrite: true
   aggregate:
@@ -109,8 +114,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      REPORT_DIR: ${{ runner.temp }}/boss-aggregate
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
+      REPORT_DIR: ${{ github.workspace }}/.boss-aggregate
+      ARTS_DIR: ${{ github.workspace }}/.boss-arts
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -147,14 +153,14 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: boss-stage-s*
-          path: ${{ runner.temp }}/boss-arts
+          path: ${{ env.ARTS_DIR }}
           merge-multiple: true
 
       - name: Aggregate reports (local)
         if: always()
         id: aggregate
         env:
-          ARTS_DIR: ${{ runner.temp }}/boss-arts
+          ARTS_DIR: ${{ env.ARTS_DIR }}
           REPORT_DIR: ${{ env.REPORT_DIR }}
         run: |
           set -euo pipefail
