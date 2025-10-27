@@ -284,28 +284,7 @@ jobs:
           cp "$REPORT_DIR/report.json" "out/boss_final/report.local.json"
           . .venv/bin/activate 2>/dev/null || true
           python scripts/boss_final/ensure_schema.py out/boss_final/report.local.json
-          python - <<'PY'
-import hashlib
-import json
-import os
-import pathlib
-
-path = pathlib.Path("out/boss_final/report.local.json")
-digest = hashlib.sha256(path.read_bytes()).hexdigest()
-(path.parent / "report.local.json.sha256.txt").write_text(digest + "\n", encoding="utf-8")
-data = json.loads(path.read_text(encoding="utf-8"))
-lines = [
-    f"report_path: {path.resolve()}",
-    f"schema: {data.get('schema', '<missing>')}",
-    f"generated_at: {data.get('generated_at', '<missing>')}",
-]
-(path.parent / "diagnostics.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-print("\n".join(lines))
-with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-    handle.write(f"schema={data.get('schema', '')}\n")
-    handle.write(f"generated_at={data.get('generated_at', '')}\n")
-    handle.write(f"sha256={digest}\n")
-PY
+          python scripts/boss_final/generate_local_evidence.py out/boss_final/report.local.json
 
       - name: Append local aggregate summary
         if: steps.aggregate.outcome == 'success'
