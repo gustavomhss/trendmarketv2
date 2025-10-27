@@ -1,3 +1,6 @@
+permissions:
+  actions: read
+  contents: read
 name: Q1 Boss Final
 
 on:
@@ -96,12 +99,18 @@ jobs:
       - name: Execute sprint guard
         timeout-minutes: 5
         run: bash scripts/boss_final/ci_stage_wrapper.sh
+      - name: List stage artifact dir (debug)
+        if: always()
+        run: |
+          set -euo pipefail
+          ls -la "${{ runner.temp }}" || true
+          ls -la "${{ runner.temp }}/boss-stage-${{ env.STAGE }}" || true
       - name: Upload stage artifact (always)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-stage-${{ env.STAGE }}
-          path: ${{ env.STAGE_ARTIFACT_DIR }}
+          path: ${{ runner.temp }}/boss-stage-${{ env.STAGE }}
           retention-days: 7
           overwrite: true
   aggregate:
@@ -166,15 +175,6 @@ jobs:
           . .venv/bin/activate 2>/dev/null || true
           python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
-      - name: Upload Boss Final aggregate
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: boss-final-aggregate
-          path: ${{ runner.temp }}/boss-aggregate
-          retention-days: 7
-          overwrite: true
-
       - name: Validate report schema (local)
         if: always()
         env:
@@ -183,6 +183,15 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
           python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
+
+      - name: Upload Boss Final aggregate
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: boss-final-aggregate
+          path: ${{ runner.temp }}/boss-aggregate
+          retention-days: 7
+          overwrite: true
 
       - name: Evaluate guard status
         if: always()
