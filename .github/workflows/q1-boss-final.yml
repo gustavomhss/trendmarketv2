@@ -115,8 +115,6 @@ jobs:
     timeout-minutes: 30
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
-      ARTS_DIR: ${{ runner.temp }}/boss-arts
-      REPORT_DIR: ${{ runner.temp }}/boss-aggregate
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -153,12 +151,15 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: boss-stage-s*
-          path: ${{ env.ARTS_DIR }}
+          path: ${{ runner.temp }}/boss-arts
           merge-multiple: true
 
       - name: Aggregate reports (local)
         if: always()
         id: aggregate
+        env:
+          ARTS_DIR: ${{ runner.temp }}/boss-arts
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         run: |
           set -euo pipefail
           mkdir -p "$REPORT_DIR"
@@ -170,12 +171,14 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-final-aggregate
-          path: ${{ env.REPORT_DIR }}
+          path: ${{ runner.temp }}/boss-aggregate
           retention-days: 7
           overwrite: true
 
       - name: Validate report schema (local)
         if: always()
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
@@ -184,6 +187,8 @@ jobs:
       - name: Evaluate guard status
         if: always()
         id: guard
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         run: |
           status=$(cat "$REPORT_DIR/guard_status.txt")
           echo "guard_status=$status" >> "$GITHUB_OUTPUT"
@@ -194,6 +199,8 @@ jobs:
       - name: Publish Boss Final summary
         if: always()
         uses: ./.github/actions/github-script
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         with:
           script: |
             const fs = require('fs');
