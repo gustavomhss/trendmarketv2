@@ -97,7 +97,9 @@ def load_actions_lock(path: str = "actions.lock") -> Dict[str, str]:
         if not isinstance(repo, str) or not isinstance(sha, str):
             raise SystemExit("actions.lock inválido: repo/sha ausentes")
         if repo in mapping and mapping[repo] != sha:
-            raise SystemExit(f"actions.lock inválido: {repo} repetido com SHA divergente")
+            raise SystemExit(
+                f"actions.lock inválido: {repo} repetido com SHA divergente"
+            )
         mapping[repo] = sha
     return mapping
 

@@ -32,7 +32,9 @@ class FakeGitHubAPI:
         if self.error is not None:
             raise self.error
 
-    def get_ref(self, owner: str, repo: str, namespace: str, ref: str) -> Dict[str, str]:
+    def get_ref(
+        self, owner: str, repo: str, namespace: str, ref: str
+    ) -> Dict[str, str]:
         self._maybe_raise()
         key = (owner, repo, namespace, ref)
         if key not in self.refs:
@@ -134,7 +136,9 @@ def base_times() -> Iterator[datetime]:
     )
 
 
-def test_apply_pins_lightweight_tag(tmp_path: Path, base_times: Iterator[datetime]) -> None:
+def test_apply_pins_lightweight_tag(
+    tmp_path: Path, base_times: Iterator[datetime]
+) -> None:
     workflow = tmp_path / ".github/workflows/main.yml"
     write_workflow(
         workflow,
@@ -145,7 +149,7 @@ jobs:
   test:
     steps:
       - uses: actions/checkout@v4
-""".strip()
+""".strip(),
     )
 
     sha = "a" * 40
@@ -153,7 +157,9 @@ jobs:
         refs={("actions", "checkout", "tags", "v4"): {"type": "commit", "sha": sha}},
     )
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
 
     code = resolver.apply(
         apply_changes=True,
@@ -191,7 +197,7 @@ jobs:
   test:
     steps:
       - uses: org/action@release
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI(
@@ -199,7 +205,9 @@ jobs:
         tags={"t" * 40: {"type": "commit", "sha": "c" * 40}},
     )
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     code = resolver.apply(
         apply_changes=True,
         commit_changes=False,
@@ -222,24 +230,35 @@ jobs:
   test:
     steps:
       - uses: docker/setup-buildx-action@main
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI(
-        refs={("docker", "setup-buildx-action", "heads", "main"): {"type": "commit", "sha": "1" * 40}},
+        refs={
+            ("docker", "setup-buildx-action", "heads", "main"): {
+                "type": "commit",
+                "sha": "1" * 40,
+            }
+        },
     )
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver.apply(
         apply_changes=True,
         commit_changes=False,
         log_path=Path("out/s4-actions-lock/resolve.log"),
         report_path=Path("out/s4-actions-lock/report.json"),
     )
-    assert "docker/setup-buildx-action@" + "1" * 40 in workflow.read_text(encoding="utf-8")
+    assert "docker/setup-buildx-action@" + "1" * 40 in workflow.read_text(
+        encoding="utf-8"
+    )
 
 
-def test_resolves_action_in_subdirectory(tmp_path: Path, base_times: Iterator[datetime]) -> None:
+def test_resolves_action_in_subdirectory(
+    tmp_path: Path, base_times: Iterator[datetime]
+) -> None:
     workflow = tmp_path / ".github/workflows/subdir.yml"
     write_workflow(
         workflow,
@@ -250,24 +269,30 @@ jobs:
   test:
     steps:
       - uses: owner/repo/path/to/action@v1
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI(
         refs={("owner", "repo", "tags", "v1"): {"type": "commit", "sha": "5" * 40}},
     )
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver.apply(
         apply_changes=True,
         commit_changes=False,
         log_path=Path("out/s4-actions-lock/resolve.log"),
         report_path=Path("out/s4-actions-lock/report.json"),
     )
-    assert "owner/repo/path/to/action@" + "5" * 40 in workflow.read_text(encoding="utf-8")
+    assert "owner/repo/path/to/action@" + "5" * 40 in workflow.read_text(
+        encoding="utf-8"
+    )
 
 
-def test_already_pinned_is_unchanged(tmp_path: Path, base_times: Iterator[datetime]) -> None:
+def test_already_pinned_is_unchanged(
+    tmp_path: Path, base_times: Iterator[datetime]
+) -> None:
     sha = "9" * 40
     workflow = tmp_path / ".github/workflows/pinned.yml"
     write_workflow(
@@ -279,12 +304,14 @@ jobs:
   test:
     steps:
       - uses: actions/cache@{sha}
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI()
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver.apply(
         apply_changes=True,
         commit_changes=False,
@@ -308,14 +335,18 @@ jobs:
     steps:
       - uses: ./local/action
       - uses: actions/checkout@v4
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI(
-        refs={("actions", "checkout", "tags", "v4"): {"type": "commit", "sha": "2" * 40}},
+        refs={
+            ("actions", "checkout", "tags", "v4"): {"type": "commit", "sha": "2" * 40}
+        },
     )
     fake_git = FakeGitInterface({})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver.apply(
         apply_changes=True,
         commit_changes=False,
@@ -327,7 +358,9 @@ jobs:
     assert report["skipped"][0]["reason"] == "local-action"
 
 
-def test_git_fallback_when_api_fails(tmp_path: Path, base_times: Iterator[datetime]) -> None:
+def test_git_fallback_when_api_fails(
+    tmp_path: Path, base_times: Iterator[datetime]
+) -> None:
     workflow = tmp_path / ".github/workflows/fallback.yml"
     write_workflow(
         workflow,
@@ -338,13 +371,15 @@ jobs:
   test:
     steps:
       - uses: org/action@v1
-""".strip()
+""".strip(),
     )
 
     api_error = GitHubAPIError("boom", transient=True)
     fake_api = FakeGitHubAPI(error=api_error)
     fake_git = FakeGitInterface({("org", "action", "v1"): "3" * 40})
-    resolver = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver.apply(
         apply_changes=True,
         commit_changes=False,
@@ -366,15 +401,19 @@ jobs:
   test:
     steps:
       - uses: actions/checkout@v4
-""".strip()
+""".strip(),
     )
 
     fake_api = FakeGitHubAPI(
-        refs={("actions", "checkout", "tags", "v4"): {"type": "commit", "sha": "4" * 40}},
+        refs={
+            ("actions", "checkout", "tags", "v4"): {"type": "commit", "sha": "4" * 40}
+        },
     )
     fake_git = FakeGitInterface({})
 
-    resolver1 = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times)
+    resolver1 = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=base_times
+    )
     resolver1.apply(
         apply_changes=True,
         commit_changes=False,
@@ -387,7 +426,9 @@ jobs:
         datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc),
         datetime(2024, 1, 2, 1, 0, tzinfo=timezone.utc),
     )
-    resolver2 = build_resolver(tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=second_times)
+    resolver2 = build_resolver(
+        tmp_path, github_api=fake_api, git_interface=fake_git, now_iter=second_times
+    )
     resolver2.apply(
         apply_changes=True,
         commit_changes=False,

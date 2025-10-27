@@ -115,7 +115,9 @@ class WorkflowUsage:
     def apply(self, new_sha: str, lines: List[str]) -> None:
         new_value = f"{self.reference.full_name}@{new_sha}"
         quote = self.quote
-        rendered = f"{self.prefix}{quote}{new_value}{quote}{self.comment}{self.line_ending}"
+        rendered = (
+            f"{self.prefix}{quote}{new_value}{quote}{self.comment}{self.line_ending}"
+        )
         lines[self.line_index] = rendered
         self.value = new_value
 
@@ -143,7 +145,9 @@ class WorkflowFile:
             else:
                 self.usages.append(usage)
 
-    def _parse_line(self, index: int, line: str) -> Optional[WorkflowUsage | Dict[str, str]]:
+    def _parse_line(
+        self, index: int, line: str
+    ) -> Optional[WorkflowUsage | Dict[str, str]]:
         body, line_ending = self._split_line(line)
         match = USES_REGEX.match(body)
         if not match:
@@ -251,7 +255,9 @@ class GitHubAPI:
         self.token = token
         self.timeout = timeout
 
-    def get_ref(self, owner: str, repo: str, namespace: str, ref: str) -> Dict[str, str]:
+    def get_ref(
+        self, owner: str, repo: str, namespace: str, ref: str
+    ) -> Dict[str, str]:
         encoded = quote(ref, safe="")
         path = f"/repos/{owner}/{repo}/git/ref/{namespace}/{encoded}"
         return self._request(path)
@@ -300,7 +306,9 @@ class GitInterface:
             cwd=self.cwd,
         )
         if proc.returncode != 0:
-            raise GitCLIError(proc.stderr.strip() or "git ls-remote failed", transient=True)
+            raise GitCLIError(
+                proc.stderr.strip() or "git ls-remote failed", transient=True
+            )
 
         commit_sha: Optional[str] = None
         tag_sha: Optional[str] = None
@@ -570,7 +578,9 @@ class ActionsLockApply:
         log_file.write_text("\n".join(self.log_lines), encoding="utf-8")
         lock_entries = report.pop("_lock_entries", {})
         report_copy = dict(report)
-        report_file.write_text(json.dumps(report_copy, indent=2) + "\n", encoding="utf-8")
+        report_file.write_text(
+            json.dumps(report_copy, indent=2) + "\n", encoding="utf-8"
+        )
 
         if apply_changes:
             for workflow in workflows.values():
@@ -586,7 +596,9 @@ class ActionsLockApply:
             return 2
         return 0
 
-    def _write_lock(self, entries: Dict[Tuple[str, str, str, str], Dict[str, str]]) -> None:
+    def _write_lock(
+        self, entries: Dict[Tuple[str, str, str, str], Dict[str, str]]
+    ) -> None:
         lock_path = self.root / LOCK_PATH
         ensure_parent(lock_path)
         sorted_entries = [
@@ -620,7 +632,9 @@ class ActionsLockApply:
         }
         metadata_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    def _commit_changes(self, workflows: Iterable[WorkflowFile], report: Dict[str, Any]) -> None:
+    def _commit_changes(
+        self, workflows: Iterable[WorkflowFile], report: Dict[str, Any]
+    ) -> None:
         self._ensure_clean_tree()
         paths = [
             LOCK_PATH,
@@ -634,7 +648,9 @@ class ActionsLockApply:
             check=True,
             cwd=self.root,
         )
-        pinned_lines = [f"- {item['uses']} -> {item['sha']}" for item in report["pinned"]]
+        pinned_lines = [
+            f"- {item['uses']} -> {item['sha']}" for item in report["pinned"]
+        ]
         summary = [
             "Pin summary:",
             *pinned_lines,
@@ -664,7 +680,9 @@ class ActionsLockApply:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--apply", action="store_true", help="Apply updates to workflows")
+    parser.add_argument(
+        "--apply", action="store_true", help="Apply updates to workflows"
+    )
     parser.add_argument("--commit", action="store_true", help="Create a git commit")
     parser.add_argument(
         "--token-env",
@@ -688,7 +706,9 @@ def run_cli(args: argparse.Namespace) -> int:
     token = _select_token(args.token_env)
     github_api = GitHubAPI(token, timeout=args.timeout)
     git_interface = GitInterface(cwd=root)
-    resolver = ActionsLockApply(root, github_api=github_api, git_interface=git_interface)
+    resolver = ActionsLockApply(
+        root, github_api=github_api, git_interface=git_interface
+    )
     if args.commit:
         resolver._ensure_clean_tree()
 

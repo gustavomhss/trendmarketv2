@@ -1,5 +1,7 @@
 # TrendMarketV2 — Observabilidade (CRD-8)
 
+[![Boss Final — S1](https://github.com/gustavomhss/trendmarketv2/actions/workflows/q1-boss-final.yml/badge.svg?label=Boss%20Final%20%E2%80%94%20S1)](https://github.com/gustavomhss/trendmarketv2/actions/workflows/q1-boss-final.yml)
+
 ## Como tornar real
 
 1. Configure os **secrets** no repositório/ambiente: `PROM_URL`, `APM_URL`, `GRAFANA_URL`, `LOKI_URL`, `OTEL_URL`, `SLACK_WEBHOOK_URL`, `L2_ENDPOINT` (opcional), `L2_WALLET`, `L2_PRIVATE_KEY`, `WORM_BUCKET`, `WORM_REGION`.
@@ -43,6 +45,12 @@ Todos os scripts aceitam `--out`/`--evidence` e respeitam `EVID` se definido.
 * Workflow: `.github/workflows/_s4-orr.yml` (job **Sprint 4 ORR**).
 * Passos chave: checkout → `make prega` → upload de artefatos (dbt docs, bundle) → publicação do resumo.
 * Shellcheck roda de forma advisory (não bloqueia).
+
+## Formatação (Ruff)
+
+* A versão do formatter está pinada em [`.tools/ruff.version`](.tools/ruff.version) e é instalada via [`./.github/scripts/ensure_ruff_version.sh`](.github/scripts/ensure_ruff_version.sh).
+* Para aplicar correções localmente execute `ruff format .` e depois `pre-commit run -a`. Os hooks configurados em [`.pre-commit-config.yaml`](.pre-commit-config.yaml) utilizam a mesma versão do CI.
+* Falhas no stage **Boss Final S1** publicam `out/guard/s1/ruff_format_diff.txt` e `out/guard/s1/ruff_offenders.txt` como artefatos. Consulte [docs/dev/formatting.md](docs/dev/formatting.md) para o guia completo e o fluxo de auto-fix assistido (`RUN_AUTO_FORMAT=true`).
 
 ## Estrutura útil
 

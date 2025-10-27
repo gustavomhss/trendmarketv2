@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
 
+from itertools import islice
+
 LOG = logging.getLogger("sprint_guard")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -364,7 +366,9 @@ def validate_actions_lock(context: StageContext) -> None:
         name="actions.lock",
         code="S4-ACTIONS",
         passed=not issues,
-        detail="actions.lock validado" if not issues else "; ".join(sorted(set(issues))),
+        detail="actions.lock validado"
+        if not issues
+        else "; ".join(sorted(set(issues))),
     )
 
     workflows_dir = BASE_DIR / ".github" / "workflows"
@@ -471,25 +475,146 @@ def run_scorecards(context: StageContext) -> None:
         )
 
 
+def _truthy_env(name: str) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def run_ruff_format_guard(context: StageContext) -> None:
+    command = ["ruff", "format", "--check", "--diff", "."]
+    guard_dir = BASE_DIR / "out" / "guard" / "s1"
+    guard_dir.mkdir(parents=True, exist_ok=True)
+    diff_path = guard_dir / "ruff_format_diff.txt"
+    offenders_path = guard_dir / "ruff_offenders.txt"
+    start = time.perf_counter()
+    completed = subprocess.run(
+        command,
+        cwd=BASE_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    duration = time.perf_counter() - start
+    stdout = completed.stdout
+    stderr = completed.stderr
+    diff_text = stdout or ""
+    if stderr:
+        diff_text = f"{diff_text}{os.linesep if diff_text else ''}{stderr}"
+    diff_path.write_text(diff_text, encoding="utf-8")
+    offenders = [
+        line.replace("would reformat ", "", 1).strip()
+        for line in stdout.splitlines()
+        if line.startswith("would reformat ")
+    ]
+    offenders_path.write_text(
+        ("\n".join(offenders) + "\n") if offenders else "",
+        encoding="utf-8",
+    )
+    record = CommandRecord(
+        name="Ruff format",
+        command=command,
+        status="PASS" if completed.returncode == 0 else "FAIL",
+        returncode=completed.returncode,
+        duration_seconds=duration,
+        stdout=stdout.strip(),
+        stderr=stderr.strip(),
+    )
+    context.records.append(record)
+    if completed.returncode == 0:
+        return
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        diff_lines_all = diff_text.splitlines()
+        preview_lines = list(islice(diff_lines_all, 200))
+        extra_count = max(len(diff_lines_all) - len(preview_lines), 0)
+        lines: List[str] = [
+            "### Ruff format diagnostics",
+            "",
+        ]
+        if offenders:
+            lines.append("Arquivos com formatação divergente:")
+            for entry in islice(offenders, 20):
+                lines.append(f"- `{entry}`")
+            remaining = len(offenders) - min(len(offenders), 20)
+            if remaining:
+                lines.append(f"- ... (+{remaining} arquivos)")
+        else:
+            lines.append("Nenhum arquivo listado por ruff (ver diff).")
+        if preview_lines:
+            lines.extend(["", "Trecho do diff:", "```"])
+            lines.extend(preview_lines)
+            lines.append("```")
+            if extra_count:
+                lines.append(
+                    "(diff truncado; veja out/guard/s1/ruff_format_diff.txt para o conteúdo completo)"
+                )
+        with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+
+    if _truthy_env("RUN_AUTO_FORMAT"):
+        auto_start = time.perf_counter()
+        auto_proc = subprocess.run(
+            ["ruff", "format", "."],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        auto_record = CommandRecord(
+            name="Ruff auto-format",
+            command=["ruff", "format", "."],
+            status="PASS" if auto_proc.returncode == 0 else "FAIL",
+            returncode=auto_proc.returncode,
+            duration_seconds=time.perf_counter() - auto_start,
+            stdout=auto_proc.stdout.strip(),
+            stderr=auto_proc.stderr.strip(),
+        )
+        context.records.append(auto_record)
+        if auto_proc.returncode != 0:
+            raise StageFailure("S1-AUTO-FMT", "Ruff auto-format falhou", auto_record)
+        status_proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        changed = [line for line in status_proc.stdout.splitlines() if line]
+        detail = (
+            "Auto-format não produziu alterações"
+            if not changed
+            else f"Auto-format ajustou {len(changed)} arquivos"
+        )
+        record_check(
+            context,
+            name="Auto-format workspace limpo",
+            code="S1-AUTO-FIX",
+            passed=not changed,
+            detail=detail,
+        )
+
+    raise StageFailure(
+        "S1-FORMAT", f"Ruff format (exit {completed.returncode})", record
+    )
+
+
 def stage_s1(context: StageContext) -> None:
+    run_command(
+        context=context,
+        name="Ensure Ruff version",
+        code="S1-RUFF-VERSION",
+        command=["bash", ".github/scripts/ensure_ruff_version.sh"],
+    )
     run_command(
         context=context,
         name="Ruff lint",
         code="S1-LINT",
         command=["ruff", "check", "scripts/scorecards", "scripts/boss_final"],
     )
-    run_command(
-        context=context,
-        name="Ruff format",
-        code="S1-FORMAT",
-        command=[
-            "ruff",
-            "format",
-            "--check",
-            "scripts/scorecards",
-            "scripts/boss_final",
-        ],
-    )
+    run_ruff_format_guard(context)
     run_command(
         context=context,
         name="Core pytest",
@@ -552,16 +677,22 @@ def stage_s4(context: StageContext) -> None:
             "--out",
             "actions.lock",
             "--author",
-            "ci/boss-final",
+            "CI Bot <ci@trendmarketv2.local>",
             "--rationale",
-            "Lock gerado no CI para reproducibilidade (S4)",
+            "auto-sync action pins for workflow consistency",
         ],
     )
     run_command(
         context=context,
         name="Validar actions.lock",
         code="S4-VERIFY",
-        command=[sys.executable, ".github/scripts/verify_actions_lock.py", "actions.lock"],
+        command=[
+            sys.executable,
+            ".github/scripts/verify_actions_lock.py",
+            "actions.lock",
+            "--report",
+            "out/guard/s4/actions_lock_report.json",
+        ],
     )
     validate_actions_lock(context)
 
