@@ -3,7 +3,8 @@ actions:
   actions/download-artifact: d3f86a106a0bac45b974a628896c90dbdf5c8093
   actions/upload-artifact: ea165f8d65b6e75b540449e92b4886f43607fa02
   docker/login-action: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
+  returntocorp/semgrep-action: d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
 metadata:
-  updated_at: 2025-10-26T22:49:46Z
+  updated_at: 2025-10-27T01:26:27+00:00
   updated_by: codex
-  rationale: Sweep pins → SHA(40), higiene YAML/JSON (compat Node 20).
+  rationale: Sweep pins via resolve_pins.py
