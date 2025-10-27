@@ -1,3 +1,4 @@
+---
 hooks:
   critical:
     - api_contract_break

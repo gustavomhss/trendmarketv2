@@ -1,0 +1,31 @@
+name: Setup Python venv with deps
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python 3.11
+      uses: actions/setup-python@afa3a9d50f1d3a1b9aba0e2fe61f15b0f1b7f735 # v5.2.0
+      with:
+        python-version: '3.11'
+        check-latest: true
+    - name: Create venv
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m venv .venv
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+    - name: Install deps (lock if presente)
+      shell: bash
+      run: |
+        set -euo pipefail
+        . .venv/bin/activate
+        if [ -f requirements.lock ]; then
+          if [ -f constraints-app.txt ]; then
+            python -m pip install -U pip
+            python -m pip install -r requirements.lock -c constraints-app.txt
+          else
+            python -m pip install -U pip
+            python -m pip install -r requirements.lock
+          fi
+        fi
+        # Garantir ferramentas de CI (caso lock não cubra)
+        python -m pip install -U ruff yamllint pytest hypothesis jsonschema
