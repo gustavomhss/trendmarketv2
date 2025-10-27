@@ -75,23 +75,12 @@ jobs:
       - name: Install Python dependencies
         timeout-minutes: 5
         run: |
+          set -euo pipefail
           python -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install \
-            -r requirements.lock \
-            -c constraints-app.txt \
-            ruff==0.6.8 \
-            yamllint==1.35.1 \
-            pytest==8.3.3 \
-            hypothesis==6.103.0 \
-            jsonschema==4.23.0
-          pip check
-          python - <<'PY'
-          import urllib3
-
-          print(f"urllib3 version: {urllib3.__version__}")
-          PY
+          python -m pip install -r requirements.lock -c constraints-app.txt
+          python -m pip check
 
       - name: Ensure clean workspace
         if: ${{ matrix.clean_runner }}
@@ -120,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      REPORT_DIR: out/q1_boss_final
+      REPORT_DIR: ${{ runner.temp }}/boss-aggregate
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
@@ -146,33 +135,32 @@ jobs:
       - name: Install Python dependencies
         timeout-minutes: 5
         run: |
+          set -euo pipefail
           python -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install \
-            -r requirements.lock \
-            -c constraints-app.txt \
-            pytest==8.3.3 \
-            hypothesis==6.103.0 \
-            jsonschema==4.23.0
-          pip check
-          python - <<'PY'
-          import urllib3
+          python -m pip install -r requirements.lock -c constraints-app.txt
+          python -m pip check
 
-          print(f"urllib3 version: {urllib3.__version__}")
-          PY
+      - name: Download stage artifacts (pattern)
+        if: always()
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: boss-stage-s*
+          path: ${{ runner.temp }}/boss-arts
+          merge-multiple: true
 
-      - name: Aggregate reports (resilient)
+      - name: Aggregate reports (local)
         if: always()
         id: aggregate
-        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          ARTS_DIR: ${{ runner.temp }}/boss-arts
           REPORT_DIR: ${{ env.REPORT_DIR }}
         run: |
           set -euo pipefail
+          mkdir -p "$REPORT_DIR"
           . .venv/bin/activate 2>/dev/null || true
-          python scripts/boss_final/aggregate_reports.py | tee "$REPORT_DIR/aggregate.log"
+          python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
       - name: Upload artifacts
         if: always()
@@ -181,7 +169,7 @@ jobs:
           name: q1-boss-final
           path: ${{ env.REPORT_DIR }}
 
-      - name: Validate report schema
+      - name: Validate report schema (local)
         if: always()
         run: |
           set -euo pipefail
@@ -189,6 +177,7 @@ jobs:
           python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
 
       - name: Evaluate guard status
+        if: always()
         id: guard
         run: |
           status=$(cat "$REPORT_DIR/guard_status.txt")
@@ -233,9 +222,9 @@ jobs:
             }
 
       - name: Enforce aggregate status
-        if: ${{ steps.aggregate.outcome == 'failure' }}
+        if: ${{ always() && steps.aggregate.outcome == 'failure' }}
         run: exit 1
 
       - name: Fail when any stage guard failed
-        if: ${{ needs.stage.result == 'failure' }}
+        if: ${{ always() && needs.stage.result == 'failure' }}
         run: exit 1

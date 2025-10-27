@@ -1,46 +1,36 @@
-import os
-import re
-
-PAT_INLINE = re.compile(r"^\s*uses:\s*(['\"]?)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^'\"\s#]+)\1\s*$")
-PAT_KEY = re.compile(r"^\s*uses:\s*$")
-PAT_VAL = re.compile(r"^\s*(['\"]?)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([^'\"\s#]+)\1\s*$")
-
-
-def _iter_workflow_files(base_dir: str) -> list[str]:
-    files: list[str] = []
-    for root, _, filenames in os.walk(base_dir):
-        for filename in filenames:
-            if filename.endswith((".yml", ".yaml")):
-                files.append(os.path.join(root, filename))
-    files.sort()
-    return files
-
-
-def main() -> None:
-    for path in _iter_workflow_files(".github"):
-        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-            lines = handle.readlines()
-        index = 0
-        while index < len(lines):
-            line = lines[index]
-            match_inline = PAT_INLINE.match(line)
-            if match_inline:
-                _, action, reference = match_inline.groups()
-                if not (action.startswith("./") or action.startswith("docker://")):
-                    print(f"{path}\t{action}\t{reference}")
-                index += 1
-                continue
-            if PAT_KEY.match(line) and index + 1 < len(lines):
-                value = lines[index + 1]
-                match_value = PAT_VAL.match(value)
-                if match_value:
-                    _, action, reference = match_value.groups()
-                    if not (action.startswith("./") or action.startswith("docker://")):
-                        print(f"{path}\t{action}\t{reference}")
-                    index += 2
-                    continue
-            index += 1
-
-
-if __name__ == "__main__":
-    main()
+import re,os,sys,urllib.request,json
+pat_inline=re.compile(r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
+pat_key=re.compile(r'^\s*(?:-\s*)?uses:\s*$')
+pat_val=re.compile(r'^\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
+files=[]
+for d,_,fs in os.walk('.github'):
+  for f in fs:
+    if f.endswith(('.yml','.yaml')): files.append(os.path.join(d,f))
+files.sort()
+issues=[]
+for f in files:
+  L=open(f,'r',encoding='utf-8',errors='ignore').read().splitlines()
+  i=0
+  while i<len(L):
+    ln=L[i]
+    m=pat_inline.match(ln)
+    if m:
+      q,a,r=m.groups()
+      if a.startswith('./') or a.startswith('docker://'):
+        i+=1; continue
+      if not re.fullmatch(r'[0-9a-fA-F]{40}', r):
+        issues.append((f,a,r,'NO-SHA'))
+      i+=1; continue
+    if pat_key.match(ln) and i+1<len(L):
+      v=L[i+1]; m2=pat_val.match(v)
+      if m2:
+        q,a,r=m2.groups()
+        if not (a.startswith('./') or a.startswith('docker://')) and not re.fullmatch(r'[0-9a-fA-F]{40}', r):
+          issues.append((f,a,r,'NO-SHA'))
+        i+=2; continue
+    i+=1
+if issues:
+  for it in issues:
+    print('\t'.join(it))
+  sys.exit(1)
+print('OK')

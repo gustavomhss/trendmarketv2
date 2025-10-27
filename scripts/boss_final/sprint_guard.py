@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+import logging, traceback
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+LOG=logging.getLogger("sprint_guard")
+
 import argparse
 import hashlib
 import json
@@ -552,4 +556,10 @@ def main(argv: List[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main(sys.argv[1:]))
+    import sys
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except Exception as exc:
+        LOG.error("Unhandled exception: %s", exc)
+        LOG.debug("Traceback:\n%s", traceback.format_exc())
+        raise SystemExit(1)
