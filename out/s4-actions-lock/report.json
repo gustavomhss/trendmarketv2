@@ -1,0 +1,259 @@
+{
+  "pinned": [],
+  "unchanged": [
+    {
+      "workflow": ".github/workflows/_crd-orr.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/_crd-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_mbp-s2-orr.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/_mbp-s2-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_mbp-s3-orr.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/_mbp-s3-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_run-s3-command.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/_run-s3-command.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+      "sha": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/canary-sampler.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/crd-epic-plan.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/crd-epic-plan.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38",
+      "sha": "42375524e23c412d93fb67b49958b491fce71c38"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/repo-sanity.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/repo-sanity.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/s5-validation.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/s5-validation.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/s6-scorecards.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/s6-scorecards.yml",
+      "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "workflow": ".github/workflows/sanity-actions.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/semgrep.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "workflow": ".github/workflows/semgrep.yml",
+      "uses": "returntocorp/semgrep-action@d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
+    },
+    {
+      "workflow": ".github/workflows/shadow-toggle.yml",
+      "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683"
+    }
+  ],
+  "skipped": [
+    {
+      "workflow": ".github/workflows/_mbp-s2-orr.yml",
+      "uses": "./.github/actions/github-script",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/_mbp-s3-orr.yml",
+      "uses": "./.github/actions/github-script",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/_s4-orr.yml",
+      "uses": "./.github/workflows/semgrep.yml",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/crd-epic-exec.yml",
+      "uses": "./.github/workflows/_crd-orr.yml",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "./.github/actions/setup-python-venv",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "./.github/actions/setup-python-venv",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/q1-boss-final.yml",
+      "uses": "./.github/actions/github-script",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/s4-exec.yml",
+      "uses": "./.github/workflows/_s4-orr.yml",
+      "reason": "local-action"
+    },
+    {
+      "workflow": ".github/workflows/s6-scorecards.yml",
+      "uses": "./.github/actions/github-script",
+      "reason": "local-action"
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "total": 40,
+    "pinned": 0,
+    "skipped_local": 9,
+    "unchanged": 40
+  }
+}
