@@ -3,6 +3,7 @@ FALLBACKS={
   "actions/checkout":"v4.2.2",
   "actions/upload-artifact":"v4",
   "actions/download-artifact":"v4",
+  "actions/setup-python":"v5.3.0",
   "actions/cache":"v4",
   "actions/github-script":"v7"
 }
