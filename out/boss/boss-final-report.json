@@ -1,4 +1,6 @@
 {
+  "schema": "boss_final.report@1",
+  "schema_version": 1,
   "stages": [
     {
       "name": "s1",

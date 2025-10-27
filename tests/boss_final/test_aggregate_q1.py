@@ -159,6 +159,8 @@ def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     report = aggregate_q1.aggregate()
 
     assert report["status"] == "PASS"
+    assert report["schema"] == "trendmarketv2.q1.boss.report"
+    assert report["schema_version"] == aggregate_q1.SCHEMA_VERSION
     guard_status = (
         (aggregate_q1.OUTPUT_DIR / "guard_status.txt")
         .read_text(encoding="utf-8")

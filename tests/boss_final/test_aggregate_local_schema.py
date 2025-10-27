@@ -57,4 +57,7 @@ def test_local_aggregate_contains_schema(
     assert data["schema"].startswith("boss_final.report@"), (
         "Campo `schema` ausente ou inválido"
     )
+    assert isinstance(data.get("schema_version"), int) and data["schema_version"] > 0, (
+        "Campo `schema_version` ausente ou inválido"
+    )
     assert "generated_at" in data, "`generated_at` ausente"
