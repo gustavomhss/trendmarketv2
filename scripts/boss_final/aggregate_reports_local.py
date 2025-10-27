@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -44,10 +45,19 @@ def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
 
 def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    aggregate = {"stages": results}
-    (out_dir / "report.json").write_text(
-        json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    aggregate: Dict[str, Any] = {"stages": results}
+    aggregate.setdefault("schema", "boss_final.report@v1")
+    aggregate.setdefault(
+        "generated_at",
+        datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
+    payload = json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n"
+
+    (out_dir / "report.json").write_text(payload, encoding="utf-8")
+
+    local_dir = Path("out/boss_final")
+    local_dir.mkdir(parents=True, exist_ok=True)
+    (local_dir / "report.local.json").write_text(payload, encoding="utf-8")
 
 
 def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
