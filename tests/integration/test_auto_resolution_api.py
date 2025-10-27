@@ -12,6 +12,7 @@ from services.auto_resolution import (  # noqa: E402
     AutoResolutionService,
     DecisionRule,
     IdempotencyKeyConflict,
+    apply_resolution,
 )
 
 
@@ -109,7 +110,6 @@ def test_api_enforces_rbac(tmp_path: Path) -> None:
 
     with pytest.raises(PermissionError):
         api.resolve_apply(payload, actor="mallory", role="viewer", idempotency_key="k-4")
-from services.auto_resolution import AutoResolutionService, apply_resolution  # noqa: E402
 
 
 def _service(tmp_path: Path) -> AutoResolutionService:
