@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shared helpers for S3 scripts evidence/telemetry emission."""
+
 from __future__ import annotations
 
 import json

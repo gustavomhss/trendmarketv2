@@ -12,7 +12,9 @@ STAGES = aggregate_q1.STAGES
 VARIANTS = aggregate_q1.VARIANTS
 
 
-def _freeze_time(monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T10:00:00Z") -> None:
+def _freeze_time(
+    monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T10:00:00Z"
+) -> None:
     monkeypatch.setattr(aggregate_q1, "isoformat_utc", lambda: timestamp)
 
 
@@ -46,7 +48,9 @@ def _write_variant(
         "timestamp_utc": timestamp,
         "checks": [],
     }
-    (variant_dir / "result.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (variant_dir / "result.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     (variant_dir / "guard_status.txt").write_text(f"{status}\n", encoding="utf-8")
     (variant_dir / "bundle.sha256").write_text("deadbeef" * 8 + "\n", encoding="utf-8")
 
@@ -63,11 +67,23 @@ def _write_stage_summary(
     stage_dir.mkdir(parents=True, exist_ok=True)
     variants_payload: dict[str, dict[str, str]] = {}
     for variant, (status, note) in variant_status.items():
-        variants_payload[variant] = {"status": status, "notes": note, "timestamp_utc": "2024-01-02T09:00:00Z"}
-    stage_status = "PASS" if all(status == "PASS" for status, _ in variant_status.values()) else "FAIL"
-    summary_notes = notes if notes is not None else " | ".join(
-        f"{variant}:{status}{(' ' + note) if note else ''}"
-        for variant, (status, note) in variant_status.items()
+        variants_payload[variant] = {
+            "status": status,
+            "notes": note,
+            "timestamp_utc": "2024-01-02T09:00:00Z",
+        }
+    stage_status = (
+        "PASS"
+        if all(status == "PASS" for status, _ in variant_status.values())
+        else "FAIL"
+    )
+    summary_notes = (
+        notes
+        if notes is not None
+        else " | ".join(
+            f"{variant}:{status}{(' ' + note) if note else ''}"
+            for variant, (status, note) in variant_status.items()
+        )
     )
     payload = {
         "stage": stage,
@@ -76,7 +92,9 @@ def _write_stage_summary(
         "variants": variants_payload,
         "timestamp_utc": timestamp,
     }
-    (stage_dir / "summary.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (stage_dir / "summary.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     (stage_dir / "guard_status.txt").write_text(f"{stage_status}\n", encoding="utf-8")
 
 
@@ -89,7 +107,9 @@ def _prime_stage(
     primary_notes: str = "ok",
     clean_notes: str = "ok",
 ) -> None:
-    _write_variant(stages_dir, stage, "primary", status=primary_status, notes=primary_notes)
+    _write_variant(
+        stages_dir, stage, "primary", status=primary_status, notes=primary_notes
+    )
     _write_variant(stages_dir, stage, "clean", status=clean_status, notes=clean_notes)
     _write_stage_summary(
         stages_dir,
@@ -132,18 +152,26 @@ def _manual_bundle(stages_dir: Path) -> str:
 def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
-        _prime_stage(stages_dir, stage, primary_notes=f"{stage} ok", clean_notes=f"{stage} ok")
+        _prime_stage(
+            stages_dir, stage, primary_notes=f"{stage} ok", clean_notes=f"{stage} ok"
+        )
 
     report = aggregate_q1.aggregate()
 
     assert report["status"] == "PASS"
-    guard_status = (aggregate_q1.OUTPUT_DIR / "guard_status.txt").read_text(encoding="utf-8").strip()
+    guard_status = (
+        (aggregate_q1.OUTPUT_DIR / "guard_status.txt")
+        .read_text(encoding="utf-8")
+        .strip()
+    )
     assert guard_status == "PASS"
     report_json = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
     assert report_json["bundle"]["sha256"] == report["bundle"]["sha256"]
 
 
-def test_aggregate_detects_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_aggregate_detects_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(stages_dir, stage)
@@ -154,7 +182,9 @@ def test_aggregate_detects_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         aggregate_q1.aggregate()
 
 
-def test_bundle_sha_manual_match(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bundle_sha_manual_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(stages_dir, stage)

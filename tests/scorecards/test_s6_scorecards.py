@@ -50,15 +50,21 @@ def inputs(tmp_path: Path) -> tuple[Path, Path]:
     return thresholds_path, metrics_path
 
 
-def _freeze_time(monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T06:00:00Z") -> None:
+def _freeze_time(
+    monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T06:00:00Z"
+) -> None:
     monkeypatch.setattr(s6_scorecards, "isoformat_utc", lambda: timestamp)
 
 
-def test_generate_report_pass(output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_report_pass(
+    output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
     _freeze_time(monkeypatch)
     thresholds_path, metrics_path = inputs
 
-    artifacts = s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    artifacts = s6_scorecards.generate_report(
+        threshold_path=thresholds_path, metrics_path=metrics_path
+    )
 
     guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip()
     assert guard_status == "PASS"
@@ -67,14 +73,18 @@ def test_generate_report_pass(output_dir: Path, inputs: tuple[Path, Path], monke
     assert report["bundle"]["sha256"] == artifacts.bundle_sha256
 
 
-def test_generate_report_fail_sets_guard(output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_report_fail_sets_guard(
+    output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
     _freeze_time(monkeypatch)
     thresholds_path, metrics_path = inputs
     metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
     metrics_payload["failover_time_p95_s"]["observed"] = 120.0
     _write_json(metrics_path, metrics_payload)
 
-    artifacts = s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    artifacts = s6_scorecards.generate_report(
+        threshold_path=thresholds_path, metrics_path=metrics_path
+    )
 
     guard_status = (output_dir / "guard_status.txt").read_text(encoding="utf-8").strip()
     assert guard_status == "FAIL"
@@ -89,7 +99,9 @@ def test_bundle_hash_matches_manual(tmp_path: Path) -> None:
     _write_json(thresholds_path, thresholds)
     _write_json(metrics_path, metrics)
 
-    artifacts = s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+    artifacts = s6_scorecards.generate_report(
+        threshold_path=thresholds_path, metrics_path=metrics_path
+    )
 
     canonical = (
         s6_scorecards.canonical_dumps(thresholds)
@@ -101,14 +113,26 @@ def test_bundle_hash_matches_manual(tmp_path: Path) -> None:
     assert artifacts.bundle_sha256 == expected
 
 
-def test_idempotent_reruns(output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+def test_idempotent_reruns(
+    output_dir: Path, inputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
     _freeze_time(monkeypatch)
     thresholds_path, metrics_path = inputs
-    first = s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
-    snapshot_one = {path.name: path.read_text(encoding="utf-8") for path in sorted(output_dir.iterdir())}
+    first = s6_scorecards.generate_report(
+        threshold_path=thresholds_path, metrics_path=metrics_path
+    )
+    snapshot_one = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(output_dir.iterdir())
+    }
 
-    second = s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
-    snapshot_two = {path.name: path.read_text(encoding="utf-8") for path in sorted(output_dir.iterdir())}
+    second = s6_scorecards.generate_report(
+        threshold_path=thresholds_path, metrics_path=metrics_path
+    )
+    snapshot_two = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(output_dir.iterdir())
+    }
 
     assert first.bundle_sha256 == second.bundle_sha256
     assert snapshot_one == snapshot_two
@@ -124,7 +148,9 @@ def test_missing_metric_raises(tmp_path: Path) -> None:
     _write_json(metrics_path, metrics)
 
     with pytest.raises(s6_scorecards.ScorecardError) as excinfo:
-        s6_scorecards.generate_report(threshold_path=thresholds_path, metrics_path=metrics_path)
+        s6_scorecards.generate_report(
+            threshold_path=thresholds_path, metrics_path=metrics_path
+        )
     assert excinfo.value.code == "S6-E-SCHEMA"
 
 
@@ -133,11 +159,36 @@ def test_load_json_invalid_schema(tmp_path: Path) -> None:
         "schema": "trendmarketv2.sprint6.metrics",
         "schema_version": 2,
         "timestamp_utc": "2024-09-02T06:00:00Z",
-        "quorum_ratio": {"observed": -1.0, "unit": "ratio", "sample_size": 10, "window": "24h"},
-        "failover_time_p95_s": {"observed": 1.0, "unit": "seconds", "sample_size": 10, "window": "24h"},
-        "staleness_p95_s": {"observed": 1.0, "unit": "seconds", "sample_size": 10, "window": "24h"},
-        "cdc_lag_p95_s": {"observed": 1.0, "unit": "seconds", "sample_size": 10, "window": "24h"},
-        "divergence_pct": {"observed": 0.5, "unit": "percent", "sample_size": 10, "window": "24h"},
+        "quorum_ratio": {
+            "observed": -1.0,
+            "unit": "ratio",
+            "sample_size": 10,
+            "window": "24h",
+        },
+        "failover_time_p95_s": {
+            "observed": 1.0,
+            "unit": "seconds",
+            "sample_size": 10,
+            "window": "24h",
+        },
+        "staleness_p95_s": {
+            "observed": 1.0,
+            "unit": "seconds",
+            "sample_size": 10,
+            "window": "24h",
+        },
+        "cdc_lag_p95_s": {
+            "observed": 1.0,
+            "unit": "seconds",
+            "sample_size": 10,
+            "window": "24h",
+        },
+        "divergence_pct": {
+            "observed": 0.5,
+            "unit": "percent",
+            "sample_size": 10,
+            "window": "24h",
+        },
     }
     path = tmp_path / "metrics.json"
     _write_json(path, payload)
@@ -166,7 +217,9 @@ def test_format_value(value: Decimal, unit: str, expected: str) -> None:
     assert s6_scorecards.format_value(value, unit) == expected
 
 
-@given(target=st.decimals(min_value=Decimal("0.7"), max_value=Decimal("0.99"), places=4))
+@given(
+    target=st.decimals(min_value=Decimal("0.7"), max_value=Decimal("0.99"), places=4)
+)
 def test_evaluate_respects_epsilon_gte(target: Decimal) -> None:
     thresholds = _load_fixture("thresholds.json")
     metrics = _load_fixture("metrics_static.json")
@@ -188,13 +241,21 @@ def test_evaluate_respects_epsilon_lte(target: Decimal) -> None:
     thresholds = _load_fixture("thresholds.json")
     metrics = _load_fixture("metrics_static.json")
     thresholds["failover_time_p95_s"] = float(target)
-    metrics["failover_time_p95_s"]["observed"] = float(target + (s6_scorecards.EPSILON / 2))
+    metrics["failover_time_p95_s"]["observed"] = float(
+        target + (s6_scorecards.EPSILON / 2)
+    )
 
     results = s6_scorecards.evaluate_metrics(thresholds, metrics)
-    failover = next(item for item in results if item.definition.key == "failover_time_p95_s")
+    failover = next(
+        item for item in results if item.definition.key == "failover_time_p95_s"
+    )
     assert failover.ok
 
-    metrics["failover_time_p95_s"]["observed"] = float(target + (s6_scorecards.EPSILON * 4))
+    metrics["failover_time_p95_s"]["observed"] = float(
+        target + (s6_scorecards.EPSILON * 4)
+    )
     results = s6_scorecards.evaluate_metrics(thresholds, metrics)
-    failover = next(item for item in results if item.definition.key == "failover_time_p95_s")
+    failover = next(
+        item for item in results if item.definition.key == "failover_time_p95_s"
+    )
     assert not failover.ok

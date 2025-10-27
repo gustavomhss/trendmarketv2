@@ -1,4 +1,5 @@
 """Minimal YAML loader supporting a subset used in gatecheck configs."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,8 +25,8 @@ def _parse_scalar(value: str) -> Any:
                 inner = value[1:-1].strip()
                 if not inner:
                     return []
-                return [item.strip().strip('"\'') for item in inner.split(",")]
-            return value.strip('"\'')
+                return [item.strip().strip("\"'") for item in inner.split(",")]
+            return value.strip("\"'")
 
 
 def _parse_block(lines: List[str], idx: int, indent: int) -> Tuple[Any, int]:

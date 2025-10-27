@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Ensures actions.lock matches the SHAs used in workflow files."""
+
 from __future__ import annotations
 
 import os
@@ -8,8 +9,10 @@ import sys
 from dataclasses import dataclass
 from typing import Dict, Iterable
 
-INLINE_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
-KEY_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*$')
+INLINE_RE = re.compile(
+    r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$'
+)
+KEY_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
 VALUE_RE = re.compile(r'^\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
@@ -35,7 +38,7 @@ def extract_occurrences(path: str) -> Iterable[Occurrence]:
     idx = 0
     while idx < len(lines):
         line = lines[idx]
-        line_clean = line.split('#', 1)[0]
+        line_clean = line.split("#", 1)[0]
         match_inline = INLINE_RE.match(line_clean)
         if match_inline:
             _, action, ref = match_inline.groups()
@@ -45,7 +48,7 @@ def extract_occurrences(path: str) -> Iterable[Occurrence]:
             continue
         if KEY_RE.match(line_clean) and idx + 1 < len(lines):
             next_line = lines[idx + 1]
-            next_line_clean = next_line.split('#', 1)[0]
+            next_line_clean = next_line.split("#", 1)[0]
             match_value = VALUE_RE.match(next_line_clean)
             if match_value:
                 _, action, ref = match_value.groups()

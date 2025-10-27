@@ -18,7 +18,11 @@ def test_sim_harness_emits_events(tmp_path: Path):
     assert report_path.exists()
     assert result["scenario"] == "spike"
 
-    contents = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+    contents = [
+        json.loads(line)
+        for line in events_path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
     assert contents
     payload = contents[-1]["payload"]
     assert payload["scenario"] == "spike"

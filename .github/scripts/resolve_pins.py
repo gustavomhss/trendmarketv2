@@ -57,7 +57,9 @@ def resolve(owner_repo: str, ref: str, token: Optional[str]) -> Optional[str]:
         if isinstance(sha, str):
             return sha
 
-    tag_refs = _gh(f"https://api.github.com/repos/{owner_repo}/git/refs/tags/{ref}", token)
+    tag_refs = _gh(
+        f"https://api.github.com/repos/{owner_repo}/git/refs/tags/{ref}", token
+    )
     for entry in _iter(tag_refs):
         if not isinstance(entry, dict):
             continue
@@ -69,14 +71,22 @@ def resolve(owner_repo: str, ref: str, token: Optional[str]) -> Optional[str]:
         if not isinstance(sha, str):
             continue
         if entry_type == "tag":
-            tag = _gh(f"https://api.github.com/repos/{owner_repo}/git/tags/{sha}", token)
+            tag = _gh(
+                f"https://api.github.com/repos/{owner_repo}/git/tags/{sha}", token
+            )
             if isinstance(tag, dict):
-                peeled = tag.get("object", {}).get("sha") if isinstance(tag.get("object"), dict) else None
+                peeled = (
+                    tag.get("object", {}).get("sha")
+                    if isinstance(tag.get("object"), dict)
+                    else None
+                )
                 if isinstance(peeled, str):
                     return peeled
         return sha
 
-    head_refs = _gh(f"https://api.github.com/repos/{owner_repo}/git/refs/heads/{ref}", token)
+    head_refs = _gh(
+        f"https://api.github.com/repos/{owner_repo}/git/refs/heads/{ref}", token
+    )
     for entry in _iter(head_refs):
         if not isinstance(entry, dict):
             continue
@@ -111,7 +121,14 @@ def _record(
     entries.append((kind, action, ref, sha or "", str(path)))
 
 
-def _process_reference(action: str, ref: str, token: Optional[str], path: Path, line: str, report: List[ReportEntry]) -> Tuple[str, bool]:
+def _process_reference(
+    action: str,
+    ref: str,
+    token: Optional[str],
+    path: Path,
+    line: str,
+    report: List[ReportEntry],
+) -> Tuple[str, bool]:
     if _should_skip(action):
         return line, False
 
@@ -139,7 +156,9 @@ def _process_file(path: Path, token: Optional[str]) -> Tuple[bool, List[ReportEn
         match = PAT_INLINE.match(line)
         if match:
             _, action, ref = match.groups()
-            line, did_change = _process_reference(action, ref, token, path, line, report)
+            line, did_change = _process_reference(
+                action, ref, token, path, line, report
+            )
             changed = changed or did_change
             output.append(line)
             index += 1
@@ -150,7 +169,9 @@ def _process_file(path: Path, token: Optional[str]) -> Tuple[bool, List[ReportEn
             value_match = PAT_VALUE.match(next_line)
             if value_match:
                 _, action, ref = value_match.groups()
-                new_line, did_change = _process_reference(action, ref, token, path, next_line, report)
+                new_line, did_change = _process_reference(
+                    action, ref, token, path, next_line, report
+                )
                 changed = changed or did_change
                 output.append(line)
                 output.append(new_line)

@@ -1,0 +1,7 @@
+version: 1
+service: trendmarketv2
+owners:
+  - team: boss-final
+components: []
+dashboards: []
+alerts: []

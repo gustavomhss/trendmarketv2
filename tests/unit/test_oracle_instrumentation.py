@@ -24,7 +24,12 @@ def oracle_module(tmp_path: Path):
 def test_oracle_event_emission(oracle_module, tmp_path: Path):
     quote_cls = oracle_module.Quote
     quotes = [
-        quote_cls(symbol="BRLUSD", price=100.0 + idx * 0.1, ts_ms=1_000_000 + idx * 100, source=f"src{idx}")
+        quote_cls(
+            symbol="BRLUSD",
+            price=100.0 + idx * 0.1,
+            ts_ms=1_000_000 + idx * 100,
+            source=f"src{idx}",
+        )
         for idx in range(3)
     ]
     result = oracle_module.aggregate_quorum("BRLUSD", quotes, now_ms=1_000_500)
@@ -32,7 +37,11 @@ def test_oracle_event_emission(oracle_module, tmp_path: Path):
 
     events_path = Path(os.environ["MBP_ORACLE_EVENT_LOG"])
     assert events_path.exists()
-    contents = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line]
+    contents = [
+        json.loads(line)
+        for line in events_path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
     assert contents
     payload = contents[-1]["payload"]
     assert payload["symbol"] == "BRLUSD"

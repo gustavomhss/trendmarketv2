@@ -110,7 +110,9 @@ class PriceWindow:
 class TwapEngine:
     """TWAP engine with automatic failover between price sources."""
 
-    def __init__(self, symbol: str, primary: str = "primary", secondary: str = "secondary") -> None:
+    def __init__(
+        self, symbol: str, primary: str = "primary", secondary: str = "secondary"
+    ) -> None:
         self.symbol = symbol
         self.sources = {
             primary: PriceWindow(),
@@ -132,7 +134,11 @@ class TwapEngine:
 
         with _TELEMETRY.span(
             "oracle.fetch",
-            attributes={"oracle.symbol": self.symbol, "oracle.source": source, "oracle.lag_seconds": lag_seconds},
+            attributes={
+                "oracle.symbol": self.symbol,
+                "oracle.source": source,
+                "oracle.lag_seconds": lag_seconds,
+            },
         ):
             self.sources[source].add(price, ts_ms)
             _EVENT_LOG.emit(
@@ -161,7 +167,10 @@ class TwapEngine:
             chosen_source = self.primary
 
             if primary_staleness is None or primary_staleness > FAILOVER_THRESHOLD_MS:
-                if secondary_staleness is not None and secondary_staleness <= FAILOVER_THRESHOLD_MS:
+                if (
+                    secondary_staleness is not None
+                    and secondary_staleness <= FAILOVER_THRESHOLD_MS
+                ):
                     chosen_source = self.secondary
                     failover_time_s = round(secondary_staleness / 1000.0, 6)
                     if self.active_source != self.secondary:
@@ -214,4 +223,10 @@ class TwapEngine:
         return list(self.events)
 
 
-__all__ = ["TwapEngine", "TwapEvent", "PriceWindow", "WINDOW_SECONDS", "FAILOVER_THRESHOLD_MS"]
+__all__ = [
+    "TwapEngine",
+    "TwapEvent",
+    "PriceWindow",
+    "WINDOW_SECONDS",
+    "FAILOVER_THRESHOLD_MS",
+]

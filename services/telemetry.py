@@ -1,4 +1,5 @@
 """Shared telemetry helpers for Prometheus metrics, OTel spans and event logs."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -27,6 +28,7 @@ def _get_existing(name: str) -> Any:
     if isinstance(mapping, dict):
         return mapping.get(name)
     return None
+
 
 try:  # pragma: no cover - optional dependency
     from opentelemetry import trace as ot_trace
@@ -83,7 +85,9 @@ class TelemetryManager:
     ) -> Any:
         """Return a Prometheus Counter, reusing an existing one when available."""
 
-        if Counter is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
+        if (
+            Counter is None or REGISTRY is None
+        ):  # pragma: no cover - optional dependency missing
             return _NoopMetric()
 
         existing = _get_existing(name)
@@ -107,7 +111,9 @@ class TelemetryManager:
     ) -> Any:
         """Return a Prometheus Histogram, reusing an existing one when available."""
 
-        if Histogram is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
+        if (
+            Histogram is None or REGISTRY is None
+        ):  # pragma: no cover - optional dependency missing
             return _NoopMetric()
 
         existing = _get_existing(name)
@@ -134,7 +140,9 @@ class TelemetryManager:
     ) -> Any:
         """Return a Prometheus Gauge, reusing an existing one when available."""
 
-        if Gauge is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
+        if (
+            Gauge is None or REGISTRY is None
+        ):  # pragma: no cover - optional dependency missing
             return _NoopMetric()
 
         existing = _get_existing(name)
@@ -152,15 +160,22 @@ class TelemetryManager:
     # Spans
     # ------------------------------------------------------------------
     @contextmanager
-    def span(self, name: str, *, attributes: Optional[Dict[str, Any]] = None) -> Iterator[Optional[Span]]:
+    def span(
+        self, name: str, *, attributes: Optional[Dict[str, Any]] = None
+    ) -> Iterator[Optional[Span]]:
         tracer = self._tracer
         if tracer is None:  # pragma: no cover - no tracer configured
             yield None
             return
-        attrs = {"service.name": self.settings.service_name, "service.env": self.settings.env}
+        attrs = {
+            "service.name": self.settings.service_name,
+            "service.env": self.settings.env,
+        }
         if attributes:
             attrs.update(attributes)
-        with tracer.start_as_current_span(name, attributes=attrs) as span:  # pragma: no cover - tracing path
+        with tracer.start_as_current_span(
+            name, attributes=attrs
+        ) as span:  # pragma: no cover - tracing path
             yield span
 
     # ------------------------------------------------------------------

@@ -1,4 +1,5 @@
 """Auto-resolution service with Sprint 5 decision rules and audit logging."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -98,10 +99,14 @@ class _StoredDecision:
 class AutoResolutionService:
     """Apply Sprint 5 auto-resolution rules with RBAC and audit trail."""
 
-    def __init__(self, audit_log: Path, *, allowed_roles: Optional[Iterable[str]] = None) -> None:
+    def __init__(
+        self, audit_log: Path, *, allowed_roles: Optional[Iterable[str]] = None
+    ) -> None:
         self.audit_log = audit_log
         self.audit_log.parent.mkdir(parents=True, exist_ok=True)
-        self.allowed_roles = set(allowed_roles) if allowed_roles else ALLOWED_RESOLUTION_ROLES
+        self.allowed_roles = (
+            set(allowed_roles) if allowed_roles else ALLOWED_RESOLUTION_ROLES
+        )
         self._idempotency: Dict[str, _StoredDecision] = {}
         self._decisions: Dict[str, AutoResolutionDecision] = {}
 
@@ -135,7 +140,9 @@ class AutoResolutionService:
                 raise IdempotencyKeyConflict(idempotency_key)
             return stored.decision
 
-        outcome, rule = self._determine_outcome(truth_payload, quorum_result, manual_override)
+        outcome, rule = self._determine_outcome(
+            truth_payload, quorum_result, manual_override
+        )
 
         resolved_trace = trace_id or uuid.uuid4().hex
         decision = AutoResolutionDecision(
@@ -155,7 +162,9 @@ class AutoResolutionService:
                 raise DecisionConflict(decision_id)
             # Reuse previous decision for deterministic trace id
             decision.trace_id = previous.trace_id
-            self._idempotency[idempotency_key] = _StoredDecision(decision=previous, payload_hash=payload_hash)
+            self._idempotency[idempotency_key] = _StoredDecision(
+                decision=previous, payload_hash=payload_hash
+            )
             return previous
 
         self._append_audit(
@@ -169,7 +178,9 @@ class AutoResolutionService:
         )
 
         self._decisions[decision_id] = decision
-        self._idempotency[idempotency_key] = _StoredDecision(decision=decision, payload_hash=payload_hash)
+        self._idempotency[idempotency_key] = _StoredDecision(
+            decision=decision, payload_hash=payload_hash
+        )
         return decision
 
     def load_audit_entries(self) -> List[Dict[str, object]]:
@@ -189,7 +200,9 @@ class AutoResolutionService:
 
         truth_verdict = truth_payload.verdict
         truth_final = truth_payload.is_final() and truth_verdict is not None
-        quorum_ok = quorum_result.quorum_ok and quorum_result.suggested_outcome is not None
+        quorum_ok = (
+            quorum_result.quorum_ok and quorum_result.suggested_outcome is not None
+        )
 
         if truth_final:
             if quorum_ok and quorum_result.suggested_outcome != truth_verdict:
@@ -197,7 +210,10 @@ class AutoResolutionService:
             return truth_verdict, DecisionRule.TRUTH_SOURCE_FINAL
 
         if quorum_ok:
-            return quorum_result.suggested_outcome or "manual_review", DecisionRule.QUORUM_CONSENSUS
+            return (
+                quorum_result.suggested_outcome or "manual_review",
+                DecisionRule.QUORUM_CONSENSUS,
+            )
 
         return "manual_review", DecisionRule.MANUAL_REVIEW
 

@@ -31,12 +31,18 @@ def test_api_apply_success_flow(tmp_path: Path) -> None:
         "quorum": True,
         "payload": {
             "truth": {"status": "final", "verdict": "yes", "confidence": 0.97},
-            "quorum": {"outcome": "yes", "confidence": 0.82, "contributors": ["alpha", "beta"]},
+            "quorum": {
+                "outcome": "yes",
+                "confidence": 0.82,
+                "contributors": ["alpha", "beta"],
+            },
             "market_id": "PM:ABC",
         },
     }
 
-    response = api.resolve_apply(payload, actor="alice", role="resolver", idempotency_key="k-1")
+    response = api.resolve_apply(
+        payload, actor="alice", role="resolver", idempotency_key="k-1"
+    )
 
     assert response["outcome"] == "yes"
     assert response["rule"] == DecisionRule.TRUTH_SOURCE_FINAL
@@ -60,7 +66,9 @@ def test_api_manual_override(tmp_path: Path) -> None:
         },
     }
 
-    response = api.resolve_apply(payload, actor="carol", role="admin", idempotency_key="k-2")
+    response = api.resolve_apply(
+        payload, actor="carol", role="admin", idempotency_key="k-2"
+    )
 
     assert response["outcome"] == "refund"
     assert response["rule"] == DecisionRule.MANUAL_OVERRIDE
@@ -92,7 +100,9 @@ def test_api_idempotency_conflict(tmp_path: Path) -> None:
     }
 
     with pytest.raises(IdempotencyKeyConflict):
-        api.resolve_apply(modified, actor="alice", role="resolver", idempotency_key="k-shared")
+        api.resolve_apply(
+            modified, actor="alice", role="resolver", idempotency_key="k-shared"
+        )
 
 
 def test_api_enforces_rbac(tmp_path: Path) -> None:
@@ -109,7 +119,9 @@ def test_api_enforces_rbac(tmp_path: Path) -> None:
     }
 
     with pytest.raises(PermissionError):
-        api.resolve_apply(payload, actor="mallory", role="viewer", idempotency_key="k-4")
+        api.resolve_apply(
+            payload, actor="mallory", role="viewer", idempotency_key="k-4"
+        )
 
 
 def _service(tmp_path: Path) -> AutoResolutionService:

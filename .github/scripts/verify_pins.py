@@ -5,8 +5,10 @@ import sys
 import urllib.error
 import urllib.request
 
-INLINE_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
-KEY_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*$')
+INLINE_RE = re.compile(
+    r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$'
+)
+KEY_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
 VALUE_RE = re.compile(r'^\s*(["\']?)([\w_.-]+\/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
 GITHUB_API = "https://api.github.com/repos/{repo}/commits/{ref}"
 
@@ -25,7 +27,7 @@ def extract_uses(path: str):
     idx = 0
     while idx < len(lines):
         line = lines[idx]
-        line_clean = line.split('#', 1)[0]
+        line_clean = line.split("#", 1)[0]
         match = INLINE_RE.match(line_clean)
         if match:
             _, repo, ref = match.groups()
@@ -35,7 +37,7 @@ def extract_uses(path: str):
             continue
         if KEY_RE.match(line_clean) and idx + 1 < len(lines):
             next_line = lines[idx + 1]
-            next_line_clean = next_line.split('#', 1)[0]
+            next_line_clean = next_line.split("#", 1)[0]
             match_val = VALUE_RE.match(next_line_clean)
             if match_val:
                 _, repo, ref = match_val.groups()
@@ -127,7 +129,9 @@ def main():
                 f"- `{entry['repo']}@{entry['ref']}` em `{entry['file']}` (linha {entry['line']}): {entry['reason']}"
             )
     else:
-        summary_lines.append("Tudo OK — todas as actions usam SHAs de 40 caracteres válidos.")
+        summary_lines.append(
+            "Tudo OK — todas as actions usam SHAs de 40 caracteres válidos."
+        )
 
     build_summary(os.getenv("GITHUB_STEP_SUMMARY", ""), summary_lines)
 

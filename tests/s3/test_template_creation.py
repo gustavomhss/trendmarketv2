@@ -48,8 +48,8 @@ def base_catalog():
 
 
 def base_policy(flag: bool = True) -> str:
-    return (
-        "version: 1\nfeature_flags:\n  mbp.create.by_template: {flag}\n".format(flag=str(flag).lower())
+    return "version: 1\nfeature_flags:\n  mbp.create.by_template: {flag}\n".format(
+        flag=str(flag).lower()
     )
 
 

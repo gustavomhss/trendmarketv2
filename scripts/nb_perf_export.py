@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exporta sumário de performance do DEC em formato notebook-lite."""
+
 from __future__ import annotations
 
 import json

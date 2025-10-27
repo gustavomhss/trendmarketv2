@@ -11,10 +11,14 @@ from typing import Dict, Iterable, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATE_PATH = ROOT / "out" / "obs_gatecheck" / "evidence" / "amm_obs_state.json"
-DEFAULT_OUTPUT_PATH = ROOT / "out" / "obs_gatecheck" / "evidence" / "trace_log_smoke.json"
+DEFAULT_OUTPUT_PATH = (
+    ROOT / "out" / "obs_gatecheck" / "evidence" / "trace_log_smoke.json"
+)
 
 
-def _build_log_index(entries: Iterable[Dict[str, object]]) -> Dict[Tuple[str, str], Dict[str, object]]:
+def _build_log_index(
+    entries: Iterable[Dict[str, object]],
+) -> Dict[Tuple[str, str], Dict[str, object]]:
     index: Dict[Tuple[str, str], Dict[str, object]] = {}
     for entry in entries:
         trace_id = str(entry.get("trace_id"))

@@ -29,6 +29,8 @@ _RUN_DURATION = _TELEMETRY.histogram(
     buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0),
     labelnames=("scenario",),
 )
+
+
 def _event_log() -> EventEmitter:
     return _TELEMETRY.event_log(
         "MBP_SIM_EVENT_LOG",
@@ -52,19 +54,25 @@ def load_orders(csv_path: Path) -> List[Dict[str, float]]:
         reader = csv.DictReader(fh)
         rows = []
         for row in reader:
-            rows.append({
-                "ts": float(row["ts"]),
-                "price": float(row["price"]),
-                "qty": float(row.get("qty", 0)),
-            })
+            rows.append(
+                {
+                    "ts": float(row["ts"]),
+                    "price": float(row["price"]),
+                    "qty": float(row.get("qty", 0)),
+                }
+            )
         return rows
 
 
-def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) -> Dict[str, object]:
+def simulate_scenario(
+    fixtures: Path, scenario: str, out_path: Path, seed: int
+) -> Dict[str, object]:
     rng = random.Random(seed)
     orders_file = fixtures / f"orders_{scenario}.csv"
     orders = load_orders(orders_file)
-    depth_info = json.loads((fixtures / "market_depth.json").read_text(encoding="utf-8"))
+    depth_info = json.loads(
+        (fixtures / "market_depth.json").read_text(encoding="utf-8")
+    )
 
     engine = TwapEngine(symbol=DEFAULT_SYMBOL)
     quorum_hits = 0
@@ -88,7 +96,14 @@ def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) 
                 adjustment = (offset - 1) * 0.0004 + rng.uniform(-0.0001, 0.0001)
                 quote_price = base_price * (1 + adjustment)
                 quote_ts = ts_ms - (offset * 5_000)
-                quotes.append(Quote(symbol=DEFAULT_SYMBOL, price=quote_price, ts_ms=quote_ts, source=source))
+                quotes.append(
+                    Quote(
+                        symbol=DEFAULT_SYMBOL,
+                        price=quote_price,
+                        ts_ms=quote_ts,
+                        source=source,
+                    )
+                )
 
             result = aggregate_quorum(DEFAULT_SYMBOL, quotes, now_ms=ts_ms)
             if result.quorum_ok:
@@ -132,7 +147,12 @@ def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) 
         },
         "market_depth": depth_info.get(DEFAULT_SYMBOL, {}),
         "oracle": {
-            "quorum_ratio": round(ScenarioStats(quorum_hits, divergence_max, staleness_max, len(orders)).quorum_ratio(), 4),
+            "quorum_ratio": round(
+                ScenarioStats(
+                    quorum_hits, divergence_max, staleness_max, len(orders)
+                ).quorum_ratio(),
+                4,
+            ),
             "divergence_max": round(divergence_max, 6),
             "staleness_max_ms": staleness_max,
             "agg_price_avg": mean(agg_prices) if agg_prices else None,
@@ -171,9 +191,13 @@ def simulate_scenario(fixtures: Path, scenario: str, out_path: Path, seed: int) 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="MBP deterministic simulation harness")
-    parser.add_argument("--fixtures", type=Path, required=True, help="Path to fixtures directory")
+    parser.add_argument(
+        "--fixtures", type=Path, required=True, help="Path to fixtures directory"
+    )
     parser.add_argument("--scenario", choices=sorted(SCENARIOS), required=True)
-    parser.add_argument("--out", type=Path, required=True, help="Output path for the report JSON")
+    parser.add_argument(
+        "--out", type=Path, required=True, help="Output path for the report JSON"
+    )
     args = parser.parse_args()
 
     seed_env = int(os.environ.get("SEED", "42"))

@@ -17,6 +17,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 import jsonschema  # noqa: E402
+
 STAGES_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
 SCHEMA_PATH = BASE_DIR / "schemas" / "q1_boss_report.schema.json"

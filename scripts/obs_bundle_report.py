@@ -6,6 +6,7 @@ confirm that the acceptance/gatecheck status is OK, verifies the presence of the
 mandatory evidence files for Wave 3, and prints a ready-to-paste PR footer with
 the key SLIs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -105,7 +106,10 @@ def print_footer(summary: BundleSummary, bundle_dir: Path) -> None:
 
     metric_aliases = {
         "p95_swap_seconds": ("p95_swap_seconds",),
-        "data_freshness_seconds": ("data_freshness_seconds", "freshness_oracle_seconds"),
+        "data_freshness_seconds": (
+            "data_freshness_seconds",
+            "freshness_oracle_seconds",
+        ),
         "cdc_lag_seconds": ("cdc_lag_seconds", "cdc_orders_partition0_seconds"),
         "drift_score": ("drift_score",),
         "hook_coverage_ratio": ("hook_coverage_ratio",),
@@ -122,11 +126,13 @@ def print_footer(summary: BundleSummary, bundle_dir: Path) -> None:
             return str(value)
         return default
 
-    evidence_count = sum(1 for path in (bundle_dir / "evidence").rglob("*") if path.is_file())
+    evidence_count = sum(
+        1 for path in (bundle_dir / "evidence").rglob("*") if path.is_file()
+    )
     footer = f"""\
 ORR: ACCEPTANCE_{summary.acceptance} · GATECHECK_{summary.gatecheck}
-Bundle: {bundle_dir / 'bundle.zip'} (sha256: {summary.hash_value})
-SLIs: p95(swap)={_metric('p95_swap_seconds')}s, freshness(oracle)={_metric('data_freshness_seconds')}s, cdc_lag_max={_metric('cdc_lag_seconds')}s, drift_max={_metric('drift_score')}, hook_coverage={_metric('hook_coverage_ratio')}
+Bundle: {bundle_dir / "bundle.zip"} (sha256: {summary.hash_value})
+SLIs: p95(swap)={_metric("p95_swap_seconds")}s, freshness(oracle)={_metric("data_freshness_seconds")}s, cdc_lag_max={_metric("cdc_lag_seconds")}s, drift_max={_metric("drift_score")}, hook_coverage={_metric("hook_coverage_ratio")}
 Gates: PII_OK · SBOM_OK · COSTS_OK · BASELINE_OK · TRACE_GOLDEN_OK
 Evidence files: {evidence_count}
 """

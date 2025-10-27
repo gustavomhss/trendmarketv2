@@ -1,11 +1,15 @@
-actions:
-  actions/checkout: 11bd71901bbe5b1630ceea73d27597364c9af683
-  actions/download-artifact: d3f86a106a0bac45b974a628896c90dbdf5c8093
-  actions/setup-python: 42375524e23c412d93fb67b49958b491fce71c38
-  actions/upload-artifact: ea165f8d65b6e75b540449e92b4886f43607fa02
-  docker/login-action: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
-  returntocorp/semgrep-action: d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
-metadata:
-  updated_at: 2025-10-27T04:09:15Z
-  updated_by: codex
-  rationale: Sweep v19 — baseline Node 20 SHAs (setup-python v5.4.0)
+{
+  "actions": {
+    "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683",
+    "actions/download-artifact": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    "actions/setup-python": "42375524e23c412d93fb67b49958b491fce71c38",
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "docker/login-action": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+    "returntocorp/semgrep-action": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
+  },
+  "metadata": {
+    "rationale": "Sweep: normalize GitHub Actions pins to 40-char SHAs.",
+    "updated_at": "2025-10-27T07:26:01Z",
+    "updated_by": "codex"
+  }
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """TWAP computation with telemetry, confidence intervals and events."""
+
 from __future__ import annotations
 
 import csv
@@ -24,12 +25,16 @@ def parse_ts(raw: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def window_points(points: List[Tuple[datetime, float]], now: datetime, minutes: int) -> List[float]:
+def window_points(
+    points: List[Tuple[datetime, float]], now: datetime, minutes: int
+) -> List[float]:
     start = now - timedelta(minutes=minutes)
     return [p[1] for p in points if start <= p[0] <= now]
 
 
-def window_avg(points: List[Tuple[datetime, float]], now: datetime, minutes: int) -> float:
+def window_avg(
+    points: List[Tuple[datetime, float]], now: datetime, minutes: int
+) -> float:
     values = window_points(points, now, minutes)
     return sum(values) / len(values) if values else float("nan")
 
@@ -62,20 +67,26 @@ def main() -> int:
     with inp.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
-            rows.append((parse_ts(row["ts"]), float(row["price"])) )
+            rows.append((parse_ts(row["ts"]), float(row["price"])))
     rows.sort(key=lambda x: x[0])
 
     out.parent.mkdir(parents=True, exist_ok=True)
     events: List[Dict[str, object]] = []
     with out.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["ts", "price", "twap_1m", "twap_5m", "twap_15m", "divergence_pct"])
+        writer.writerow(
+            ["ts", "price", "twap_1m", "twap_5m", "twap_15m", "divergence_pct"]
+        )
         for idx, (ts, price) in enumerate(rows):
             history = rows[: idx + 1]
             tw1 = window_avg(history, ts, 1)
             tw5 = window_avg(history, ts, 5)
             tw15 = window_avg(history, ts, 15)
-            div = abs(price - tw5) / tw5 * 100 if (not math.isnan(tw5) and tw5 != 0) else float("nan")
+            div = (
+                abs(price - tw5) / tw5 * 100
+                if (not math.isnan(tw5) and tw5 != 0)
+                else float("nan")
+            )
             writer.writerow(
                 [
                     ts.isoformat(),
@@ -118,7 +129,9 @@ def main() -> int:
                 }
             )
 
-    events_path.write_text(json.dumps(events, indent=2, ensure_ascii=False), encoding="utf-8")
+    events_path.write_text(
+        json.dumps(events, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     return 0
 
 

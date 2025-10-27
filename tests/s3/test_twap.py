@@ -20,7 +20,9 @@ def run_twap(tmp_path: Path, rows):
     evidence = tmp_path / "evidence"
     env = os.environ.copy()
     env["MBP_EVIDENCE_DIR"] = str(evidence)
-    subprocess.check_call(["python3", "scripts/s3/twap_compute.py", str(prices), str(output)], env=env)
+    subprocess.check_call(
+        ["python3", "scripts/s3/twap_compute.py", str(prices), str(output)], env=env
+    )
     return output, evidence
 
 

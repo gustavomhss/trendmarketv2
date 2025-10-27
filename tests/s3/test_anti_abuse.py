@@ -15,11 +15,41 @@ feature_flags:
 """
 
 ORDERS = [
-    {"user": "u", "market_id": "m", "template_category": "binary", "qty": 60, "ts": 1000},
-    {"user": "u", "market_id": "m", "template_category": "binary", "qty": 60, "ts": 1005},
-    {"user": "u", "market_id": "m", "template_category": "binary", "qty": 60, "ts": 1010},
-    {"user": "u", "market_id": "m", "template_category": "binary", "qty": 200, "ts": 1015},
-    {"user": "u", "market_id": "m", "template_category": "binary", "qty": 10, "ts": 1020},
+    {
+        "user": "u",
+        "market_id": "m",
+        "template_category": "binary",
+        "qty": 60,
+        "ts": 1000,
+    },
+    {
+        "user": "u",
+        "market_id": "m",
+        "template_category": "binary",
+        "qty": 60,
+        "ts": 1005,
+    },
+    {
+        "user": "u",
+        "market_id": "m",
+        "template_category": "binary",
+        "qty": 60,
+        "ts": 1010,
+    },
+    {
+        "user": "u",
+        "market_id": "m",
+        "template_category": "binary",
+        "qty": 200,
+        "ts": 1015,
+    },
+    {
+        "user": "u",
+        "market_id": "m",
+        "template_category": "binary",
+        "qty": 10,
+        "ts": 1020,
+    },
 ]
 
 
@@ -35,9 +65,13 @@ def test_anti_abuse_flags(tmp_path):
         MBP_ABUSE_FLAGS=str(tmp_path / "flags.json"),
         MBP_EVIDENCE_DIR=str(evidence),
     )
-    subprocess.check_call(["python3", "scripts/s3/anti_abuse.py", str(orders_path)], env=env)
+    subprocess.check_call(
+        ["python3", "scripts/s3/anti_abuse.py", str(orders_path)], env=env
+    )
     events = json.loads((tmp_path / "flags.json").read_text())
     reasons = {event["reason"] for event in events}
     assert {"burst", "exposure", "cooldown_violation"}.issubset(reasons)
-    telemetry = (evidence / "telemetry_anti_abuse.jsonl").read_text().strip().splitlines()
+    telemetry = (
+        (evidence / "telemetry_anti_abuse.jsonl").read_text().strip().splitlines()
+    )
     assert telemetry and all("abuse.detect" in line for line in telemetry)

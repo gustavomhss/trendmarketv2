@@ -21,8 +21,12 @@ _EVENT_LOG = _TELEMETRY.event_log(
     "MBP_MODERATION_EVENT_LOG",
     Path("out/moderation/events.jsonl"),
 )
-_MTTD_GAUGE = _TELEMETRY.gauge("mbp_moderation_mttd_seconds", "Mean time to detect moderation incidents")
-_MTTM_GAUGE = _TELEMETRY.gauge("mbp_moderation_mttm_seconds", "Mean time to mitigate moderation incidents")
+_MTTD_GAUGE = _TELEMETRY.gauge(
+    "mbp_moderation_mttd_seconds", "Mean time to detect moderation incidents"
+)
+_MTTM_GAUGE = _TELEMETRY.gauge(
+    "mbp_moderation_mttm_seconds", "Mean time to mitigate moderation incidents"
+)
 _APPEALS_COUNTER = _TELEMETRY.counter(
     "mbp_moderation_appeals_total",
     "Total moderation appeals emitted by the service.",
@@ -94,7 +98,10 @@ class ModerationService:
         }
         self._append_audit(actor, role, payload, resolved_trace, outcome="accepted")
 
-        with _TELEMETRY.span(_SPAN_APPLY, attributes={"moderation.symbol": symbol, "moderation.action": "pause"}):
+        with _TELEMETRY.span(
+            _SPAN_APPLY,
+            attributes={"moderation.symbol": symbol, "moderation.action": "pause"},
+        ):
             _EVENT_LOG.emit(
                 "moderation.pause",
                 {
@@ -142,7 +149,10 @@ class ModerationService:
         payload = {"symbol": symbol, "action": "resume"}
         self._append_audit(actor, role, payload, resolved_trace, outcome="accepted")
 
-        with _TELEMETRY.span(_SPAN_APPLY, attributes={"moderation.symbol": symbol, "moderation.action": "resume"}):
+        with _TELEMETRY.span(
+            _SPAN_APPLY,
+            attributes={"moderation.symbol": symbol, "moderation.action": "resume"},
+        ):
             _EVENT_LOG.emit(
                 "moderation.resume",
                 {
@@ -177,14 +187,16 @@ class ModerationService:
         }
         self._append_audit(actor, role, payload, resolved_trace, outcome="submitted")
 
-        self._appeals.append({
-            "symbol": symbol,
-            "reason": reason,
-            "actor": actor,
-            "role": role,
-            "trace_id": resolved_trace,
-            "auto": auto,
-        })
+        self._appeals.append(
+            {
+                "symbol": symbol,
+                "reason": reason,
+                "actor": actor,
+                "role": role,
+                "trace_id": resolved_trace,
+                "auto": auto,
+            }
+        )
         _APPEALS_COUNTER.labels(type="auto" if auto else "manual").inc()
 
         _EVENT_LOG.emit(
@@ -208,13 +220,23 @@ class ModerationService:
             "mttm_seconds": mean(self._mttm_samples) if self._mttm_samples else None,
             "appeals_total": len(self._appeals),
             "appeals_auto": sum(1 for item in self._appeals if item.get("auto")),
-            "active_pauses": [record.symbol for record in self.state.values() if record.status == "paused"],
-            "evidence_uris": {record.symbol: record.evidence_uri for record in self.state.values() if record.evidence_uri},
+            "active_pauses": [
+                record.symbol
+                for record in self.state.values()
+                if record.status == "paused"
+            ],
+            "evidence_uris": {
+                record.symbol: record.evidence_uri
+                for record in self.state.values()
+                if record.evidence_uri
+            },
         }
         out_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         return report
 
-    def _auto_appeal(self, *, symbol: str, reason: str, evidence_uri: Optional[str]) -> None:
+    def _auto_appeal(
+        self, *, symbol: str, reason: str, evidence_uri: Optional[str]
+    ) -> None:
         system_actor = "auto-appeal"
         try:
             self.appeal(
@@ -239,7 +261,9 @@ class ModerationService:
         outcome: str,
     ) -> None:
         ts_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        payload_hash = sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+        payload_hash = sha256(
+            json.dumps(payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         entry = {
             "ts": ts_iso,
             "actor": actor,

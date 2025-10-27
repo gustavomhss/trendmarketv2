@@ -17,9 +17,7 @@ DEFAULT_KEYS = {
 }
 
 
-def build_prompt_extras(
-    extra: Mapping[str, Any] | None = None, **kwargs: Any
-) -> str:
+def build_prompt_extras(extra: Mapping[str, Any] | None = None, **kwargs: Any) -> str:
     """Return a Markdown snippet with contextual extras for guard prompts.
 
     The renderer collects repository metadata from environment variables, then
@@ -36,9 +34,7 @@ def build_prompt_extras(
     if kwargs:
         context.update(kwargs)
 
-    metadata_lines = [
-        f"- **{key}**: {value}" for key, value in sorted(context.items())
-    ]
+    metadata_lines = [f"- **{key}**: {value}" for key, value in sorted(context.items())]
     sections = [
         "## Micro Safety Proof Sketch",
         "- Observabilidade reforçada com OpenTelemetry (`@opentelemetry/api`).",

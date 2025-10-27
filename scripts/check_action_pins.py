@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Lightweight guard that ensures public actions are pinned to 40-char SHAs."""
+
 from __future__ import annotations
 
 import os
@@ -7,8 +8,10 @@ import re
 import sys
 from dataclasses import dataclass
 
-INLINE_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
-KEY_RE = re.compile(r'^\s*(?:-\s*)?uses:\s*$')
+INLINE_RE = re.compile(
+    r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$'
+)
+KEY_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
 VALUE_RE = re.compile(r'^\s*(["\']?)([\w_.-]+/[\w_.-]+)@([^"\'\s#]+)\1\s*$')
 SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
@@ -34,7 +37,7 @@ def extract_uses(path: str):
     idx = 0
     while idx < len(lines):
         line = lines[idx]
-        line_clean = line.split('#', 1)[0]
+        line_clean = line.split("#", 1)[0]
         inline = INLINE_RE.match(line_clean)
         if inline:
             _, action, ref = inline.groups()
@@ -44,7 +47,7 @@ def extract_uses(path: str):
             continue
         if KEY_RE.match(line_clean) and idx + 1 < len(lines):
             next_line = lines[idx + 1]
-            next_line_clean = next_line.split('#', 1)[0]
+            next_line_clean = next_line.split("#", 1)[0]
             block = VALUE_RE.match(next_line_clean)
             if block:
                 _, action, ref = block.groups()
@@ -70,7 +73,9 @@ def main() -> int:
             print(line)
         return 1
 
-    print(f"OK — {len(occurrences)} referências estão pinadas em SHAs de 40 caracteres.")
+    print(
+        f"OK — {len(occurrences)} referências estão pinadas em SHAs de 40 caracteres."
+    )
     return 0
 
 

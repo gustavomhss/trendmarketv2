@@ -133,8 +133,14 @@ def _safety_proof_defaults() -> SafetyProofSketch:
             "Cfg": "conteúdo efetivo de `configs/rollout/mbp_canary.yml` (ou default seguro)",
         },
         invariants=(
-            ("INV-S1", "(Shadow non-interference): `Resp` independe do sucesso de `ShadowReq`."),
-            ("INV-C1", "(Canary default-safe): `Cfg.canary.enabled = false` ⇒ tráfego = `stable`."),
+            (
+                "INV-S1",
+                "(Shadow non-interference): `Resp` independe do sucesso de `ShadowReq`.",
+            ),
+            (
+                "INV-C1",
+                "(Canary default-safe): `Cfg.canary.enabled = false` ⇒ tráfego = `stable`.",
+            ),
             (
                 "INV-C2",
                 "(Graceful fallback): `Cfg` inválida/ausente ⇒ usar `Cfg_default` com `enabled=false`.",
@@ -338,4 +344,10 @@ def build_prompt_extras() -> str:
     return "\n\n---\n\n".join(sections)
 
 
-__all__ = ["build_prompt_extras", "SafetyProofSketch", "TelemetryHook", "TypedVariants", "LivenessNote"]
+__all__ = [
+    "build_prompt_extras",
+    "SafetyProofSketch",
+    "TelemetryHook",
+    "TypedVariants",
+    "LivenessNote",
+]

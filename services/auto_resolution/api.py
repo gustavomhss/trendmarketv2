@@ -1,4 +1,5 @@
 """In-process API facade for auto-resolution operations."""
+
 from __future__ import annotations
 
 from hashlib import sha256
@@ -108,7 +109,9 @@ class AutoResolutionAPI:
 
 
 def _build_truth_signal(source: Any, payload: Mapping[str, Any]) -> TruthSourceSignal:
-    observed_at = payload.get("observed_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    observed_at = payload.get("observed_at") or time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+    )
     confidence = float(payload.get("confidence", 0.0))
     verdict = payload.get("verdict")
     signal = TruthSourceSignal(
@@ -123,14 +126,20 @@ def _build_truth_signal(source: Any, payload: Mapping[str, Any]) -> TruthSourceS
     return signal.with_status(status)
 
 
-def _build_quorum_votes(payload: Mapping[str, Any], quorum_flag: bool) -> Mapping[str, Any]:
+def _build_quorum_votes(
+    payload: Mapping[str, Any], quorum_flag: bool
+) -> Mapping[str, Any]:
     outcome = payload.get("outcome")
     contributors: Iterable[Any] = payload.get("contributors", [])
     if not contributors:
         # Create a single aggregate vote to honour the quorum flag.
         contributors = ["quorum"]
     votes = [
-        {"source": str(contributor), "verdict": outcome or ("accepted" if quorum_flag else "rejected"), "weight": 1.0}
+        {
+            "source": str(contributor),
+            "verdict": outcome or ("accepted" if quorum_flag else "rejected"),
+            "weight": 1.0,
+        }
         for contributor in contributors
     ]
     return {"votes": votes, "divergence_pct": float(payload.get("divergence_pct", 0.0))}
@@ -164,7 +173,9 @@ def _format_record(record: ResolutionRecord) -> Dict[str, Any]:
     }
 
 
-def apply_resolution(payload: Mapping[str, Any], *, service: AutoResolutionService) -> Dict[str, Any]:
+def apply_resolution(
+    payload: Mapping[str, Any], *, service: AutoResolutionService
+) -> Dict[str, Any]:
     """Compatibility helper used by legacy integration tests."""
 
     required = {"event_id", "actor", "role", "idempotency_key"}
@@ -208,7 +219,9 @@ def apply_resolution(payload: Mapping[str, Any], *, service: AutoResolutionServi
 
 
 def _build_truth_source_from_dict(data: Mapping[str, Any]) -> TruthSourceSignal:
-    observed_at = data.get("observed_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    observed_at = data.get("observed_at") or time.strftime(
+        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+    )
     signal = TruthSourceSignal(
         source=str(data.get("source", "unknown")),
         verdict=data.get("verdict"),

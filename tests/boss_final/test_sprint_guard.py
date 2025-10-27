@@ -8,11 +8,15 @@ import pytest
 from scripts.boss_final import sprint_guard
 
 
-def _freeze_time(monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T11:00:00Z") -> None:
+def _freeze_time(
+    monkeypatch: pytest.MonkeyPatch, timestamp: str = "2024-01-02T11:00:00Z"
+) -> None:
     monkeypatch.setattr(sprint_guard, "isoformat_utc", lambda: timestamp)
 
 
-def test_run_stage_writes_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_stage_writes_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     output_root = tmp_path / "stages"
     monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
     _freeze_time(monkeypatch, "2024-01-02T12:00:00Z")
@@ -33,14 +37,20 @@ def test_run_stage_writes_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     primary_dir = output_root / "s1" / "primary"
     assert (primary_dir / "result.json").exists()
-    summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (output_root / "s1" / "summary.json").read_text(encoding="utf-8")
+    )
     assert summary["status"] == "PASS"
     assert summary["variants"]["primary"]["status"] == "PASS"
-    guard_status = (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    guard_status = (
+        (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    )
     assert guard_status == "PASS"
 
 
-def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_stage_failure_sets_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     output_root = tmp_path / "stages"
     monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
     _freeze_time(monkeypatch)
@@ -53,9 +63,15 @@ def test_run_stage_failure_sets_fail(tmp_path: Path, monkeypatch: pytest.MonkeyP
     with pytest.raises(SystemExit):
         sprint_guard.run_stage("s1", "primary")
 
-    guard_status = (output_root / "s1" / "primary" / "guard_status.txt").read_text(encoding="utf-8").strip()
+    guard_status = (
+        (output_root / "s1" / "primary" / "guard_status.txt")
+        .read_text(encoding="utf-8")
+        .strip()
+    )
     assert guard_status == "FAIL"
-    summary = json.loads((output_root / "s1" / "summary.json").read_text(encoding="utf-8"))
+    summary = json.loads(
+        (output_root / "s1" / "summary.json").read_text(encoding="utf-8")
+    )
     assert summary["status"] == "FAIL"
 
 
@@ -67,7 +83,9 @@ def test_validate_dashboard_structure_pass(monkeypatch: pytest.MonkeyPatch) -> N
     assert record.status == "PASS"
 
 
-def test_validate_dashboard_structure_fail(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validate_dashboard_structure_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     dashboards_dir = tmp_path / "observability" / "grafana" / "dashboards"
     dashboards_dir.mkdir(parents=True)
     bad_dashboard = dashboards_dir / "s5_mbp_scale.json"
@@ -89,7 +107,9 @@ def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
             "rationale": "Checkout",
         }
     }
-    (base / "actions.lock").write_text(json.dumps(actions_lock, indent=2) + "\n", encoding="utf-8")
+    (base / "actions.lock").write_text(
+        json.dumps(actions_lock, indent=2) + "\n", encoding="utf-8"
+    )
     workflows_dir = base / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
     workflow = workflows_dir / "test.yml"

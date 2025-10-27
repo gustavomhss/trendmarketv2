@@ -204,7 +204,9 @@ def generate_release_manifest(out_dir: Path) -> Dict[str, Any]:
         "metrics": (
             {
                 "p95_swap_seconds": metrics_summary.get("p95_swap_seconds"),
-                "synthetic_swap_ok_ratio": metrics_summary.get("synthetic_swap_ok_ratio"),
+                "synthetic_swap_ok_ratio": metrics_summary.get(
+                    "synthetic_swap_ok_ratio"
+                ),
             }
             if metrics_summary is not None
             else None
@@ -261,7 +263,9 @@ def _derive_release_version(summary: Dict[str, Any], override: Optional[str]) ->
     return _parse_summary_ts(summary).astimezone(timezone.utc).strftime("%Y%m%d")
 
 
-def build_release_metadata(out_dir: Path, *, version: Optional[str] = None) -> Dict[str, Any]:
+def build_release_metadata(
+    out_dir: Path, *, version: Optional[str] = None
+) -> Dict[str, Any]:
     manifest_path = write_release_manifest(out_dir)
     manifest = _load_json(manifest_path)
     summary = manifest.get("summary", {})

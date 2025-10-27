@@ -91,7 +91,9 @@ class ModelInfo:
         self.relative_path = path.relative_to(MODELS_DIR)
         self.original_file_path = path.relative_to(REPO_ROOT)
         self.unique_id = f"model.{project_name}.{slugify(self.name)}"
-        self.fqn = [project_name] + [part for part in self.relative_path.with_suffix("").parts]
+        self.fqn = [project_name] + [
+            part for part in self.relative_path.with_suffix("").parts
+        ]
         self.raw_code = path.read_text(encoding="utf-8")
         self.checksum = checksum_path(path)
         self.schema = self._infer_schema()
@@ -308,7 +310,9 @@ def ensure_invocation_id() -> str:
     return invocation_id
 
 
-def write_manifest(models: List[ModelInfo], tests: List[TestInfo], invocation_id: str) -> None:
+def write_manifest(
+    models: List[ModelInfo], tests: List[TestInfo], invocation_id: str
+) -> None:
     generated_at = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc).isoformat()
     nodes = {model.unique_id: model.to_manifest_node() for model in models}
     nodes.update({test.unique_id: test.to_manifest_node() for test in tests})
@@ -442,7 +446,13 @@ def command_run() -> None:
     models = collect_models(project_name)
     tests = collect_tests(models)
     write_manifest(models, tests, invocation_id)
-    write_run_results(models=models, tests=tests, invocation_id=invocation_id, include_tests=False, command="run")
+    write_run_results(
+        models=models,
+        tests=tests,
+        invocation_id=invocation_id,
+        include_tests=False,
+        command="run",
+    )
     create_duckdb_placeholder()
     print(f"Ran {len(models)} models using offline runner.")
 
@@ -455,7 +465,13 @@ def command_test() -> None:
     tests = collect_tests(models)
     if not (TARGET_DIR / "manifest.json").exists():
         write_manifest(models, tests, invocation_id)
-    write_run_results(models=models, tests=tests, invocation_id=invocation_id, include_tests=True, command="test")
+    write_run_results(
+        models=models,
+        tests=tests,
+        invocation_id=invocation_id,
+        include_tests=True,
+        command="test",
+    )
     print(f"Executed {len(tests)} tests using offline runner.")
 
 
