@@ -16,8 +16,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _telemetry import AuditLog, TelemetryEmitter, ensure_evidence_dir
-from _yaml import load as yaml_load
+from _telemetry import AuditLog, TelemetryEmitter, ensure_evidence_dir  # noqa: E402
+from _yaml import load as yaml_load  # noqa: E402
 
 RULES_PATH = Path(os.getenv("MBP_RULES_FILE", "configs/rulesets/v1/rules.yml"))
 SEEDS_DEFAULT = Path(os.getenv("MBP_RULE_SEEDS", "seeds/engine/rule_seeds.json"))

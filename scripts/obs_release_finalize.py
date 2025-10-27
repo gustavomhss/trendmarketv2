@@ -13,7 +13,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from amm_obs.release import ReleaseManifestError, write_release_metadata
+from amm_obs.release import ReleaseManifestError, write_release_metadata  # noqa: E402
 
 
 OUT = ROOT / "out" / "obs_gatecheck"

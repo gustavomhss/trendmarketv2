@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}src"
 STAGE="${STAGE:-}"               # s1..s6
 CLEAN_RUNNER="${CLEAN_RUNNER:-false}"
 ARTDIR="${ARTIFACT_DIR:-$RUNNER_TEMP/boss-stage-${STAGE}}"

@@ -16,12 +16,13 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-import jsonschema
+import jsonschema  # noqa: E402
 STAGES_DIR = BASE_DIR / "out" / "q1_boss_final" / "stages"
 OUTPUT_DIR = BASE_DIR / "out" / "q1_boss_final"
 SCHEMA_PATH = BASE_DIR / "schemas" / "q1_boss_report.schema.json"
 STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
 VARIANTS = ("primary", "clean")
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,20 @@ class StageAggregate:
     status: str
     notes: str
     variants: Dict[str, VariantResult]
+
+
+@dataclass(frozen=True)
+class AggregateArtifacts:
+    report: Dict[str, object]
+
+    def __getitem__(self, key: str) -> object:
+        return self.report[key]
+
+    def __iter__(self):  # type: ignore[override]
+        return iter(self.report)
+
+    def items(self):
+        return self.report.items()
 
 
 def isoformat_utc() -> str:
@@ -264,11 +279,11 @@ def write_outputs(report: Dict[str, object]) -> None:
     )
 
 
-def aggregate() -> Dict[str, object]:
+def aggregate(_release_version: str | None = None) -> AggregateArtifacts:
     stages = collect_stages()
     report = build_report(stages)
     write_outputs(report)
-    return report
+    return AggregateArtifacts(report=report)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:

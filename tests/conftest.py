@@ -1,25 +1,20 @@
-# ruff: noqa: E402
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-SRC_DIR = ROOT / "src"
-if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 import os
 import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+SRC_DIR = ROOT_DIR / "src"
 
-from hypothesis import settings
+if SRC_DIR.exists():
+    src_path = str(SRC_DIR)
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
 
+root_path = str(ROOT_DIR)
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+from hypothesis import settings  # noqa: E402
 
 settings.register_profile(
     "ci",

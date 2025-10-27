@@ -1,4 +1,3 @@
-# ruff: noqa: E402
 from __future__ import annotations
 
 import json
@@ -6,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from scripts.boss_final import aggregate_q1
+from scripts.scorecards import s6_scorecards
+
 jsonschema = pytest.importorskip("jsonschema")
 Draft7Validator = jsonschema.Draft7Validator
 ValidationError = jsonschema.ValidationError
-
-from scripts.boss_final import aggregate_q1
-from scripts.scorecards import s6_scorecards
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 THRESHOLDS_SRC = BASE_DIR / "s6_validation" / "thresholds.json"
