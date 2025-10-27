@@ -1,15 +1,65 @@
 {
-  "actions": {
-    "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683",
-    "actions/download-artifact": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-    "actions/setup-python": "42375524e23c412d93fb67b49958b491fce71c38",
-    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
-    "docker/login-action": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
-    "returntocorp/semgrep-action": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
-  },
+  "version": 1,
   "metadata": {
-    "rationale": "Sweep: normalize GitHub Actions pins to 40-char SHAs.",
-    "updated_at": "2025-10-27T07:26:01Z",
-    "updated_by": "codex"
-  }
+    "sha": "dbe7d66349c2d2140a1486a6d98280909f0bc004",
+    "date": "2025-10-27T18:59:53Z",
+    "author": "local-dev",
+    "rationale": "Lock gerado automaticamente para reprodutibilidade e segurança"
+  },
+  "actions": [
+    {
+      "repo": "actions/checkout",
+      "ref": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/actions/checkout/commit/11bd71901bbe5b1630ceea73d27597364c9af683"
+    },
+    {
+      "repo": "actions/download-artifact",
+      "ref": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/actions/download-artifact/commit/d3f86a106a0bac45b974a628896c90dbdf5c8093"
+    },
+    {
+      "repo": "actions/setup-python",
+      "ref": "42375524e23c412d93fb67b49958b491fce71c38",
+      "sha": "42375524e23c412d93fb67b49958b491fce71c38",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
+    },
+    {
+      "repo": "actions/upload-artifact",
+      "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/actions/upload-artifact/commit/ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    {
+      "repo": "docker/login-action",
+      "ref": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+      "sha": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/docker/login-action/commit/f4ef339be1f7c0066db2ed1d1c637d705d7d76e8"
+    },
+    {
+      "repo": "returntocorp/semgrep-action",
+      "ref": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin da action a commit imutável para supply-chain safety",
+      "url": "https://github.com/returntocorp/semgrep-action/commit/d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
+    }
+  ]
 }

@@ -283,26 +283,88 @@ def validate_actions_lock(context: StageContext) -> None:
             name="actions.lock",
             code="S4-ACTIONS",
             passed=False,
-            detail="Formato inválido: esperado objeto de ações",
+            detail="Formato inválido: esperado objeto na raiz",
         )
         return
+
+    def is_sha(value: str) -> bool:
+        value = value.lower()
+        return len(value) == 40 and all(ch in "0123456789abcdef" for ch in value)
+
+    def is_iso8601(value: str) -> bool:
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        return True
+
     issues: List[str] = []
-    for action, meta in sorted(data.items()):
-        if not isinstance(meta, dict):
-            issues.append(f"{action}: metadados inválidos")
-            continue
-        sha = str(meta.get("sha", ""))
-        if len(sha) != 40:
-            issues.append(f"{action}: SHA inválido")
-        for field_name in ("date", "author", "rationale"):
-            if field_name not in meta or not str(meta[field_name]).strip():
-                issues.append(f"{action}: campo {field_name} ausente")
+
+    if data.get("version") != 1:
+        issues.append("version ausente ou inválido")
+
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        issues.append("metadata ausente ou inválido")
+    else:
+        for field in ("sha", "date", "author", "rationale"):
+            value = metadata.get(field)
+            if not isinstance(value, str) or not value.strip():
+                issues.append(f"metadata.{field} ausente ou vazio")
+        meta_sha = metadata.get("sha")
+        if isinstance(meta_sha, str) and not is_sha(meta_sha):
+            issues.append("metadata.sha inválido")
+        meta_date = metadata.get("date")
+        if isinstance(meta_date, str) and not is_iso8601(meta_date):
+            issues.append("metadata.date inválido")
+
+    actions = data.get("actions")
+    if not isinstance(actions, list) or not actions:
+        issues.append("lista de actions ausente ou vazia")
+    else:
+        seen_repos: Dict[str, str] = {}
+        for entry in actions:
+            if not isinstance(entry, dict):
+                issues.append("entrada de action inválida")
+                continue
+            repo = entry.get("repo")
+            ref = entry.get("ref")
+            sha = entry.get("sha")
+            date = entry.get("date")
+            author = entry.get("author")
+            rationale = entry.get("rationale")
+            url = entry.get("url")
+            identifier = f"{repo}@{ref}" if repo and ref else str(repo)
+            for field_name, value in (
+                ("repo", repo),
+                ("ref", ref),
+                ("sha", sha),
+                ("date", date),
+                ("author", author),
+                ("rationale", rationale),
+                ("url", url),
+            ):
+                if not isinstance(value, str) or not value.strip():
+                    issues.append(f"{identifier}: campo {field_name} ausente")
+            if isinstance(sha, str) and not is_sha(sha):
+                issues.append(f"{identifier}: SHA inválido")
+            if isinstance(date, str) and not is_iso8601(date):
+                issues.append(f"{identifier}: date inválido")
+            if isinstance(url, str) and not url.startswith("https://github.com/"):
+                issues.append(f"{identifier}: url inválida")
+            if isinstance(repo, str) and isinstance(sha, str):
+                previous = seen_repos.get(repo)
+                if previous and previous != sha:
+                    issues.append(f"{identifier}: SHA divergente para {repo}")
+                else:
+                    seen_repos[repo] = sha
+
     record_check(
         context,
         name="actions.lock",
         code="S4-ACTIONS",
         passed=not issues,
-        detail="actions.lock validado" if not issues else "; ".join(issues),
+        detail="actions.lock validado" if not issues else "; ".join(sorted(set(issues))),
     )
 
     workflows_dir = BASE_DIR / ".github" / "workflows"
@@ -477,6 +539,29 @@ def stage_s4(context: StageContext) -> None:
         name="YAML validation",
         code="S4-YAML",
         command=["yamllint", "-s", "configs", "ops"],
+    )
+    run_command(
+        context=context,
+        name="Gerar actions.lock",
+        code="S4-GEN",
+        command=[
+            sys.executable,
+            ".github/scripts/gen_actions_lock.py",
+            "--workflows",
+            ".github/workflows",
+            "--out",
+            "actions.lock",
+            "--author",
+            "ci/boss-final",
+            "--rationale",
+            "Lock gerado no CI para reproducibilidade (S4)",
+        ],
+    )
+    run_command(
+        context=context,
+        name="Validar actions.lock",
+        code="S4-VERIFY",
+        command=[sys.executable, ".github/scripts/verify_actions_lock.py", "actions.lock"],
     )
     validate_actions_lock(context)
 

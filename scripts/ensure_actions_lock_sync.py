@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Iterable
 
 INLINE_RE = re.compile(
@@ -75,25 +77,29 @@ def collect_actions() -> Dict[str, str]:
 
 
 def load_actions_lock(path: str = "actions.lock") -> Dict[str, str]:
-    actions: Dict[str, str] = {}
     if not os.path.exists(path):
         raise SystemExit("actions.lock inexistente.")
-    section = None
-    with open(path, "r", encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.split("#", 1)[0].rstrip()
-            if not line:
-                continue
-            if line.strip() == "actions:":
-                section = "actions"
-                continue
-            if line.strip() == "metadata:":
-                section = None
-                break
-            if section == "actions" and ":" in line:
-                key, value = line.split(":", 1)
-                actions[key.strip()] = value.strip()
-    return actions
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"actions.lock inválido: {exc}")
+    if not isinstance(data, dict):
+        raise SystemExit("actions.lock inválido: formato inesperado")
+    actions_raw = data.get("actions")
+    if not isinstance(actions_raw, list):
+        raise SystemExit("actions.lock inválido: campo actions ausente ou inválido")
+    mapping: Dict[str, str] = {}
+    for entry in actions_raw:
+        if not isinstance(entry, dict):
+            raise SystemExit("actions.lock inválido: entrada de action não é objeto")
+        repo = entry.get("repo")
+        sha = entry.get("sha")
+        if not isinstance(repo, str) or not isinstance(sha, str):
+            raise SystemExit("actions.lock inválido: repo/sha ausentes")
+        if repo in mapping and mapping[repo] != sha:
+            raise SystemExit(f"actions.lock inválido: {repo} repetido com SHA divergente")
+        mapping[repo] = sha
+    return mapping
 
 
 def emit_summary(summary_path: str | None, lines: list[str]) -> None:
