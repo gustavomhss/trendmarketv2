@@ -16,4 +16,11 @@ stage,clean,code,out=sys.argv[1],sys.argv[2],int(sys.argv[3]),sys.argv[4]
 rep={"stages":[{"name":stage,"clean":(clean=="true"),"status":"passed" if code==0 else "failed","exit_code":code}]}
 open(out,'w',encoding='utf-8').write(json.dumps(rep,ensure_ascii=False))
 PY
+# Publica resumo no Step Summary (últimas 300 linhas do log)
+{
+  echo "### Guard — ${STAGE} (exit=${CODE})";
+  echo; echo '\`\`\`';
+  tail -n 300 "$LOG" || true; echo '\`\`\`'
+} >> "$GITHUB_STEP_SUMMARY" || true
+# Propaga o exit code real (sem silenciar)
 exit "$CODE"
