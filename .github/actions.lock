@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "uses": "actions/checkout",
+      "ref": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    },
+    {
+      "uses": "actions/download-artifact",
+      "ref": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    },
+    {
+      "uses": "actions/setup-python",
+      "ref": "42375524e23c412d93fb67b49958b491fce71c38",
+      "sha": "42375524e23c412d93fb67b49958b491fce71c38",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    },
+    {
+      "uses": "actions/upload-artifact",
+      "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    },
+    {
+      "uses": "docker/login-action",
+      "ref": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+      "sha": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    },
+    {
+      "uses": "returntocorp/semgrep-action",
+      "ref": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "ci/boss-final",
+      "rationale": "Pin to immutable commit SHA for supply-chain safety and reproducibility"
+    }
+  ],
+  "metadata": {
+    "sha": "f400477b2d666c51258853d59f8cf4f6781008d4",
+    "date": "2025-10-27T18:30:28Z",
+    "author": "scripts/actions_lock_apply.py"
+  }
+}
