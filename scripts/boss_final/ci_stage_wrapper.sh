@@ -7,7 +7,7 @@ mkdir -p "$ARTDIR"
 LOG="$ARTDIR/guard.log"
 . ./.venv/bin/activate 2>/dev/null || true
 set +e
-python scripts/boss_final/sprint_guard.py --stage "$STAGE" | tee "$LOG"
+python scripts/boss_final/sprint_guard.py --stage "$STAGE" 2>&1 | tee "$LOG"
 CODE=${PIPESTATUS[0]}
 set -e
 python - "$STAGE" "$CLEAN_RUNNER" "$CODE" "$ARTDIR/report.json" <<'PY'

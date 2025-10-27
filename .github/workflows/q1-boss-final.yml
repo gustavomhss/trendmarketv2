@@ -115,8 +115,8 @@ jobs:
     timeout-minutes: 30
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
-      REPORT_DIR: ${{ github.workspace }}/.boss-aggregate
-      ARTS_DIR: ${{ github.workspace }}/.boss-arts
+      ARTS_DIR: ${{ runner.temp }}/boss-arts
+      REPORT_DIR: ${{ runner.temp }}/boss-aggregate
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -159,21 +159,20 @@ jobs:
       - name: Aggregate reports (local)
         if: always()
         id: aggregate
-        env:
-          ARTS_DIR: ${{ env.ARTS_DIR }}
-          REPORT_DIR: ${{ env.REPORT_DIR }}
         run: |
           set -euo pipefail
           mkdir -p "$REPORT_DIR"
           . .venv/bin/activate 2>/dev/null || true
           python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
-      - name: Upload artifacts
+      - name: Upload Boss Final aggregate
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: q1-boss-final
+          name: boss-final-aggregate
           path: ${{ env.REPORT_DIR }}
+          retention-days: 7
+          overwrite: true
 
       - name: Validate report schema (local)
         if: always()
