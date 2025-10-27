@@ -25,8 +25,10 @@ fi
 . ./.venv/bin/activate
 python -V | tee -a "$LOG"
 python -m pip install -U pip >/dev/null
-python -m pip install -q ruff yamllint pytest hypothesis jsonschema >/dev/null
-echo "[wrapper] Ferramentas: ruff/yamllint/pytest/hypothesis/jsonschema" | tee -a "$LOG"
+python -m pip install -q yamllint pytest hypothesis jsonschema >/dev/null
+bash .github/scripts/ensure_ruff_version.sh >/dev/null
+RUFF_VERSION="$(tr -d '\r\n' < .tools/ruff.version 2>/dev/null || echo 'unknown')"
+echo "[wrapper] Ferramentas: ruff ${RUFF_VERSION} (pin)/yamllint/pytest/hypothesis/jsonschema" | tee -a "$LOG"
 
 # 2) Executa guard
 set +e
@@ -100,6 +102,9 @@ if [ -s "$SUMMARY_STAGE" ]; then
 fi
 if [ -s "$SUMMARY_LATEST" ]; then
   cp "$SUMMARY_LATEST" "$ARTDIR/out/guard/summary.txt"
+fi
+if [ -d "$ROOT_OUT_DIR/guard" ]; then
+  cp -R "$ROOT_OUT_DIR/guard/." "$ARTDIR/out/guard/" 2>/dev/null || true
 fi
 if compgen -G "${JUNIT_DIR}"/*.xml >/dev/null; then
   cp "${JUNIT_DIR}"/*.xml "$ARTDIR/out/junit/"

@@ -68,11 +68,13 @@ jobs:
         run: |
           python -m pip install \
             -r requirements.lock \
-            ruff==0.6.8 \
             yamllint==1.35.1 \
             pytest==8.3.3 \
             hypothesis==6.103.0 \
             jsonschema==4.23.0
+
+      - name: Ensure Ruff version
+        run: bash .github/scripts/ensure_ruff_version.sh
 
       - name: Install jq
         timeout-minutes: 5

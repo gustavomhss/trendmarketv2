@@ -100,12 +100,24 @@ def test_validate_dashboard_structure_fail(
 def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     base = tmp_path
     actions_lock = {
-        "actions/checkout": {
-            "sha": "b4ffde65f46336ab88eb53be808477a52a8b00c2",
-            "date": "2025-01-15",
-            "author": "GitHub Actions",
-            "rationale": "Checkout",
-        }
+        "version": 1,
+        "metadata": {
+            "sha": "a" * 40,
+            "date": "2025-01-15T00:00:00Z",
+            "author": "CI Bot <ci@trendmarketv2.local>",
+            "rationale": "auto-sync action pins for workflow consistency",
+        },
+        "actions": [
+            {
+                "repo": "actions/checkout",
+                "ref": "b4ffde65f46336ab88eb53be808477a52a8b00c2",
+                "sha": "b4ffde65f46336ab88eb53be808477a52a8b00c2",
+                "date": "2025-01-15T00:00:00Z",
+                "author": "CI Bot <ci@trendmarketv2.local>",
+                "rationale": "auto-sync action pins for workflow consistency",
+                "url": "https://github.com/actions/checkout/commit/b4ffde65f46336ab88eb53be808477a52a8b00c2",
+            }
+        ],
     }
     (base / "actions.lock").write_text(
         json.dumps(actions_lock, indent=2) + "\n", encoding="utf-8"
@@ -132,5 +144,7 @@ def test_validate_actions_lock(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     context = sprint_guard.StageContext(stage="s4", variant="primary")
     sprint_guard.validate_actions_lock(context)
 
+    assert context.records[-2].name == "actions.lock"
     assert context.records[-2].status == "PASS"
+    assert context.records[-1].name == "Workflow pins"
     assert context.records[-1].status == "PASS"

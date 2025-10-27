@@ -1,0 +1,46 @@
+{
+  "stages": [
+    {
+      "name": "s1",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    },
+    {
+      "name": "s2",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    },
+    {
+      "name": "s3",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    },
+    {
+      "name": "s4",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    },
+    {
+      "name": "s5",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    },
+    {
+      "name": "s6",
+      "status": "missing",
+      "errors": [
+        "artifact not found"
+      ]
+    }
+  ]
+}

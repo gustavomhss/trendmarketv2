@@ -28,7 +28,8 @@ INLINE_RE = re.compile(
 )
 KEY_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
 VALUE_RE = re.compile(r'^\s*(["\']?)([\w./-]+/[\w./-]+@[^"\'\s#]+)\1\s*$')
-ACTION_RATIONALE = "Pin da action a commit imutável para supply-chain safety"
+ACTION_RATIONALE = "auto-sync action pins for workflow consistency"
+DEFAULT_CI_AUTHOR = "CI Bot <ci@trendmarketv2.local>"
 
 
 class LockError(Exception):
@@ -47,7 +48,12 @@ def git_head_sha() -> str:
 
 
 def isoformat_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def http_get(url: str) -> dict:
@@ -70,7 +76,7 @@ def http_get(url: str) -> dict:
 
 def resolve_commit(owner: str, repo: str, ref: str) -> Tuple[str, str, str]:
     meta = http_get(f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}")
-    sha = (ref.lower() if HEX40_RE.fullmatch(ref) else str(meta.get("sha", "")).lower())
+    sha = ref.lower() if HEX40_RE.fullmatch(ref) else str(meta.get("sha", "")).lower()
     if not HEX40_RE.fullmatch(sha):
         raise LockError(f"Invalid SHA for {owner}/{repo}@{ref}: {sha}")
     commit_info = meta.get("commit", {})
@@ -79,7 +85,9 @@ def resolve_commit(owner: str, repo: str, ref: str) -> Tuple[str, str, str]:
     author = author_info.get("name") or committer_info.get("name") or "Unknown"
     date_raw = author_info.get("date") or committer_info.get("date") or isoformat_now()
     try:
-        dt = datetime.fromisoformat(date_raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+        dt = datetime.fromisoformat(date_raw.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        )
         date = dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
     except Exception:
         date = isoformat_now()
@@ -108,8 +116,8 @@ def build_entry(
         "ref": ref,
         "sha": sha,
         "date": date,
-        "author": author,
-        "rationale": rationale,
+        "author": author.strip() or DEFAULT_CI_AUTHOR,
+        "rationale": rationale.strip() or ACTION_RATIONALE,
         "url": url or commit_url(repo, sha),
     }
 
@@ -161,7 +169,11 @@ def parse_workflows(directory: Path) -> Set[str]:
 def filter_action_refs(uses_items: Iterable[str]) -> List[Tuple[str, str, str, str]]:
     refs: List[Tuple[str, str, str, str]] = []
     for entry in sorted(set(uses_items)):
-        if entry.startswith("./") or entry.startswith(".\\") or entry.startswith("docker://"):
+        if (
+            entry.startswith("./")
+            or entry.startswith(".\\")
+            or entry.startswith("docker://")
+        ):
             continue
         match = USES_RE.match(entry)
         if not match:
@@ -174,12 +186,16 @@ def filter_action_refs(uses_items: Iterable[str]) -> List[Tuple[str, str, str, s
     return refs
 
 
-def build_lock(actions: List[Dict[str, str]], author: str, rationale: str) -> Dict[str, object]:
+def build_lock(
+    actions: List[Dict[str, str]], author: str, rationale: str
+) -> Dict[str, object]:
+    canonical_author = author.strip() or DEFAULT_CI_AUTHOR
+    canonical_rationale = rationale.strip() or ACTION_RATIONALE
     metadata = {
         "sha": git_head_sha(),
         "date": isoformat_now(),
-        "author": author,
-        "rationale": rationale,
+        "author": canonical_author,
+        "rationale": canonical_rationale,
     }
     return {
         "version": 1,
@@ -206,8 +222,14 @@ def load_cached_actions(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
         meta_author = "Unknown"
         meta_date = isoformat_now()
         if isinstance(metadata, dict):
-            meta_author = str(metadata.get("author") or metadata.get("updated_by") or meta_author)
-            meta_date = str(metadata.get("date") or metadata.get("updated_at") or meta_date)
+            meta_author = str(
+                metadata.get("author") or metadata.get("updated_by") or meta_author
+            ).strip()
+            if not meta_author or meta_author.lower() == "ci/boss-final":
+                meta_author = DEFAULT_CI_AUTHOR
+            meta_date = str(
+                metadata.get("date") or metadata.get("updated_at") or meta_date
+            )
         if isinstance(actions, list):
             for entry in actions:
                 if not isinstance(entry, dict):
@@ -216,12 +238,23 @@ def load_cached_actions(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
                 ref = entry.get("ref") or entry.get("sha")
                 sha = entry.get("sha")
                 date = entry.get("date") or meta_date
-                author = entry.get("author") or meta_author
+                author_raw = entry.get("author") or meta_author
+                author = (
+                    DEFAULT_CI_AUTHOR
+                    if str(author_raw).strip().lower() == "ci/boss-final"
+                    else str(author_raw or "").strip()
+                )
                 rationale = entry.get("rationale") or ACTION_RATIONALE
                 url = entry.get("url")
-                if not isinstance(repo, str) or not isinstance(ref, str) or not isinstance(sha, str):
+                if (
+                    not isinstance(repo, str)
+                    or not isinstance(ref, str)
+                    or not isinstance(sha, str)
+                ):
                     continue
-                cached[(repo, ref)] = build_entry(repo, ref, sha, date, author, rationale, url)
+                cached[(repo, ref)] = build_entry(
+                    repo, ref, sha, date, author, rationale, url
+                )
         elif isinstance(actions, dict):
             for repo, sha in actions.items():
                 if not isinstance(repo, str) or not isinstance(sha, str):
@@ -239,13 +272,15 @@ def load_cached_actions(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Generate actions.lock")
-    parser.add_argument("--workflows", default=".github/workflows", help="Workflow directory")
-    parser.add_argument("--out", default="actions.lock", help="Output file path")
-    parser.add_argument("--author", default=os.environ.get("GITHUB_ACTOR", "Unknown"))
     parser.add_argument(
-        "--rationale",
-        default="Lock gerado automaticamente para reprodutibilidade e segurança",
+        "--workflows", default=".github/workflows", help="Workflow directory"
     )
+    parser.add_argument("--out", default="actions.lock", help="Output file path")
+    parser.add_argument(
+        "--author",
+        default=os.environ.get("GITHUB_ACTOR") or DEFAULT_CI_AUTHOR,
+    )
+    parser.add_argument("--rationale", default=ACTION_RATIONALE)
     args = parser.parse_args(argv)
 
     workflow_dir = Path(args.workflows)
@@ -280,11 +315,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not cached_entry:
                 raise
             entry = dict(cached_entry)
-            entry.update({
-                "repo": action_id,
-                "ref": ref,
-                "rationale": ACTION_RATIONALE,
-            })
+            entry.update(
+                {
+                    "repo": action_id,
+                    "ref": ref,
+                    "rationale": ACTION_RATIONALE,
+                }
+            )
             entry["sha"] = str(entry.get("sha", "")).lower()
             if not entry.get("url") and entry.get("sha"):
                 entry["url"] = commit_url(action_id, entry["sha"])
@@ -295,7 +332,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     lock = build_lock(lock_entries, args.author, args.rationale)
 
     output_path = Path(args.out)
-    output_path.write_text(json.dumps(lock, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(lock, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"[ok] Escrito: {output_path} ({len(lock_entries)} actions)")
     return 0
 
