@@ -9,8 +9,8 @@ watchers:
     min: 500
   twap_divergence_pct:
     max: 1.0
-    freeze_windows: 2    # 2 janelas consecutivas >1.0%
-    ic99_exceed_count: 3 # ou exceder IC-99 3x na janela
+    freeze_windows: 2  # 2 janelas consecutivas >1.0%
+    ic99_exceed_count: 3  # ou exceder IC-99 3x na janela
   resolution_sla_h:
     max: 24
   ttpv_p95_ms:

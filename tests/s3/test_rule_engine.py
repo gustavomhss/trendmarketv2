@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-from pathlib import Path
 
 RULES_YAML = """
 version: 1

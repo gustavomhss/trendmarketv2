@@ -8,7 +8,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from services.auto_resolution.service import (  # noqa: E402
-    ALLOWED_AUTO_ROLES,
     ALLOWED_MANUAL_ROLES,
     AutoResolutionService,
     ResolutionConflict,
