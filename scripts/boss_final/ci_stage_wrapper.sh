@@ -4,9 +4,18 @@ export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}src"
 STAGE="${STAGE:-}"               # s1..s6
 CLEAN_RUNNER="${CLEAN_RUNNER:-false}"
 ARTDIR="${ARTIFACT_DIR:-$RUNNER_TEMP/boss-stage-${STAGE}}"
-mkdir -p "$ARTDIR"
-LOG="$ARTDIR/guard.log"
+ROOT_OUT_DIR="$PWD/out"
+LOG_DIR="$ROOT_OUT_DIR/logs"
+GUARD_DIR="$ROOT_OUT_DIR/guard"
+JUNIT_DIR="$ROOT_OUT_DIR/junit"
+mkdir -p "$ARTDIR" "$LOG_DIR" "$GUARD_DIR" "$JUNIT_DIR"
+LOG="$LOG_DIR/guard_${STAGE}.log"
 TRIAGE_LOG="$ARTDIR/triage.log"
+SUMMARY_STAGE="$GUARD_DIR/summary-${STAGE}.txt"
+SUMMARY_LATEST="$GUARD_DIR/summary.txt"
+: >"$LOG"
+rm -f "$SUMMARY_STAGE"
+rm -f "$SUMMARY_LATEST"
 
 # 1) venv autônomo + deps mínimas
 if [ ! -x ".venv/bin/python" ]; then
@@ -21,15 +30,14 @@ echo "[wrapper] Ferramentas: ruff/yamllint/pytest/hypothesis/jsonschema" | tee -
 
 # 2) Executa guard
 set +e
-GUARD_OUT=$(python -u scripts/boss_final/sprint_guard.py --stage "$STAGE" 2>&1)
-CODE=$?
+python -u scripts/boss_final/sprint_guard.py --stage "$STAGE" 2>&1 | tee -a "$LOG"
+CODE=${PIPESTATUS[0]}
 set -e
-if [ -n "$GUARD_OUT" ]; then echo "$GUARD_OUT" | tee -a "$LOG"; fi
 
-# 3) Triagem quando o guard falha e não imprime nada
+# 3) Triagem quando o guard falha
 TRIAGE_REASON=""
-if [ "$CODE" -ne 0 ] && [ -z "$GUARD_OUT" ]; then
-  echo "[wrapper] Guard falhou sem output — iniciando triagem para ${STAGE}..." | tee -a "$LOG"
+if [ "$CODE" -ne 0 ]; then
+  echo "[wrapper] Guard exit code ${CODE} — iniciando triagem para ${STAGE}..." | tee -a "$LOG"
   case "$STAGE" in
     s1)
       # Lint geral
@@ -55,6 +63,17 @@ if [ "$CODE" -ne 0 ] && [ -z "$GUARD_OUT" ]; then
   { echo "\n[triage] resumo:"; tail -n 200 "$TRIAGE_LOG" 2>/dev/null || true; } >> "$LOG"
 fi
 
+if [ ! -s "$SUMMARY_STAGE" ] && [ -s "$SUMMARY_LATEST" ]; then
+  cp "$SUMMARY_LATEST" "$SUMMARY_STAGE"
+fi
+if [ ! -s "$SUMMARY_STAGE" ] && [ ! -s "$SUMMARY_LATEST" ]; then
+  {
+    echo "Stage ${STAGE^^} guard resumo indisponível."
+    echo "Guard exit code: ${CODE}"
+  } >"$SUMMARY_STAGE"
+  cp "$SUMMARY_STAGE" "$SUMMARY_LATEST"
+fi
+
 # 4) report.json enriquecido
 python - "$STAGE" "$CLEAN_RUNNER" "$CODE" "$ARTDIR/report.json" "$TRIAGE_REASON" <<'PY'
 import json,sys,os
@@ -72,7 +91,33 @@ if code!=0:
 open(out,'w',encoding='utf-8').write(json.dumps(rep,ensure_ascii=False))
 PY
 
-# 5) Step Summary (diagnóstico)
+# 5) Copia artefatos padronizados
+mkdir -p "$ARTDIR/out/logs" "$ARTDIR/out/guard" "$ARTDIR/out/junit"
+cp "$LOG" "$ARTDIR/guard.log"
+cp "$LOG" "$ARTDIR/out/logs/guard_${STAGE}.log"
+if [ -s "$SUMMARY_STAGE" ]; then
+  cp "$SUMMARY_STAGE" "$ARTDIR/out/guard/summary-${STAGE}.txt"
+fi
+if [ -s "$SUMMARY_LATEST" ]; then
+  cp "$SUMMARY_LATEST" "$ARTDIR/out/guard/summary.txt"
+fi
+if compgen -G "${JUNIT_DIR}"/*.xml >/dev/null; then
+  cp "${JUNIT_DIR}"/*.xml "$ARTDIR/out/junit/"
+fi
+
+# 6) Resumo amigável em stdout e logs
+{
+  echo "=== RESUMO GUARD ${STAGE^^} ==="
+  if [ -s "$SUMMARY_STAGE" ]; then
+    sed -E 's/^/  /' "$SUMMARY_STAGE"
+  elif [ -s "$SUMMARY_LATEST" ]; then
+    sed -E 's/^/  /' "$SUMMARY_LATEST"
+  else
+    echo "  (sem resumo compilado; ver logs em artifacts)"
+  fi
+} | tee -a "$LOG"
+
+# 7) Step Summary (diagnóstico)
 {
   echo "### Guard — ${STAGE} (exit=${CODE})"; echo
   echo '```'; tail -n 300 "$LOG" || true; echo '```'
@@ -81,5 +126,5 @@ PY
   fi
 } >> "$GITHUB_STEP_SUMMARY" || true
 
-# 6) Propaga o exit code
+# 8) Propaga o exit code
 exit "$CODE"

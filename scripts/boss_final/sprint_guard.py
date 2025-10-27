@@ -22,6 +22,8 @@ LOG = logging.getLogger("sprint_guard")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
+GUARD_OUTPUT_DIR = BASE_DIR / "out" / "guard"
+JUNIT_OUTPUT_DIR = BASE_DIR / "out" / "junit"
 SCORECARD_DIR = BASE_DIR / "out" / "s6_scorecards"
 ERROR_PREFIX = "BOSS-E"
 STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
@@ -452,11 +454,19 @@ def stage_s2(context: StageContext) -> None:
 
 
 def stage_s3(context: StageContext) -> None:
+    JUNIT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    junit_path = JUNIT_OUTPUT_DIR / f"pytest-{context.stage}.xml"
     run_command(
         context=context,
         name="Observability smoke",
         code="S3-SMOKE",
-        command=["pytest", "-q", "tests/workflows/test_comment_fallback.py"],
+        command=[
+            "pytest",
+            "-q",
+            "--junitxml",
+            str(junit_path),
+            "tests/workflows/test_comment_fallback.py",
+        ],
     )
     ensure_observability_catalog(context)
 
@@ -522,6 +532,43 @@ def write_stage_outputs(
     return result
 
 
+def _guard_summary_path(stage: str, variant: str) -> Path:
+    GUARD_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return GUARD_OUTPUT_DIR / f"summary-{stage}-{variant}.txt"
+
+
+def _write_guard_summary(stage: str, variant: str, lines: Sequence[str]) -> Path:
+    GUARD_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    text = "\n".join(lines).rstrip() + "\n"
+    stage_path = _guard_summary_path(stage, variant)
+    stage_path.write_text(text, encoding="utf-8")
+    (GUARD_OUTPUT_DIR / "summary.txt").write_text(text, encoding="utf-8")
+    return stage_path
+
+
+def _build_summary_lines(
+    context: StageContext, status: str, notes: str
+) -> List[str]:
+    header = f"Stage {context.stage.upper()} ({context.variant}) — {status.upper()}"
+    lines: List[str] = [header]
+    for record in context.records:
+        marker = "✅" if record.status.upper() == "PASS" else "❌"
+        detail = record.name
+        if record.command:
+            detail += f" (exit {record.returncode})"
+        elif record.stderr:
+            detail += f" — {record.stderr.strip()}"
+        lines.append(f"{marker} {detail}")
+        if len(lines) >= 5:
+            break
+    if status.upper() != "PASS":
+        reason_line = f"Reason: {notes}"
+        if len(lines) >= 5:
+            return lines[:4] + [reason_line]
+        lines.append(reason_line)
+    return lines[:5]
+
+
 def run_stage(stage: str, variant: str) -> Dict[str, object]:
     if stage not in STAGES:
         raise SystemExit(f"Estágio inválido: {stage}")
@@ -538,6 +585,9 @@ def run_stage(stage: str, variant: str) -> Dict[str, object]:
         status = "FAIL"
         notes = f"{exc.code}:{exc.message}"
     result = write_stage_outputs(context, status, notes)
+    summary_lines = _build_summary_lines(context, status, notes)
+    _write_guard_summary(stage, variant, summary_lines)
+    print("\n".join(summary_lines))
     if status != "PASS":
         raise SystemExit(1)
     return result
