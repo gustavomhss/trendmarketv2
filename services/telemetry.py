@@ -4,16 +4,29 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterable, Iterator, Optional
 import json
 import os
 import threading
 import time
 
 try:  # pragma: no cover - optional dependency
-    from prometheus_client import Counter, Gauge, Histogram
+    from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 except Exception:  # pragma: no cover - gracefully degrade without prometheus
+    REGISTRY = None  # type: ignore
     Counter = Gauge = Histogram = None  # type: ignore
+
+
+def _get_existing(name: str) -> Any:
+    """Return an existing collector registered under ``name`` if available."""
+
+    registry = REGISTRY
+    if registry is None:
+        return None
+    mapping = getattr(registry, "_names_to_collectors", None)
+    if isinstance(mapping, dict):
+        return mapping.get(name)
+    return None
 
 try:  # pragma: no cover - optional dependency
     from opentelemetry import trace as ot_trace
@@ -61,29 +74,79 @@ class TelemetryManager:
     # ------------------------------------------------------------------
     # Metric helpers
     # ------------------------------------------------------------------
-    def counter(self, name: str, description: str, *, labelnames: tuple[str, ...] = ()) -> Any:
-        if Counter is None:  # pragma: no cover - optional dependency missing
+    def counter(
+        self,
+        name: str,
+        description: str,
+        *,
+        labelnames: Optional[Iterable[str]] = None,
+    ) -> Any:
+        """Return a Prometheus Counter, reusing an existing one when available."""
+
+        if Counter is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
             return _NoopMetric()
-        return Counter(name, description, labelnames=labelnames)
+
+        existing = _get_existing(name)
+        if isinstance(existing, Counter):
+            return existing
+
+        return Counter(
+            name,
+            description,
+            labelnames=tuple(labelnames or ()),
+            registry=REGISTRY,
+        )
 
     def histogram(
         self,
         name: str,
         description: str,
         *,
-        buckets: Optional[tuple[float, ...]] = None,
-        labelnames: tuple[str, ...] = (),
+        buckets: Optional[Iterable[float]] = None,
+        labelnames: Optional[Iterable[str]] = None,
     ) -> Any:
-        if Histogram is None:  # pragma: no cover - optional dependency missing
-            return _NoopMetric()
-        if buckets is not None:
-            return Histogram(name, description, buckets=buckets, labelnames=labelnames)
-        return Histogram(name, description, labelnames=labelnames)
+        """Return a Prometheus Histogram, reusing an existing one when available."""
 
-    def gauge(self, name: str, description: str, *, labelnames: tuple[str, ...] = ()) -> Any:
-        if Gauge is None:  # pragma: no cover - optional dependency missing
+        if Histogram is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
             return _NoopMetric()
-        return Gauge(name, description, labelnames=labelnames)
+
+        existing = _get_existing(name)
+        if isinstance(existing, Histogram):
+            return existing
+
+        histogram_kwargs = {
+            "name": name,
+            "documentation": description,
+            "labelnames": tuple(labelnames or ()),
+            "registry": REGISTRY,
+        }
+        if buckets is not None:
+            histogram_kwargs["buckets"] = tuple(buckets)
+
+        return Histogram(**histogram_kwargs)
+
+    def gauge(
+        self,
+        name: str,
+        description: str,
+        *,
+        labelnames: Optional[Iterable[str]] = None,
+    ) -> Any:
+        """Return a Prometheus Gauge, reusing an existing one when available."""
+
+        if Gauge is None or REGISTRY is None:  # pragma: no cover - optional dependency missing
+            return _NoopMetric()
+
+        existing = _get_existing(name)
+        if isinstance(existing, Gauge):
+            return existing
+
+        return Gauge(
+            name,
+            description,
+            labelnames=tuple(labelnames or ()),
+            registry=REGISTRY,
+        )
 
     # ------------------------------------------------------------------
     # Spans
