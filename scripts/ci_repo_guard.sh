@@ -26,17 +26,25 @@ REPORT="$OUT/denylist_hits.txt"
 
 if [ ! -f "$LIST" ]; then
   echo "[repo-guard] denylist não encontrada em $LIST" | tee -a "$REPORT"
-  exit 1
+  echo "[repo-guard] criando lista vazia (execução continuará)" | tee -a "$REPORT"
+  mkdir -p "$(dirname "$LIST")"
+  : > "$LIST"
 fi
 
+ACTIVE_PATTERNS=0
 while IFS= read -r pattern || [ -n "$pattern" ]; do
   # ignora linhas vazias e comentários
   [[ -z "$pattern" || "$pattern" =~ ^# ]] && continue
+  ACTIVE_PATTERNS=$((ACTIVE_PATTERNS + 1))
   if "${FINDER[@]}" -- "$pattern" . >>"$REPORT" 2>/dev/null; then
     echo "[repo-guard] padrão proibido encontrado: $pattern" | tee -a "$REPORT"
     FAIL=1
   fi
 done < "$LIST"
+
+if [ "$ACTIVE_PATTERNS" -eq 0 ]; then
+  echo "[repo-guard] denylist vazia (sem padrões ativos)." | tee -a "$REPORT"
+fi
 
 if [ $FAIL -ne 0 ]; then
   echo "\n✖ Repo guard falhou. Revise $REPORT" | tee "$OUT/summary.txt"

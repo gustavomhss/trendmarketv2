@@ -1,1 +1,2 @@
-# deny patterns (regex), um por linha.
+# Lista de padrões proibidos para o repo.
+# Mantida vazia por padrão — adicione um regex por linha quando necessário.

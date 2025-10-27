@@ -18,6 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Guard — pins devem ser SHAs
+        run: python scripts/check_action_pins.py
+
+      - name: Guard — actions.lock em sincronia
+        run: python scripts/ensure_actions_lock_sync.py
+
       - name: Run repo guard (denylist)
         shell: bash
         run: bash scripts/ci_repo_guard.sh

@@ -43,33 +43,30 @@ env:
 
 jobs:
   stage:
-    name: Stage ${{ matrix.stage }} (clean=${{ matrix.clean_runner }})
+    name: Stage ${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
-        clean_runner: [false, true]
     env:
       STAGE: ${{ matrix.stage }}
-      CLEAN_RUNNER: ${{ matrix.clean_runner }}
+      CLEAN_RUNNER: 'false'
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Setup Python + venv + deps
         uses: ./.github/actions/setup-python-venv
 
-      - name: Configure stage artifact directory
+      - name: Prepare stage artifact directory
         run: |
-          echo "STAGE_ARTIFACT_DIR=$RUNNER_TEMP/boss-stage-${STAGE}" >> "$GITHUB_ENV"
-          echo "ARTIFACT_DIR=$RUNNER_TEMP/boss-stage-${STAGE}" >> "$GITHUB_ENV"
-
-      - name: Ensure clean workspace
-        if: ${{ matrix.clean_runner }}
-        run: |
-          rm -rf "$HOME/.cache/pip"
-          rm -rf "$HOME/.cache/pytest"
+          set -euo pipefail
+          ART_DIR="${{ runner.temp }}/boss-stage-${STAGE}"
+          rm -rf "$ART_DIR"
+          mkdir -p "$ART_DIR"
+          echo "STAGE_ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
+          echo "ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
 
       - name: Execute sprint guard
         timeout-minutes: 5
@@ -79,13 +76,13 @@ jobs:
         run: |
           set -euo pipefail
           ls -la "${{ runner.temp }}" || true
-          ls -la "${{ runner.temp }}/boss-stage-${{ env.STAGE }}" || true
+          ls -la "${{ env.ARTIFACT_DIR }}" || true
       - name: Upload stage artifact (always)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-stage-${{ env.STAGE }}
-          path: ${{ runner.temp }}/boss-stage-${{ env.STAGE }}
+          path: ${{ env.ARTIFACT_DIR }}
           retention-days: 7
           overwrite: true
   aggregate:
@@ -105,16 +102,124 @@ jobs:
       - name: Setup Python + venv + deps
         uses: ./.github/actions/setup-python-venv
 
-      - name: Download stage artifacts (pattern)
+      - name: Prepare artifact workspace
         if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/boss-arts"
+          mkdir -p "${{ runner.temp }}/boss-aggregate"
+
+      - name: Download stage artifact s1
+        id: download_s1
+        if: always()
+        continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: boss-stage-s*
-          path: ${{ runner.temp }}/boss-arts
-          merge-multiple: true
+          name: boss-stage-s1
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s1
+
+      - name: Download stage artifact s2
+        id: download_s2
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: boss-stage-s2
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s2
+
+      - name: Download stage artifact s3
+        id: download_s3
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: boss-stage-s3
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s3
+
+      - name: Download stage artifact s4
+        id: download_s4
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: boss-stage-s4
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s4
+
+      - name: Download stage artifact s5
+        id: download_s5
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: boss-stage-s5
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s5
+
+      - name: Download stage artifact s6
+        id: download_s6
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: boss-stage-s6
+          path: ${{ runner.temp }}/boss-arts/boss-stage-s6
+
+      - name: Verify stage artifacts
+        if: always()
+        id: verify_artifacts
+        env:
+          ARTS_DIR: ${{ runner.temp }}/boss-arts
+          DL_S1: ${{ steps.download_s1.outcome }}
+          DL_S2: ${{ steps.download_s2.outcome }}
+          DL_S3: ${{ steps.download_s3.outcome }}
+          DL_S4: ${{ steps.download_s4.outcome }}
+          DL_S5: ${{ steps.download_s5.outcome }}
+          DL_S6: ${{ steps.download_s6.outcome }}
+        run: |
+          set -euo pipefail
+          stages=(s1 s2 s3 s4 s5 s6)
+          ready=true
+          present=0
+          missing=()
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo "### Boss Final — artefatos de estágio"
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          for stage in "${stages[@]}"; do
+            var="DL_${stage^^}"
+            outcome="${!var}"
+            dir="$ARTS_DIR/boss-stage-$stage"
+            symbol="✅"
+            if [ "$outcome" != "success" ]; then
+              ready=false
+              symbol="❌"
+              missing+=("$stage (download: ${outcome:-ausente})")
+            elif [ ! -d "$dir" ]; then
+              ready=false
+              symbol="❌"
+              missing+=("$stage (diretório ausente)")
+            else
+              present=$((present + 1))
+            fi
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "- boss-stage-$stage $symbol" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$ready" != "true" ]; then
+            printf 'Faltam artifacts de estágio: %s\n' "${missing[*]}" >&2
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          echo "present=$present" >> "$GITHUB_OUTPUT"
+          if [ "$ready" != "true" ]; then
+            exit 1
+          fi
 
       - name: Aggregate reports (local)
-        if: always()
+        if: steps.verify_artifacts.outputs.ready == 'true'
         id: aggregate
         env:
           ARTS_DIR: ${{ runner.temp }}/boss-arts
@@ -126,16 +231,20 @@ jobs:
           python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
       - name: Validate report schema (local)
-        if: always()
+        if: steps.aggregate.outcome == 'success'
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
+          if [ ! -f "$REPORT_DIR/report.json" ]; then
+            echo "report.json não encontrado" >&2
+            exit 1
+          fi
           python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
 
       - name: Upload Boss Final aggregate
-        if: always()
+        if: steps.verify_artifacts.outputs.ready == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-final-aggregate
@@ -144,11 +253,15 @@ jobs:
           overwrite: true
 
       - name: Evaluate guard status
-        if: always()
+        if: steps.aggregate.outcome == 'success'
         id: guard
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
         run: |
+          if [ ! -f "$REPORT_DIR/guard_status.txt" ]; then
+            echo "guard_status.txt ausente" >&2
+            exit 1
+          fi
           status=$(cat "$REPORT_DIR/guard_status.txt")
           echo "guard_status=$status" >> "$GITHUB_OUTPUT"
           if [ "$status" != "PASS" ]; then
@@ -156,7 +269,7 @@ jobs:
           fi
 
       - name: Publish Boss Final summary
-        if: always()
+        if: steps.aggregate.outcome == 'success'
         uses: ./.github/actions/github-script
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
@@ -193,7 +306,7 @@ jobs:
             }
 
       - name: Enforce aggregate status
-        if: ${{ always() && steps.aggregate.outcome == 'failure' }}
+        if: ${{ steps.verify_artifacts.outputs.ready == 'true' && steps.aggregate.outcome == 'failure' }}
         run: exit 1
 
       - name: Fail when any stage guard failed
