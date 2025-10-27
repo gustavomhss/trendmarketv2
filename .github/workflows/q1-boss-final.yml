@@ -63,6 +63,21 @@ jobs:
       - name: Setup Python + venv + deps
         uses: ./.github/actions/setup-python-venv
 
+      - name: Ensure Ruff version (pin)
+        if: matrix.stage == 's1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate 2>/dev/null || true
+          bash .github/scripts/ensure_ruff_version.sh >/dev/null
+          REQ="0.12.11"
+          CURR="$(ruff --version | awk '{print $2}')"
+          echo "[ruff] current=$CURR required=$REQ"
+          if [ "$CURR" != "$REQ" ]; then
+            echo "Unexpected ruff version: $CURR (required $REQ)" >&2
+            exit 1
+          fi
+
       - name: Prepare stage artifact directory
         run: |
           set -euo pipefail
@@ -234,6 +249,16 @@ jobs:
           . .venv/bin/activate 2>/dev/null || true
           python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
+      - name: Ensure `schema` on local aggregate report
+        if: steps.aggregate.outcome == 'success'
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate 2>/dev/null || true
+          python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
+
       - name: Validate report schema (local)
         if: steps.aggregate.outcome == 'success'
         env:
@@ -247,12 +272,64 @@ jobs:
           fi
           python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
 
+      - name: Generate local aggregate evidence bundle
+        if: steps.aggregate.outcome == 'success'
+        id: local_evidence
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/boss_final
+          cp "$REPORT_DIR/report.json" "out/boss_final/report.local.json"
+          . .venv/bin/activate 2>/dev/null || true
+          python scripts/boss_final/ensure_schema.py out/boss_final/report.local.json
+          python - <<'PY'
+import hashlib
+import json
+import os
+import pathlib
+
+path = pathlib.Path("out/boss_final/report.local.json")
+digest = hashlib.sha256(path.read_bytes()).hexdigest()
+(path.parent / "report.local.json.sha256.txt").write_text(digest + "\n", encoding="utf-8")
+data = json.loads(path.read_text(encoding="utf-8"))
+lines = [
+    f"report_path: {path.resolve()}",
+    f"schema: {data.get('schema', '<missing>')}",
+    f"generated_at: {data.get('generated_at', '<missing>')}",
+]
+(path.parent / "diagnostics.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+print("\n".join(lines))
+with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+    handle.write(f"schema={data.get('schema', '')}\n")
+    handle.write(f"generated_at={data.get('generated_at', '')}\n")
+    handle.write(f"sha256={digest}\n")
+PY
+
+      - name: Append local aggregate summary
+        if: steps.aggregate.outcome == 'success'
+        shell: bash
+        run: |
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo "### Boss Final — relatório agregado local"
+              echo ""
+              echo "- report_path: $(realpath out/boss_final/report.local.json)"
+              echo "- schema: ${{ steps.local_evidence.outputs.schema }}"
+              echo "- generated_at: ${{ steps.local_evidence.outputs.generated_at }}"
+              echo "- sha256: ${{ steps.local_evidence.outputs.sha256 }}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload Boss Final aggregate
         if: steps.verify_artifacts.outputs.ready == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-final-aggregate
-          path: ${{ runner.temp }}/boss-aggregate
+          path: |
+            ${{ runner.temp }}/boss-aggregate
+            out/boss_final
           retention-days: 7
           overwrite: true
 
