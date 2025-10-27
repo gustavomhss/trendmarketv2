@@ -153,7 +153,7 @@ const sandbox = {
   const wrapped = `(async () => {\n${inputScript}\n})()`;
   const script = new vm.Script(wrapped, { filename: 'workflow-script.js' });
   try {
-    const result = script.runInNewContext(sandbox, { timeout: 0 });
+    const result = script.runInNewContext(sandbox, { timeout: 60000 });
     if (result && typeof result.then === 'function') {
       await result;
     }
