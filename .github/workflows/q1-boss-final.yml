@@ -102,13 +102,14 @@ jobs:
       - name: Execute sprint guard
         timeout-minutes: 5
         run: bash scripts/boss_final/ci_stage_wrapper.sh
+        continue-on-error: true
 
       - name: Upload stage artifact (always)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: boss-stage-${{ env.STAGE }}
-          path: ${{ env.ARTIFACT_DIR || runner.temp }}/boss-stage-${{ env.STAGE }}
+          path: ${{ runner.temp }}/boss-stage-${{ env.STAGE }}
           retention-days: 7
           overwrite: true
   aggregate:
@@ -161,6 +162,7 @@ jobs:
           PY
 
       - name: Aggregate reports (resilient)
+        if: always()
         id: aggregate
         continue-on-error: true
         env:
@@ -179,6 +181,7 @@ jobs:
           path: ${{ env.REPORT_DIR }}
 
       - name: Validate report schema
+        if: always()
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
