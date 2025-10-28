@@ -52,3 +52,35 @@ jobs:
       run_sim: ${{ inputs.run_sim }}
       run_dbt_ci: ${{ inputs.run_dbt_ci }}
     secrets: inherit
+
+  aggregate-boss-final:
+    name: "Aggregate Boss Final"
+    runs-on: ubuntu-22.04
+    needs: [call-orr]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preparar zips de estágio → out/boss
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/boss
+          found=false
+          while IFS= read -r -d '' z; do
+            cp -v "$z" out/boss/ || true
+            found=true
+          done < <(find . -type f -name 'boss-stage-*.zip' -print0 || true)
+          ls -l out/boss || true
+          if [ "$found" = false ]; then
+            echo "[aggregate-boss] aviso: nenhum boss-stage-*.zip encontrado no workspace; ensure_schema fará rglob."
+          fi
+
+      - name: Aggregate reports (local)
+        shell: bash
+        env:
+          BOSS_OUT_DIR: out/boss
+          BOSS_STAGE_GLOB: boss-stage-*.zip
+        run: |
+          set -euo pipefail
+          python -m scripts.boss_final.aggregate_reports_local

@@ -7,12 +7,16 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ensure_schema import ensure_schema_metadata
+try:  # Compatibilidade execução via módulo ou script
+    from ensure_schema import ensure_schema_metadata
+except ImportError:  # pragma: no cover - fallback para execução via pacote
+    from .ensure_schema import ensure_schema_metadata  # type: ignore
 
 RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
 ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
@@ -125,6 +129,36 @@ def main() -> int:
     aggregate = write_aggregate(results)
 
     boss_out_dir = Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
+    boss_out_dir.mkdir(parents=True, exist_ok=True)
+
+    stage_glob = os.environ.get("BOSS_STAGE_GLOB", "boss-stage-*.zip")
+    stage_dir_env = os.environ.get("BOSS_STAGE_DIR")
+    search_roots: list[Path] = []
+    if stage_dir_env:
+        search_roots.append(Path(stage_dir_env))
+    search_roots.append(Path.cwd())
+
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for candidate in root.rglob(stage_glob):
+            target = boss_out_dir / candidate.name
+            try:
+                if target.exists() or candidate.resolve() == target.resolve():
+                    continue
+            except OSError:
+                if target.exists():
+                    continue
+            try:
+                shutil.copy2(candidate, target)
+            except Exception as exc:  # noqa: BLE001 - logging defensivo
+                print(
+                    f"[aggregate-local] aviso ao copiar zips: {candidate} -> {target}: {exc}"
+                )
+
+    os.environ.setdefault("BOSS_OUT_DIR", str(boss_out_dir))
+    os.environ.setdefault("BOSS_STAGE_GLOB", stage_glob)
+
     bundle_path = _build_or_locate_bundle(boss_out_dir)
     if "bundle" not in aggregate and bundle_path and bundle_path.exists():
         aggregate["bundle"] = {
