@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import zipfile
 
 import pytest
 
 from scripts.boss_final import aggregate_q1
+from scripts.boss_final.ensure_schema import ensure_schema_metadata
 
 STAGES = aggregate_q1.STAGES
 VARIANTS = aggregate_q1.VARIANTS
@@ -27,6 +29,17 @@ def _prepare_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     monkeypatch.setattr(aggregate_q1, "OUTPUT_DIR", output_dir)
     _freeze_time(monkeypatch)
     return stages_dir
+
+
+def _prepare_bundle_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    boss_out_dir = tmp_path / "boss-final"
+    monkeypatch.setenv("BOSS_OUT_DIR", str(boss_out_dir))
+    boss_out_dir.mkdir(parents=True, exist_ok=True)
+    for stage in STAGES:
+        bundle_path = boss_out_dir / f"boss-stage-{stage}.zip"
+        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", json.dumps({"stage": stage}))
+    return boss_out_dir
 
 
 def _write_variant(
@@ -151,6 +164,7 @@ def _manual_bundle(stages_dir: Path) -> str:
 
 def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
+    _prepare_bundle_env(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(
             stages_dir, stage, primary_notes=f"{stage} ok", clean_notes=f"{stage} ok"
@@ -169,6 +183,16 @@ def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert guard_status == "PASS"
     report_json = _load_json(aggregate_q1.OUTPUT_DIR / "report.json")
     assert report_json["bundle"]["sha256"] == report["bundle"]["sha256"]
+
+    normalized = ensure_schema_metadata(dict(report.report))
+    bundle = normalized["bundle"]
+    assert set(bundle.keys()) == {"path", "sha256", "size_bytes"}
+    bundle_path = Path(bundle["path"])
+    assert bundle_path.exists()
+    assert bundle["size_bytes"] > 0
+
+    second = ensure_schema_metadata(dict(normalized))
+    assert second["bundle"]["sha256"] == bundle["sha256"]
 
 
 def test_aggregate_detects_mismatch(

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import pathlib
+import shutil
 import subprocess
+import zipfile
 
 import pytest
 
@@ -20,25 +22,25 @@ sample = {
 }
 
 
-def _find_report() -> pathlib.Path:
-    path = pathlib.Path("out/boss_final/report.local.json")
-    if path.exists():
-        return path
-    candidates = sorted(pathlib.Path("out").rglob("report.local.json"))
-    if not candidates:
-        raise AssertionError("Relatório local não encontrado")
-    return candidates[0]
+def _prepare_stage_archives(out_dir: pathlib.Path) -> None:
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for index in range(1, 7):
+        bundle = out_dir / f"boss-stage-s{index}.zip"
+        with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("status.txt", f"stage s{index}\n")
 
 
 def test_required_fields(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
-    out_dir = pathlib.Path("out/boss_final")
-    if out_dir.exists():
-        for item in out_dir.glob("report.local.json*"):
-            item.unlink()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    boss_out_dir = tmp_path / "boss-final"
+    monkeypatch.setenv("BOSS_OUT_DIR", str(boss_out_dir))
+    monkeypatch.setenv("REPORT_DIR", str(tmp_path / "aggregate"))
+
+    _prepare_stage_archives(boss_out_dir)
 
     report_dir = tmp_path / "out" / "boss"
     report_dir.mkdir(parents=True)
@@ -46,14 +48,12 @@ def test_required_fields(
     monkeypatch.setenv("ARTS_DIR", str(report_dir.parent))
 
     subprocess.check_call(
-        [
-            "python",
-            "scripts/boss_final/aggregate_reports_local.py",
-        ]
+        ["python", "scripts/boss_final/aggregate_reports_local.py"],
     )
 
-    report_path = _find_report()
-    data = json.loads(report_path.read_text(encoding="utf-8"))
+    final_report = boss_out_dir / "boss-final-report.json"
+    assert final_report.exists()
+    data = json.loads(final_report.read_text(encoding="utf-8"))
     assert data["schema"].startswith("boss_final.report@"), (
         "Campo `schema` ausente ou inválido"
     )
@@ -63,3 +63,15 @@ def test_required_fields(
     assert "generated_at" in data, "`generated_at` ausente"
     assert "timestamp_utc" in data, "`timestamp_utc` ausente"
     assert data.get("status") == "PASS", "`status` ausente ou inválido"
+    bundle = data.get("bundle") or {}
+    assert set(bundle.keys()) == {"path", "sha256", "size_bytes"}
+    bundle_path = pathlib.Path(bundle["path"])
+    assert bundle_path.exists()
+    assert bundle["size_bytes"] > 0
+
+    subprocess.check_call(
+        ["python", "scripts/boss_final/aggregate_reports_local.py"],
+    )
+
+    rerun = json.loads(final_report.read_text(encoding="utf-8"))
+    assert rerun["bundle"]["sha256"] == bundle["sha256"]
