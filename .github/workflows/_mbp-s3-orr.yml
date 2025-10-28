@@ -7,7 +7,7 @@ jobs:
   orr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Tooling versions
         run: |
           bash --version | head -n1 || true
@@ -36,7 +36,7 @@ jobs:
             echo "FREEZE=NO — ok para prosseguir"
           fi
       - name: Publicar artefatos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: s3-evidence
           path: out/s3_gatecheck/evidence
