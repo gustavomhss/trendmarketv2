@@ -181,10 +181,7 @@ def main() -> int:
 
     bundle_path = _build_or_locate_bundle(boss_out_dir)
     if "bundle" not in aggregate and bundle_path and bundle_path.exists():
-        aggregate["bundle"] = {
-            "path": str(bundle_path),
-            "sha256": _sha256(bundle_path),
-        }
+        aggregate["bundle"] = {"sha256": _sha256(bundle_path)}
 
     report = ensure_schema_metadata(aggregate)
     for key in ("summary", "generated_at"):
