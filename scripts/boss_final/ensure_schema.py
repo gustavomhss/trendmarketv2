@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import pathlib
 import re
-from datetime import datetime, timezone
 
 MANDATORY = ("schema", "schema_version", "timestamp_utc", "generated_at", "status")
 
@@ -41,7 +41,7 @@ def _infer_version(data: dict) -> int:
 
 def _now_utc_z() -> str:
     return (
-        datetime.now(timezone.utc)
+        datetime.datetime.now(datetime.timezone.utc)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
@@ -52,13 +52,18 @@ def _ensure_fields(path: pathlib.Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     changed = False
 
+    if not data.get("schema_version"):
+        schema_env = os.environ.get("BOSS_SCHEMA_VERSION", "1")
+        data["schema_version"] = schema_env.strip() or "1"
+        changed = True
+
     version = _infer_version(data)
     schema_value = data.get("schema")
     if not isinstance(schema_value, str) or "boss_final.report@" not in schema_value:
         data["schema"] = f"boss_final.report@{version}"
         changed = True
     if str(data.get("schema_version")) != str(version):
-        data["schema_version"] = version
+        data["schema_version"] = str(version)
         changed = True
 
     if not data.get("timestamp_utc"):
@@ -69,7 +74,9 @@ def _ensure_fields(path: pathlib.Path) -> None:
         changed = True
 
     if not data.get("status"):
-        default_status = os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
+        default_status = (
+            os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
+        )
         data["status"] = default_status
         changed = True
 
