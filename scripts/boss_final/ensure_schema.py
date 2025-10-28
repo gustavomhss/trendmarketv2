@@ -63,6 +63,9 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> bool:
     schema_version = data.get("schema_version")
     if not schema_version:
         data["schema_version"] = _schema_version_default()
+    if not data.get("schema_version"):
+        schema_env = os.environ.get("BOSS_SCHEMA_VERSION", "1")
+        data["schema_version"] = schema_env.strip() or "1"
         changed = True
 
     version = _infer_version(data)
@@ -73,7 +76,7 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> bool:
         changed = True
 
     if str(data.get("schema_version")) != str(version):
-        data["schema_version"] = version
+        data["schema_version"] = str(version)
         changed = True
 
     timestamp = data.get("timestamp_utc")
@@ -93,6 +96,7 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> bool:
             data["status"] = normalized
             changed = True
     else:
+    if not data.get("status"):
         default_status = (
             os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
         )
