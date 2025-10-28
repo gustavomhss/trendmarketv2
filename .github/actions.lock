@@ -26,6 +26,11 @@ actions:
     source: sha
     checked_at: "2025-10-28T04:35:57Z"
   -
+    key: actions/setup-python@v5
+    commit: 42375524e23c412d93fb67b49958b491fce71c38
+    source: tag
+    checked_at: "2025-10-28T04:35:57Z"
+  -
     key: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
     commit: ea165f8d65b6e75b540449e92b4886f43607fa02
     source: sha
@@ -39,4 +44,9 @@ actions:
     key: returntocorp/semgrep-action@d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
     commit: d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
     source: sha
+    checked_at: "2025-10-28T04:35:57Z"
+  -
+    key: returntocorp/semgrep-action@v1
+    commit: d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
+    source: tag
     checked_at: "2025-10-28T04:35:57Z"

@@ -261,7 +261,7 @@ def test_ensure_schema_bundle_with_missing_stage(
     ensure_main()
 
     report_path = tmp_path / "out" / "boss_final" / "report.local.json"
-    report = json.loads(report_path.read_text(encoding="utf-8"))
+    _ = json.loads(report_path.read_text(encoding="utf-8"))
     expected_bundle = out_boss / "boss-final-bundle.zip"
     assert expected_bundle.exists()
     with zipfile.ZipFile(expected_bundle) as archive:

@@ -35,6 +35,15 @@
       "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
     },
     {
+      "repo": "actions/setup-python",
+      "ref": "v5",
+      "sha": "42375524e23c412d93fb67b49958b491fce71c38",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "CI Bot <ci@trendmarketv2.local>",
+      "rationale": "auto-sync action pins for workflow consistency",
+      "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
+    },
+    {
       "repo": "actions/upload-artifact",
       "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
       "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
@@ -55,6 +64,15 @@
     {
       "repo": "returntocorp/semgrep-action",
       "ref": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
+      "date": "2025-10-27T18:30:28Z",
+      "author": "CI Bot <ci@trendmarketv2.local>",
+      "rationale": "auto-sync action pins for workflow consistency",
+      "url": "https://github.com/returntocorp/semgrep-action/commit/d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
+    },
+    {
+      "repo": "returntocorp/semgrep-action",
+      "ref": "v1",
       "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
       "date": "2025-10-27T18:30:28Z",
       "author": "CI Bot <ci@trendmarketv2.local>",

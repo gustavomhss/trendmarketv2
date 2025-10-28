@@ -11,8 +11,8 @@ jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: returntocorp/semgrep-action@d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0
+      - uses: actions/checkout@v4
+      - uses: returntocorp/semgrep-action@v1
         with:
           config: p/ci
           generateSarif: true

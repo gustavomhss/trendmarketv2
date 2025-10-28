@@ -11,6 +11,11 @@ import zipfile
 
 import pytest
 
+from scripts.boss_final.ensure_schema import (
+    expected_schema_id,
+    expected_schema_version,
+)
+
 sample = {
     "stages": [
         {"name": "s1", "status": "PASSED"},
@@ -55,12 +60,11 @@ def test_required_fields(
     final_report = boss_out_dir / "boss-final-report.json"
     assert final_report.exists()
     data = json.loads(final_report.read_text(encoding="utf-8"))
-    assert data["schema"].startswith("boss_final.report@"), (
-        "Campo `schema` ausente ou inválido"
-    )
-    assert isinstance(data.get("schema_version"), int) and data["schema_version"] > 0, (
-        "Campo `schema_version` ausente ou inválido"
-    )
+    assert data["schema"] == expected_schema_id(), "Campo `schema` inválido"
+    assert (
+        isinstance(data.get("schema_version"), int)
+        and data["schema_version"] == expected_schema_version()
+    ), "Campo `schema_version` ausente ou inválido"
     assert "generated_at" not in data, "`generated_at` não deve estar presente"
     assert "summary" not in data, "`summary` não deve estar presente"
     assert "timestamp_utc" in data, "`timestamp_utc` ausente"
