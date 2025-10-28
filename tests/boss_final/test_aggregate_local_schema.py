@@ -30,7 +30,7 @@ def _find_report() -> pathlib.Path:
     return candidates[0]
 
 
-def test_local_aggregate_contains_schema(
+def test_required_fields(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -61,3 +61,5 @@ def test_local_aggregate_contains_schema(
         "Campo `schema_version` ausente ou inválido"
     )
     assert "generated_at" in data, "`generated_at` ausente"
+    assert "timestamp_utc" in data, "`timestamp_utc` ausente"
+    assert data.get("status") == "PASS", "`status` ausente ou inválido"

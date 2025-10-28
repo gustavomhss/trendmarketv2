@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+from ensure_schema import ensure_schema_metadata
+
 RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
 ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
 OUT_DIR = Path(os.environ.get("REPORT_DIR") or RUNNER_TEMP / "boss-aggregate")
@@ -44,9 +46,13 @@ def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
             )
 
 
-def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
+def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> Dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     aggregate: Dict[str, Any] = {"stages": results}
+
+    summary = summarize_status(results)
+    aggregate["status"] = summary["status"]
+    aggregate["summary"] = summary
 
     version: int | None = None
     schema_raw = aggregate.get("schema")
@@ -77,6 +83,8 @@ def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
     aggregate.setdefault("timestamp_utc", now)
     aggregate.setdefault("generated_at", aggregate["timestamp_utc"])
 
+    ensure_schema_metadata(aggregate)
+
     payload = json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n"
 
     (out_dir / "report.json").write_text(payload, encoding="utf-8")
@@ -84,6 +92,8 @@ def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
     local_dir = Path("out/boss_final")
     local_dir.mkdir(parents=True, exist_ok=True)
     (local_dir / "report.local.json").write_text(payload, encoding="utf-8")
+
+    return aggregate
 
 
 def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -99,8 +109,8 @@ def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
 def main() -> int:
     results = collect_stage_results(ARTS_DIR)
     ensure_missing_stages(results)
-    write_aggregate(results, OUT_DIR)
-    summary = summarize_status(results)
+    aggregate = write_aggregate(results, OUT_DIR)
+    summary = aggregate.get("summary", summarize_status(results))
     print(json.dumps(summary))
     return 0
 
