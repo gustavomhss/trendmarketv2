@@ -123,11 +123,23 @@ def summarize_status(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"status": overall, "stages": status}
 
 
-def main() -> int:
-    results = collect_stage_results(ARTS_DIR)
-    ensure_missing_stages(results)
-    aggregate = write_aggregate(results)
+def extract_stage_archives(arts_dir: Path, boss_out_dir: Path) -> None:
+    arts_dir.mkdir(parents=True, exist_ok=True)
+    for archive_path in sorted(boss_out_dir.glob("boss-stage-*.zip")):
+        target = arts_dir / archive_path.stem
+        try:
+            if target.exists():
+                continue
+            target.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(archive_path) as archive:
+                archive.extractall(target)
+        except zipfile.BadZipFile as exc:
+            print(f"[aggregate-local] zip inválido: {archive_path}: {exc}")
+        except OSError as exc:
+            print(f"[aggregate-local] falha ao extrair {archive_path}: {exc}")
 
+
+def main() -> int:
     boss_out_dir = Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
     boss_out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -155,6 +167,12 @@ def main() -> int:
                 print(
                     f"[aggregate-local] aviso ao copiar zips: {candidate} -> {target}: {exc}"
                 )
+
+    extract_stage_archives(ARTS_DIR, boss_out_dir)
+
+    results = collect_stage_results(ARTS_DIR)
+    ensure_missing_stages(results)
+    aggregate = write_aggregate(results)
 
     os.environ.setdefault("BOSS_OUT_DIR", str(boss_out_dir))
     os.environ.setdefault("BOSS_STAGE_GLOB", stage_glob)

@@ -55,8 +55,8 @@ jobs:
       CLEAN_RUNNER: 'false'
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was 42375524e23c412d93fb67b49958b491fce71c38)
         with:
           python-version: "3.11"
           check-latest: true
@@ -96,12 +96,30 @@ jobs:
           set -euo pipefail
           ls -la "${{ runner.temp }}" || true
           ls -la "${{ env.ARTIFACT_DIR }}" || true
-      - name: Upload stage artifact (always)
+      - name: Compact stage artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        env:
+          STAGE: ${{ env.STAGE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          art_dir="${ARTIFACT_DIR:-}"
+          if [ -z "$art_dir" ] || [ ! -d "$art_dir" ]; then
+            echo "Diretório do estágio ausente: $art_dir" >&2
+            exit 1
+          fi
+          mkdir -p out/boss
+          zip_path="out/boss/boss-stage-${STAGE}.zip"
+          rm -f "$zip_path"
+          (cd "$art_dir" && zip -r -q "$OLDPWD/$zip_path" .)
+          ls -lh "$zip_path"
+      - name: Upload stage artifact (zip)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: boss-stage-${{ env.STAGE }}
-          path: ${{ env.ARTIFACT_DIR }}
+          path: out/boss/boss-stage-${{ env.STAGE }}.zip
+          if-no-files-found: error
           retention-days: 7
           overwrite: true
   aggregate:
@@ -117,7 +135,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - name: Setup Python + venv + deps
         uses: ./.github/actions/setup-python-venv
 
@@ -128,121 +146,33 @@ jobs:
           mkdir -p "${{ runner.temp }}/boss-arts"
           mkdir -p "${{ runner.temp }}/boss-aggregate"
 
-      - name: Download stage artifact s1
-        id: download_s1
+      - name: Download stage artifacts
         if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # pinned (was d3f86a106a0bac45b974a628896c90dbdf5c8093)
         with:
-          name: boss-stage-s1
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s1
+          pattern: boss-stage-*
+          merge-multiple: true
 
-      - name: Download stage artifact s2
-        id: download_s2
+      - name: Prepare out/boss
         if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: boss-stage-s2
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s2
-
-      - name: Download stage artifact s3
-        id: download_s3
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: boss-stage-s3
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s3
-
-      - name: Download stage artifact s4
-        id: download_s4
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: boss-stage-s4
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s4
-
-      - name: Download stage artifact s5
-        id: download_s5
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: boss-stage-s5
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s5
-
-      - name: Download stage artifact s6
-        id: download_s6
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: boss-stage-s6
-          path: ${{ runner.temp }}/boss-arts/boss-stage-s6
-
-      - name: Verify stage artifacts
-        if: always()
-        id: verify_artifacts
-        env:
-          ARTS_DIR: ${{ runner.temp }}/boss-arts
-          DL_S1: ${{ steps.download_s1.outcome }}
-          DL_S2: ${{ steps.download_s2.outcome }}
-          DL_S3: ${{ steps.download_s3.outcome }}
-          DL_S4: ${{ steps.download_s4.outcome }}
-          DL_S5: ${{ steps.download_s5.outcome }}
-          DL_S6: ${{ steps.download_s6.outcome }}
+        shell: bash
         run: |
           set -euo pipefail
-          stages=(s1 s2 s3 s4 s5 s6)
-          ready=true
-          present=0
-          missing=()
-          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-            {
-              echo "### Boss Final — artefatos de estágio"
-              echo ""
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          for stage in "${stages[@]}"; do
-            var="DL_${stage^^}"
-            outcome="${!var}"
-            dir="$ARTS_DIR/boss-stage-$stage"
-            symbol="✅"
-            if [ "$outcome" != "success" ]; then
-              ready=false
-              symbol="❌"
-              missing+=("$stage (download: ${outcome:-ausente})")
-            elif [ ! -d "$dir" ]; then
-              ready=false
-              symbol="❌"
-              missing+=("$stage (diretório ausente)")
-            else
-              present=$((present + 1))
-            fi
-            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-              echo "- boss-stage-$stage $symbol" >> "$GITHUB_STEP_SUMMARY"
-            fi
+          mkdir -p out/boss
+          shopt -s nullglob
+          for z in boss-stage-*.zip; do
+            mv "$z" out/boss/
           done
-          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ "$ready" != "true" ]; then
-            printf 'Faltam artifacts de estágio: %s\n' "${missing[*]}" >&2
-          fi
-          echo "ready=$ready" >> "$GITHUB_OUTPUT"
-          echo "present=$present" >> "$GITHUB_OUTPUT"
-          if [ "$ready" != "true" ]; then
-            exit 1
-          fi
+          ls -lh out/boss || true
 
       - name: Aggregate reports (local)
-        if: steps.verify_artifacts.outputs.ready == 'true'
+        if: always()
         id: aggregate
         env:
           ARTS_DIR: ${{ runner.temp }}/boss-arts
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          BOSS_STAGE_DIR: out/boss
+          BOSS_OUT_DIR: out/boss
         run: |
           set -euo pipefail
           mkdir -p "$REPORT_DIR"
@@ -302,8 +232,8 @@ jobs:
           fi
 
       - name: Upload Boss Final aggregate
-        if: steps.verify_artifacts.outputs.ready == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.aggregate.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: boss-final-aggregate
           path: |
@@ -366,7 +296,7 @@ jobs:
             }
 
       - name: Enforce aggregate status
-        if: ${{ steps.verify_artifacts.outputs.ready == 'true' && steps.aggregate.outcome == 'failure' }}
+        if: steps.aggregate.outcome == 'failure'
         run: exit 1
 
       - name: Fail when any stage guard failed

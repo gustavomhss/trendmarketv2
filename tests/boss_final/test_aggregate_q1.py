@@ -244,6 +244,26 @@ def test_ensure_schema_bundle_from_default_out_boss(
     assert Path(bundle["path"]).exists()
 
 
+def test_ensure_schema_bundle_with_missing_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    out_boss = tmp_path / "out" / "boss"
+    out_boss.mkdir(parents=True, exist_ok=True)
+    _mk_stage_zip(out_boss, "boss-stage-s1.zip", {"stage": "s1"})
+    _mk_stage_zip(out_boss, "boss-stage-s3.zip", {"stage": "s3"})
+    _write_local_report(tmp_path, {})
+
+    ensure_main()
+
+    report_path = tmp_path / "out" / "boss_final" / "report.local.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    bundle_path = Path(report["bundle"]["path"])
+    assert bundle_path.exists()
+    with zipfile.ZipFile(bundle_path) as archive:
+        assert sorted(archive.namelist()) == ["boss-stage-s1.zip", "boss-stage-s3.zip"]
+
+
 def test_ensure_schema_bundle_from_stage_dir_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

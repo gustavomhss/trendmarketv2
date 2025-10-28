@@ -1,50 +1,55 @@
 #!/usr/bin/env python3
-"""Generate a deterministic actions.lock file from workflow usages."""
+"""Generate a deterministic YAML lockfile for GitHub Actions usages."""
 
 from __future__ import annotations
 
 import argparse
-import json
+import dataclasses
 import os
 import re
 import subprocess
 import sys
-import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from typing import (
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
-GITHUB_API = os.environ.get("GITHUB_API_URL", "https://api.github.com")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+try:
+    import yaml  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    import yaml_fallback as yaml  # type: ignore
 
 USES_RE = re.compile(
-    r"^(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)(?P<path>(?:/[A-Za-z0-9_.\-/]+)?)@(?P<ref>[^\s#]+)$"
+    r"^(?P<prefix>\s*(?:-\s*)?uses:\s*)(?P<repo>[^@#\s][^@#\s]*/[^@#\s]+)@(?P<ref>[^\s#]+)(?P<space>\s*)(?P<comment>#.*)?$"
 )
-HEX40_RE = re.compile(r"^[0-9a-fA-F]{40}$")
-INLINE_RE = re.compile(
-    r'^\s*(?:-\s*)?uses:\s*(["\']?)([\w./-]+/[\w./-]+@[^"\'\s#]+)\1\s*$'
-)
-KEY_RE = re.compile(r"^\s*(?:-\s*)?uses:\s*$")
-VALUE_RE = re.compile(r'^\s*(["\']?)([\w./-]+/[\w./-]+@[^"\'\s#]+)\1\s*$')
-ACTION_RATIONALE = "auto-sync action pins for workflow consistency"
-DEFAULT_CI_AUTHOR = "CI Bot <ci@trendmarketv2.local>"
+LOCAL_PREFIXES = ("./", ".\\", "docker://")
+HEX40_RE = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
+SEMVER_MAJOR_RE = re.compile(r"^v?(\d+)$")
 
 
-class LockError(Exception):
+@dataclasses.dataclass(frozen=True)
+class LockEntry:
+    key: str
+    commit: str
+    source: str
+    resolved: Optional[str]
+    checked_at: str
+
+
+class LockGenerationError(RuntimeError):
     """Raised when lock generation fails."""
-
-
-def run(cmd: Sequence[str]) -> str:
-    return subprocess.check_output(cmd, text=True).strip()
-
-
-def git_head_sha() -> str:
-    try:
-        return run(["git", "rev-parse", "HEAD"]).strip()[:40]
-    except Exception:
-        return f"{int(time.time()):040x}"[:40]
 
 
 def isoformat_now() -> str:
@@ -56,292 +61,294 @@ def isoformat_now() -> str:
     )
 
 
-def http_get(url: str) -> dict:
-    headers = {"Accept": "application/vnd.github+json"}
-    if GITHUB_TOKEN:
-        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-    request = Request(url, headers=headers)
+def git_head_sha() -> str:
     try:
-        with urlopen(request, timeout=30) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            payload = response.read().decode(charset)
-            return json.loads(payload)
-    except HTTPError as exc:
-        if exc.code == 404:
-            raise LockError(f"Resource not found: {url}") from exc
-        raise LockError(f"HTTP error {exc.code} for {url}") from exc
-    except URLError as exc:  # pragma: no cover - network failure
-        raise LockError(f"Network error for {url}: {exc}") from exc
-
-
-def resolve_commit(owner: str, repo: str, ref: str) -> Tuple[str, str, str]:
-    meta = http_get(f"{GITHUB_API}/repos/{owner}/{repo}/commits/{ref}")
-    sha = ref.lower() if HEX40_RE.fullmatch(ref) else str(meta.get("sha", "")).lower()
-    if not HEX40_RE.fullmatch(sha):
-        raise LockError(f"Invalid SHA for {owner}/{repo}@{ref}: {sha}")
-    commit_info = meta.get("commit", {})
-    author_info = commit_info.get("author") or {}
-    committer_info = commit_info.get("committer") or {}
-    author = author_info.get("name") or committer_info.get("name") or "Unknown"
-    date_raw = author_info.get("date") or committer_info.get("date") or isoformat_now()
-    try:
-        dt = datetime.fromisoformat(date_raw.replace("Z", "+00:00")).astimezone(
-            timezone.utc
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], text=True)
+            .strip()
+            .lower()
         )
-        date = dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    except Exception:
-        date = isoformat_now()
-    return sha, author, date
+    except subprocess.CalledProcessError:
+        return "0" * 40
 
 
-def commit_url(repo: str, sha: str) -> str:
-    parts = repo.split("/", 2)
-    if len(parts) >= 2:
-        return f"https://github.com/{parts[0]}/{parts[1]}/commit/{sha}"
-    return ""
-
-
-def build_entry(
-    repo: str,
-    ref: str,
-    sha: str,
-    date: str,
-    author: str,
-    rationale: str,
-    url: Optional[str] = None,
-) -> Dict[str, str]:
-    sha = sha.lower()
-    return {
-        "repo": repo,
-        "ref": ref,
-        "sha": sha,
-        "date": date,
-        "author": author.strip() or DEFAULT_CI_AUTHOR,
-        "rationale": rationale.strip() or ACTION_RATIONALE,
-        "url": url or commit_url(repo, sha),
-    }
-
-
-def iter_workflow_files(directory: Path) -> Iterable[Path]:
-    for path in sorted(directory.rglob("*.yml")):
-        yield path
-    for path in sorted(directory.rglob("*.yaml")):
-        if path.suffix != ".yml":
+def iter_yaml_files(root: Path) -> Iterator[Path]:
+    workflows = root / ".github" / "workflows"
+    if workflows.exists():
+        for path in sorted(workflows.rglob("*.yml")):
             yield path
+        for path in sorted(workflows.rglob("*.yaml")):
+            if path.suffix != ".yml":
+                yield path
+    actions_dir = root / ".github" / "actions"
+    if actions_dir.exists():
+        for pattern in ("action.yml", "action.yaml"):
+            for path in sorted(actions_dir.rglob(pattern)):
+                yield path
 
 
-def extract_uses_from_text(text: str) -> Set[str]:
-    results: Set[str] = set()
-    lines = text.splitlines()
-    idx = 0
-    while idx < len(lines):
-        line = lines[idx]
-        line_clean = line.split("#", 1)[0]
-        match_inline = INLINE_RE.match(line_clean)
-        if match_inline:
-            results.add(match_inline.group(2).strip())
-            idx += 1
-            continue
-        if KEY_RE.match(line_clean) and idx + 1 < len(lines):
-            next_line = lines[idx + 1]
-            next_clean = next_line.split("#", 1)[0]
-            match_value = VALUE_RE.match(next_clean)
-            if match_value:
-                results.add(match_value.group(2).strip())
-                idx += 2
-                continue
-        idx += 1
-    return results
-
-
-def parse_workflows(directory: Path) -> Set[str]:
-    seen: Set[str] = set()
-    for workflow in iter_workflow_files(directory):
-        try:
-            content = workflow.read_text(encoding="utf-8")
-        except OSError as exc:
-            print(f"[warn] Failed to read {workflow}: {exc}")
-            continue
-        seen |= extract_uses_from_text(content)
-    return seen
-
-
-def filter_action_refs(uses_items: Iterable[str]) -> List[Tuple[str, str, str, str]]:
-    refs: List[Tuple[str, str, str, str]] = []
-    for entry in sorted(set(uses_items)):
-        if (
-            entry.startswith("./")
-            or entry.startswith(".\\")
-            or entry.startswith("docker://")
-        ):
-            continue
-        match = USES_RE.match(entry)
+def extract_uses(path: Path) -> Iterator[Tuple[str, str]]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise LockGenerationError(f"falha ao ler {path}: {exc}") from exc
+    for raw_line in text.splitlines():
+        match = USES_RE.match(raw_line.strip())
         if not match:
             continue
-        owner = match.group("owner")
         repo = match.group("repo")
-        path = match.group("path") or ""
+        if repo.startswith(LOCAL_PREFIXES):
+            continue
         ref = match.group("ref")
-        refs.append((owner, repo, path, ref))
-    return refs
+        yield repo, ref
 
 
-def build_lock(
-    actions: List[Dict[str, str]], author: str, rationale: str
-) -> Dict[str, object]:
-    canonical_author = author.strip() or DEFAULT_CI_AUTHOR
-    canonical_rationale = rationale.strip() or ACTION_RATIONALE
-    metadata = {
-        "sha": git_head_sha(),
-        "date": isoformat_now(),
-        "author": canonical_author,
-        "rationale": canonical_rationale,
-    }
-    return {
-        "version": 1,
-        "metadata": metadata,
-        "actions": actions,
-    }
+def collect_uses(root: Path) -> List[Tuple[str, str]]:
+    seen: Dict[str, set[str]] = defaultdict(set)
+    results: List[Tuple[str, str]] = []
+    for file_path in iter_yaml_files(root):
+        for repo, ref in extract_uses(file_path):
+            if ref not in seen[repo]:
+                seen[repo].add(ref)
+                results.append((repo, ref))
+    return sorted(results, key=lambda item: (item[0].lower(), item[1].lower()))
 
 
-def load_cached_actions(path: Path) -> Dict[Tuple[str, str], Dict[str, str]]:
-    candidates = [path]
-    alt = Path(".github/actions.lock")
-    if alt != path and alt.exists():
-        candidates.append(alt)
-    cached: Dict[Tuple[str, str], Dict[str, str]] = {}
-    for candidate in candidates:
-        if not candidate.exists():
+def ls_remote(owner: str, repo: str) -> Mapping[str, str]:
+    url = f"https://github.com/{owner}/{repo}.git"
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-remote", "--tags", "--heads", url],
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise LockGenerationError(
+            f"git ls-remote falhou para {owner}/{repo}: {exc}"
+        ) from exc
+    mapping: Dict[str, str] = {}
+    for line in output.splitlines():
+        if not line.strip():
             continue
+        sha, ref = line.split("\t", 1)
+        mapping[ref.strip()] = sha.strip().lower()
+    return mapping
+
+
+def parse_semver(tag: str) -> Tuple[Tuple[int, ...], int, str]:
+    clean = tag.lstrip("v")
+    main, sep, suffix = clean.partition("-")
+    parts: List[int] = []
+    for piece in main.split("."):
+        if piece.isdigit():
+            parts.append(int(piece))
+        else:
+            digits = "".join(ch for ch in piece if ch.isdigit())
+            parts.append(int(digits) if digits else 0)
+    return tuple(parts), 1 if not suffix else 0, suffix
+
+
+def choose_major_tag(tags: Mapping[str, str], ref: str) -> Optional[Tuple[str, str]]:
+    prefix = ref.rstrip(".") + "."
+    candidates = [name for name in tags if name == ref or name.startswith(prefix)]
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda name: parse_semver(name))
+    return best, tags[best]
+
+
+def resolve_ref(
+    repo: str, ref: str, cache: Dict[str, Mapping[str, str]]
+) -> Tuple[str, str, Optional[str]]:
+    parts = repo.split("/")
+    if len(parts) < 2:
+        raise LockGenerationError(f"referência uses inválida: {repo}")
+    owner, project = parts[0], parts[1]
+    cache_key = f"{owner}/{project}"
+    if cache_key not in cache:
+        cache[cache_key] = ls_remote(owner, project)
+    mapping = cache[cache_key]
+
+    if HEX40_RE.fullmatch(ref):
+        return ref.lower(), "sha", None
+
+    tag_ref = f"refs/tags/{ref}"
+    if tag_ref in mapping:
+        return mapping[tag_ref], "tag", None
+
+    annotated_ref = f"refs/tags/{ref}^{{}}"
+    if annotated_ref in mapping:
+        return mapping[annotated_ref], "tag", None
+
+    major_match = SEMVER_MAJOR_RE.fullmatch(ref)
+    if major_match:
+        tags: Dict[str, str] = {}
+        for name, sha in mapping.items():
+            if not name.startswith("refs/tags/"):
+                continue
+            base = name[len("refs/tags/") :]
+            if base.endswith("^{}"):
+                base = base[:-3]
+                tags[base] = sha
+            else:
+                tags.setdefault(base, sha)
+        result = choose_major_tag(tags, f"v{major_match.group(1)}")
+        if result:
+            resolved_tag, sha = result
+            return sha, "tag", resolved_tag
+
+    head_ref = f"refs/heads/{ref}"
+    if head_ref in mapping:
+        return mapping[head_ref], "branch", None
+
+    direct = mapping.get(ref)
+    if direct:
+        return direct, "ref", None
+
+    raise LockGenerationError(f"não foi possível resolver {repo}@{ref}")
+
+
+def build_entries(
+    root: Path,
+    refs: List[Tuple[str, str]],
+    existing: Mapping[str, MutableMapping[str, object]],
+) -> List[LockEntry]:
+    cache: Dict[str, Mapping[str, str]] = {}
+    entries: List[LockEntry] = []
+    checked_at = isoformat_now()
+    for repo, ref in refs:
+        key = f"{repo}@{ref}"
         try:
-            data = json.loads(candidate.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        actions = data.get("actions") if isinstance(data, dict) else None
-        metadata = data.get("metadata") if isinstance(data, dict) else {}
-        meta_author = "Unknown"
-        meta_date = isoformat_now()
-        if isinstance(metadata, dict):
-            meta_author = str(
-                metadata.get("author") or metadata.get("updated_by") or meta_author
-            ).strip()
-            if not meta_author or meta_author.lower() == "ci/boss-final":
-                meta_author = DEFAULT_CI_AUTHOR
-            meta_date = str(
-                metadata.get("date") or metadata.get("updated_at") or meta_date
+            sha, source, resolved = resolve_ref(repo, ref, cache)
+        except LockGenerationError as exc:
+            cached = existing.get(key)
+            if not cached:
+                raise
+            sha = str(cached.get("commit") or "").lower()
+            if not HEX40_RE.fullmatch(sha):
+                raise
+            source = str(cached.get("source") or "cached")
+            resolved = str(cached.get("resolved") or "").strip() or None
+            print(f"[gen] usando cache para {key}: {sha} ({exc})")
+        entries.append(
+            LockEntry(
+                key=key,
+                commit=sha,
+                source=source,
+                resolved=resolved,
+                checked_at=checked_at,
             )
-        if isinstance(actions, list):
-            for entry in actions:
-                if not isinstance(entry, dict):
-                    continue
-                repo = entry.get("repo") or entry.get("uses")
-                ref = entry.get("ref") or entry.get("sha")
-                sha = entry.get("sha")
-                date = entry.get("date") or meta_date
-                author_raw = entry.get("author") or meta_author
-                author = (
-                    DEFAULT_CI_AUTHOR
-                    if str(author_raw).strip().lower() == "ci/boss-final"
-                    else str(author_raw or "").strip()
-                )
-                rationale = entry.get("rationale") or ACTION_RATIONALE
-                url = entry.get("url")
-                if (
-                    not isinstance(repo, str)
-                    or not isinstance(ref, str)
-                    or not isinstance(sha, str)
-                ):
-                    continue
-                cached[(repo, ref)] = build_entry(
-                    repo, ref, sha, date, author, rationale, url
-                )
-        elif isinstance(actions, dict):
-            for repo, sha in actions.items():
-                if not isinstance(repo, str) or not isinstance(sha, str):
-                    continue
-                cached[(repo, sha)] = build_entry(
-                    repo,
-                    sha,
-                    sha,
-                    meta_date,
-                    meta_author,
-                    ACTION_RATIONALE,
-                )
-    return cached
+        )
+    entries.sort(key=lambda item: item.key.lower())
+    return entries
+
+
+def load_existing_lock(path: Path) -> Dict[str, MutableMapping[str, object]]:
+    if not path.exists():
+        return {}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return {}
+    actions = data.get("actions")
+    if not isinstance(actions, list):
+        return {}
+    cache: Dict[str, MutableMapping[str, object]] = {}
+    for item in actions:
+        if not isinstance(item, MutableMapping):
+            continue
+        key = str(item.get("key") or "").strip()
+        commit = str(item.get("commit") or "").strip().lower()
+        if key and commit:
+            cache[key] = dict(item)
+    return cache
+
+
+def merge_with_existing(
+    new_entries: List[LockEntry], existing: Mapping[str, MutableMapping[str, object]]
+) -> List[Dict[str, object]]:
+    merged: List[Dict[str, object]] = []
+    for entry in new_entries:
+        payload = {
+            "key": entry.key,
+            "commit": entry.commit,
+            "source": entry.source,
+            "checked_at": entry.checked_at,
+        }
+        if entry.resolved and entry.resolved != entry.key.split("@", 1)[1]:
+            payload["resolved"] = entry.resolved
+        old = existing.get(entry.key)
+        if old and old.get("commit") == entry.commit:
+            for key in ("resolved", "note"):
+                if key in old and key not in payload:
+                    payload[key] = old[key]
+            if "checked_at" in old:
+                payload["checked_at"] = old["checked_at"]
+        merged.append(payload)
+    return merged
+
+
+def dump_lock(
+    path: Path, entries: List[Dict[str, object]], author: str, rationale: str
+) -> None:
+    payload = {
+        "version": 2,
+        "generated": {
+            "author": author,
+            "reason": rationale,
+            "sha": git_head_sha(),
+            "date": isoformat_now(),
+        },
+        "actions": entries,
+    }
+    text = yaml.safe_dump(payload, sort_keys=False)
+    if not text.endswith("\n"):
+        text += "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate actions.lock from workflow usages"
+    )
+    parser.add_argument("--root", default=".")
+    parser.add_argument("--lock", default=".github/actions.lock")
+    parser.add_argument(
+        "--rationale",
+        default="Pin de Actions para reprodutibilidade",
+    )
+    parser.add_argument(
+        "--author",
+        default=os.environ.get("GITHUB_ACTOR", "CI"),
+    )
+    return parser.parse_args(list(argv) if argv is not None else None)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate actions.lock")
-    parser.add_argument(
-        "--workflows", default=".github/workflows", help="Workflow directory"
-    )
-    parser.add_argument("--out", default="actions.lock", help="Output file path")
-    parser.add_argument(
-        "--author",
-        default=os.environ.get("GITHUB_ACTOR") or DEFAULT_CI_AUTHOR,
-    )
-    parser.add_argument("--rationale", default=ACTION_RATIONALE)
-    args = parser.parse_args(argv)
+    args = parse_args(argv)
+    root = Path(args.root).resolve()
+    lock_path = (root / args.lock).resolve()
 
-    workflow_dir = Path(args.workflows)
-    if not workflow_dir.exists():
-        raise SystemExit(f"Workflows não encontrados: {workflow_dir}")
+    refs = collect_uses(root)
+    if not refs:
+        print("[gen] Nenhuma referência externa encontrada")
+        dump_lock(lock_path, [], args.author, args.rationale)
+        return 0
 
-    uses_entries = parse_workflows(workflow_dir)
-    refs = filter_action_refs(uses_entries)
+    existing = load_existing_lock(lock_path)
+    try:
+        entries = build_entries(root, refs, existing)
+    except LockGenerationError as exc:
+        print(f"[gen] erro: {exc}")
+        if existing:
+            print("[gen] mantendo lock existente")
+            return 1
+        raise
 
-    cached_entries = load_cached_actions(Path(args.out))
-    lock_entries: List[Dict[str, str]] = []
-    seen_keys: Set[Tuple[str, str]] = set()
-    for owner, repo, path, ref in refs:
-        key = (f"{owner}/{repo}{path}", ref)
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-        action_id = f"{owner}/{repo}{path}"
-        try:
-            sha, commit_author, commit_date = resolve_commit(owner, repo, ref)
-            entry = build_entry(
-                action_id,
-                ref,
-                sha,
-                commit_date,
-                commit_author,
-                ACTION_RATIONALE,
-            )
-            print(f"[lock] {action_id}@{ref} -> {sha}")
-        except LockError as exc:
-            cached_entry = cached_entries.get((action_id, ref))
-            if not cached_entry:
-                raise
-            entry = dict(cached_entry)
-            entry.update(
-                {
-                    "repo": action_id,
-                    "ref": ref,
-                    "rationale": ACTION_RATIONALE,
-                }
-            )
-            entry["sha"] = str(entry.get("sha", "")).lower()
-            if not entry.get("url") and entry.get("sha"):
-                entry["url"] = commit_url(action_id, entry["sha"])
-            print(f"[warn] {action_id}@{ref}: usando metadata em cache ({exc})")
-        lock_entries.append(entry)
-
-    lock_entries.sort(key=lambda item: (item["repo"].lower(), item["ref"].lower()))
-    lock = build_lock(lock_entries, args.author, args.rationale)
-
-    output_path = Path(args.out)
-    output_path.write_text(
-        json.dumps(lock, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    print(f"[ok] Escrito: {output_path} ({len(lock_entries)} actions)")
+    merged = merge_with_existing(entries, existing)
+    dump_lock(lock_path, merged, args.author, args.rationale)
+    print(f"[gen] lock gerado com {len(merged)} entradas em {lock_path}")
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except LockError as exc:
-        print(f"[error] {exc}")
-        sys.exit(2)
+    sys.exit(main())

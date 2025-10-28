@@ -83,9 +83,29 @@ jobs:
     timeout-minutes: 120
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
         with:
           ref: ${{ inputs.ref || github.sha }}
+
+      - name: Gerar actions.lock
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/gen_actions_lock.py --root . --lock .github/actions.lock
+
+      - name: Aplicar actions.lock (pin por SHA)
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/apply_actions_lock.py --root . --lock .github/actions.lock || code=$?
+          if [ "${code}" = "10" ]; then
+            echo "[apply] mudanças detectadas"
+            exit 10
+          fi
+          exit ${code:-0}
+
+      - name: Validar actions.lock
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/verify_actions_lock.py --root . --lock .github/actions.lock
 
       - name: Security | Install Gitleaks (tarball)
         if: ${{ inputs.run_security }}
@@ -177,7 +197,7 @@ jobs:
 
       - name: Security | Upload findings
         if: ${{ always() && inputs.run_security }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: security-findings
           path: out/security/**
@@ -241,7 +261,7 @@ jobs:
 
       - name: GHCR login (opcional)
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true' }}
-        uses: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
+        uses: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8  # pinned (was f4ef339be1f7c0066db2ed1d1c637d705d7d76e8)
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -325,7 +345,7 @@ jobs:
           exit "$RC"
 
       - name: Upload TLA report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
           name: tla-report
@@ -461,7 +481,7 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: s4-dbt-docs
           path: analytics/dbt/target
@@ -469,7 +489,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: s5-bundle
           path: |
@@ -482,7 +502,7 @@ jobs:
 
       - name: Upload auditoria pip
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: pip-audit
           path: out/pip-audit
@@ -490,7 +510,7 @@ jobs:
 
       - name: Upload s5-orr evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was ea165f8d65b6e75b540449e92b4886f43607fa02)
         with:
           name: s5-orr-evidence
           path: |
