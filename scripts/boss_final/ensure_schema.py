@@ -114,29 +114,12 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
         normalized["status"] = default_status
 
     bundle_info = normalized.get("bundle")
-    required_bundle_keys = {"path", "sha256", "size_bytes"}
-    has_complete_bundle = isinstance(
-        bundle_info, MutableMapping
-    ) and required_bundle_keys.issubset(bundle_info.keys())
-
     boss_out_dir = pathlib.Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
     bundle_override = os.environ.get("BOSS_BUNDLE_PATH")
     stage_dir_override = os.environ.get("BOSS_STAGE_DIR")
     stage_glob = os.environ.get("BOSS_STAGE_GLOB", "boss-stage-*.zip")
     bundle_name = os.environ.get("BOSS_BUNDLE_NAME", "boss-final-bundle.zip")
     bundle_path = boss_out_dir / bundle_name
-
-    if has_complete_bundle:
-        bundle_path = pathlib.Path(str(bundle_info["path"]))
-        if not bundle_path.exists():
-            print("[ensure-schema] bundle.path informado não existe no filesystem")
-            sys.exit(1)
-        normalized["bundle"] = {
-            "path": str(bundle_path),
-            "sha256": _sha256(bundle_path),
-            "size_bytes": bundle_path.stat().st_size,
-        }
-        return normalized
 
     chosen_bundle: pathlib.Path | None = None
 
@@ -155,6 +138,10 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
             bundle_path_candidate = pathlib.Path(str(raw_bundle_path))
             if bundle_path_candidate.exists():
                 chosen_bundle = bundle_path_candidate
+            else:
+                print(
+                    "[ensure-schema] bundle.path informado não existe; tentando gerar novo bundle"
+                )
 
     if chosen_bundle is None:
         search_roots: list[pathlib.Path] = []
@@ -186,20 +173,18 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
         print("[ensure-schema] bundle ausente e não foi possível inferir")
         sys.exit(1)
 
-    normalized["bundle"] = {
-        "path": str(chosen_bundle),
-        "sha256": _sha256(chosen_bundle),
-        "size_bytes": chosen_bundle.stat().st_size,
-    }
+    bundle_path = chosen_bundle
+    bundle_sha = _sha256(bundle_path)
+    normalized["bundle"] = {"sha256": bundle_sha}
+
+    for key in ("summary", "generated_at"):
+        normalized.pop(key, None)
 
     missing = [field for field in MANDATORY if field not in normalized]
     if missing:
         raise SystemExit(
             f"[ensure-schema] campos obrigatórios ausentes após normalização: {', '.join(missing)}"
         )
-
-    for key in ("summary", "generated_at"):
-        normalized.pop(key, None)
 
     return normalized
 

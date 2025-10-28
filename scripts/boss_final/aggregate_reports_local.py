@@ -184,7 +184,6 @@ def main() -> int:
         aggregate["bundle"] = {
             "path": str(bundle_path),
             "sha256": _sha256(bundle_path),
-            "size_bytes": bundle_path.stat().st_size,
         }
 
     report = ensure_schema_metadata(aggregate)

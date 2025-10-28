@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import zipfile
@@ -65,10 +66,11 @@ def test_required_fields(
     assert "timestamp_utc" in data, "`timestamp_utc` ausente"
     assert data.get("status") == "PASS", "`status` ausente ou inválido"
     bundle = data.get("bundle") or {}
-    assert set(bundle.keys()) == {"path", "sha256", "size_bytes"}
-    bundle_path = pathlib.Path(bundle["path"])
-    assert bundle_path.exists()
-    assert bundle["size_bytes"] > 0
+    assert set(bundle.keys()) == {"sha256"}
+    assert re.fullmatch(r"[0-9a-f]{64}", bundle["sha256"]) is not None
+    expected_bundle = boss_out_dir / "boss-final-bundle.zip"
+    assert expected_bundle.exists()
+    assert expected_bundle.stat().st_size > 0
 
     summary_path = boss_out_dir / "summary.md"
     assert summary_path.exists(), "summary.md deve ser gerado"
