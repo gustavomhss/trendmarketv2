@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 import zipfile
 
@@ -168,7 +169,7 @@ def _manual_bundle(stages_dir: Path) -> str:
 
 def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stages_dir = _prepare_environment(tmp_path, monkeypatch)
-    _prepare_bundle_env(tmp_path, monkeypatch)
+    boss_out_dir = _prepare_bundle_env(tmp_path, monkeypatch)
     for stage in STAGES:
         _prime_stage(
             stages_dir, stage, primary_notes=f"{stage} ok", clean_notes=f"{stage} ok"
@@ -190,10 +191,11 @@ def test_aggregate_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     normalized = ensure_schema_metadata(dict(report.report))
     bundle = normalized["bundle"]
-    assert set(bundle.keys()) == {"path", "sha256", "size_bytes"}
-    bundle_path = Path(bundle["path"])
+    assert set(bundle.keys()) == {"sha256"}
+    assert re.fullmatch(r"[0-9a-f]{64}", bundle["sha256"]) is not None
+    bundle_path = boss_out_dir / "boss-final-bundle.zip"
     assert bundle_path.exists()
-    assert bundle["size_bytes"] > 0
+    assert bundle_path.stat().st_size > 0
 
     second = ensure_schema_metadata(dict(normalized))
     assert second["bundle"]["sha256"] == bundle["sha256"]
@@ -240,8 +242,10 @@ def test_ensure_schema_bundle_from_default_out_boss(
     report_path = tmp_path / "out" / "boss_final" / "report.local.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
     bundle = report["bundle"]
-    assert {"path", "sha256", "size_bytes"} <= set(bundle)
-    assert Path(bundle["path"]).exists()
+    assert set(bundle.keys()) == {"sha256"}
+    assert re.fullmatch(r"[0-9a-f]{64}", bundle["sha256"]) is not None
+    expected_bundle = out_boss / "boss-final-bundle.zip"
+    assert expected_bundle.exists()
 
 
 def test_ensure_schema_bundle_with_missing_stage(
@@ -258,9 +262,9 @@ def test_ensure_schema_bundle_with_missing_stage(
 
     report_path = tmp_path / "out" / "boss_final" / "report.local.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    bundle_path = Path(report["bundle"]["path"])
-    assert bundle_path.exists()
-    with zipfile.ZipFile(bundle_path) as archive:
+    expected_bundle = out_boss / "boss-final-bundle.zip"
+    assert expected_bundle.exists()
+    with zipfile.ZipFile(expected_bundle) as archive:
         assert sorted(archive.namelist()) == ["boss-stage-s1.zip", "boss-stage-s3.zip"]
 
 
@@ -283,8 +287,10 @@ def test_ensure_schema_bundle_from_stage_dir_override(
     report_path = tmp_path / "out" / "boss_final" / "report.local.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
     bundle = report["bundle"]
-    assert bundle["size_bytes"] > 0
-    assert Path(bundle["path"]).exists()
+    assert set(bundle.keys()) == {"sha256"}
+    expected_bundle = out_boss / "boss-final-bundle.zip"
+    assert expected_bundle.exists()
+    assert expected_bundle.stat().st_size > 0
 
 
 def test_ensure_schema_bundle_from_explicit_path_override(
@@ -305,8 +311,9 @@ def test_ensure_schema_bundle_from_explicit_path_override(
     report_path = tmp_path / "out" / "boss_final" / "report.local.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
     bundle_info = report["bundle"]
-    assert bundle_info["path"] == str(bundle)
-    assert bundle_info["size_bytes"] == bundle.stat().st_size
+    assert set(bundle_info.keys()) == {"sha256"}
+    expected_sha = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    assert bundle_info["sha256"] == expected_sha
 
 
 def _mk_stage_zip(dirpath: Path, name: str, payload: dict[str, Any]) -> Path:
