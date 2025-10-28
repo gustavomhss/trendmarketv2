@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 import zipfile
 
+from typing import Any
+
 import pytest
 
 from scripts.boss_final import aggregate_q1
-from scripts.boss_final.ensure_schema import ensure_schema_metadata
+from scripts.boss_final.ensure_schema import ensure_schema_metadata, main as ensure_main
 
 STAGES = aggregate_q1.STAGES
 VARIANTS = aggregate_q1.VARIANTS
@@ -220,3 +222,86 @@ def test_bundle_sha_manual_match(
     report = aggregate_q1.aggregate()
     expected = _manual_bundle(stages_dir)
     assert report["bundle"]["sha256"] == expected
+
+
+def test_ensure_schema_bundle_from_default_out_boss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    out_boss = tmp_path / "out" / "boss"
+    out_boss.mkdir(parents=True, exist_ok=True)
+    for stage in ["s1", "s2", "s3", "s4", "s5", "s6"]:
+        _mk_stage_zip(out_boss, f"boss-stage-{stage}.zip", {"stage": stage})
+    monkeypatch.setenv("BOSS_OUT_DIR", str(out_boss))
+    _write_local_report(tmp_path, {})
+
+    ensure_main()
+
+    report_path = tmp_path / "out" / "boss_final" / "report.local.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    bundle = report["bundle"]
+    assert {"path", "sha256", "size_bytes"} <= set(bundle)
+    assert Path(bundle["path"]).exists()
+
+
+def test_ensure_schema_bundle_from_stage_dir_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    stage_dir = tmp_path / "stages"
+    out_boss = tmp_path / "out" / "boss"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    out_boss.mkdir(parents=True, exist_ok=True)
+    for stage in ["s1", "s2", "s3", "s4", "s5", "s6"]:
+        _mk_stage_zip(stage_dir, f"boss-stage-{stage}.zip", {"stage": stage})
+    monkeypatch.setenv("BOSS_OUT_DIR", str(out_boss))
+    monkeypatch.setenv("BOSS_STAGE_DIR", str(stage_dir))
+    _write_local_report(tmp_path, {})
+
+    ensure_main()
+
+    report_path = tmp_path / "out" / "boss_final" / "report.local.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    bundle = report["bundle"]
+    assert bundle["size_bytes"] > 0
+    assert Path(bundle["path"]).exists()
+
+
+def test_ensure_schema_bundle_from_explicit_path_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    out_boss = tmp_path / "out" / "boss"
+    out_boss.mkdir(parents=True, exist_ok=True)
+    bundle = out_boss / "boss-final-bundle.zip"
+    with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("dummy.txt", "ok")
+    monkeypatch.setenv("BOSS_OUT_DIR", str(out_boss))
+    monkeypatch.setenv("BOSS_BUNDLE_PATH", str(bundle))
+    _write_local_report(tmp_path, {})
+
+    ensure_main()
+
+    report_path = tmp_path / "out" / "boss_final" / "report.local.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    bundle_info = report["bundle"]
+    assert bundle_info["path"] == str(bundle)
+    assert bundle_info["size_bytes"] == bundle.stat().st_size
+
+
+def _mk_stage_zip(dirpath: Path, name: str, payload: dict[str, Any]) -> Path:
+    path = dirpath / name
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(payload))
+    return path
+
+
+def _write_local_report(root: Path, payload: dict[str, Any] | None = None) -> Path:
+    report_dir = root / "out" / "boss_final"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    data = payload or {}
+    report_path = report_dir / "report.local.json"
+    report_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return report_path

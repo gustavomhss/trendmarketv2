@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import re
+import sys
 import zipfile
 from typing import Any, MutableMapping
 
@@ -21,6 +22,19 @@ def _sha256(path: pathlib.Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _find_stage_zips(
+    search_roots: list[pathlib.Path], pattern: str
+) -> list[pathlib.Path]:
+    found: list[pathlib.Path] = []
+    for root in search_roots:
+        if not root.exists():
+            continue
+        found.extend(root.glob(pattern))
+        found.extend(root.rglob(pattern))
+    unique = sorted({path.resolve() for path in found if path.is_file()})
+    return unique
 
 
 def _find_candidate() -> pathlib.Path:
@@ -110,41 +124,76 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
 
     boss_out_dir = pathlib.Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
     bundle_override = os.environ.get("BOSS_BUNDLE_PATH")
-    bundle_path = (
-        pathlib.Path(bundle_override)
-        if bundle_override
-        else boss_out_dir / "boss-final-bundle.zip"
-    )
+    stage_dir_override = os.environ.get("BOSS_STAGE_DIR")
+    stage_glob = os.environ.get("BOSS_STAGE_GLOB", "boss-stage-*.zip")
+    bundle_name = os.environ.get("BOSS_BUNDLE_NAME", "boss-final-bundle.zip")
+    bundle_path = boss_out_dir / bundle_name
 
-    if not bundle_path.exists():
-        stage_zips = sorted(boss_out_dir.glob("boss-stage-*.zip"))
+    if has_complete_bundle:
+        bundle_path = pathlib.Path(str(bundle_info["path"]))
+        if not bundle_path.exists():
+            print("[ensure-schema] bundle.path informado não existe no filesystem")
+            sys.exit(1)
+        normalized["bundle"] = {
+            "path": str(bundle_path),
+            "sha256": _sha256(bundle_path),
+            "size_bytes": bundle_path.stat().st_size,
+        }
+        return normalized
+
+    chosen_bundle: pathlib.Path | None = None
+
+    if bundle_override:
+        override_path = pathlib.Path(bundle_override)
+        if override_path.exists():
+            chosen_bundle = override_path
+        else:
+            print(
+                f"[ensure-schema] BOSS_BUNDLE_PATH aponta para arquivo inexistente: {override_path}"
+            )
+
+    if chosen_bundle is None and isinstance(bundle_info, MutableMapping):
+        raw_bundle_path = bundle_info.get("path")
+        if raw_bundle_path:
+            bundle_path_candidate = pathlib.Path(str(raw_bundle_path))
+            if bundle_path_candidate.exists():
+                chosen_bundle = bundle_path_candidate
+
+    if chosen_bundle is None:
+        search_roots: list[pathlib.Path] = []
+        if stage_dir_override:
+            search_roots.append(pathlib.Path(stage_dir_override))
+        search_roots.append(boss_out_dir)
+        search_roots.append(pathlib.Path.cwd())
+
+        stage_zips = _find_stage_zips(search_roots, stage_glob)
         if stage_zips:
             bundle_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"[ensure-schema] Zips de estágio detectados ({len(stage_zips)}):")
+            for stage_zip in stage_zips:
+                print(f"  - {stage_zip}")
             with zipfile.ZipFile(
                 bundle_path, "w", compression=zipfile.ZIP_DEFLATED
             ) as archive:
                 for stage_zip in stage_zips:
                     archive.write(stage_zip, arcname=stage_zip.name)
-
-    if bundle_path.exists():
-        metadata = {
-            "path": str(bundle_path),
-            "sha256": _sha256(bundle_path),
-            "size_bytes": bundle_path.stat().st_size,
-        }
-        normalized["bundle"] = metadata
-    elif has_complete_bundle:
-        bundle_path = pathlib.Path(str(bundle_info["path"]))
-        if not bundle_path.exists():
-            raise SystemExit(
-                "[ensure-schema] bundle.path informado não existe no filesystem"
+            chosen_bundle = bundle_path
+        else:
+            print(
+                "[ensure-schema] Nenhum boss-stage-*.zip encontrado (roots verificados):"
             )
-        bundle_info["size_bytes"] = bundle_path.stat().st_size
-        bundle_info["sha256"] = _sha256(bundle_path)
-        normalized["bundle"] = dict(bundle_info)
-    else:
-        # No bundle discovered; explicit failure keeps contract honest.
-        raise SystemExit("[ensure-schema] bundle ausente e não foi possível inferir")
+            for root in search_roots:
+                print(f"  - {root}")
+
+    if chosen_bundle is None:
+        print("[ensure-schema] bundle ausente e não foi possível inferir")
+        sys.exit(1)
+
+    normalized["bundle"] = {
+        "path": str(chosen_bundle),
+        "sha256": _sha256(chosen_bundle),
+        "size_bytes": chosen_bundle.stat().st_size,
+    }
 
     missing = [field for field in MANDATORY if field not in normalized]
     if missing:
@@ -171,5 +220,10 @@ def _ensure_fields(path: pathlib.Path) -> None:
     )
 
 
-if __name__ == "__main__":
+def main() -> int:
     _ensure_fields(_find_candidate())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
