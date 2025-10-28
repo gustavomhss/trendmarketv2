@@ -30,6 +30,35 @@ bash .github/scripts/ensure_ruff_version.sh >/dev/null
 RUFF_VERSION="$(tr -d '\r\n' < .tools/ruff.version 2>/dev/null || echo 'unknown')"
 echo "[wrapper] Ferramentas: ruff ${RUFF_VERSION} (pin)/yamllint/pytest/hypothesis/jsonschema" | tee -a "$LOG"
 
+if [ "${STAGE}" = "s1" ]; then
+  echo "[S1] Compile Python (py_compile)" | tee -a "$LOG"
+  python - <<'PY' 2>&1 | tee -a "$LOG"
+import sys
+import pathlib
+import py_compile
+
+root = pathlib.Path('.').resolve()
+excluded = {'.git', '.venv', 'venv', '__pycache__', '.mypy_cache', '.ruff_cache', '**pycache**'}
+errors = []
+
+for path in root.rglob('*.py'):
+    if any(part in excluded for part in path.parts):
+        continue
+    try:
+        py_compile.compile(str(path), doraise=True)
+    except Exception as exc:  # pragma: no cover - diagnostic path
+        errors.append((str(path), str(exc)))
+
+if errors:
+    print("[py_compile] FAIL — arquivos com erro de sintaxe:")
+    for file_path, err in errors:
+        print(f"  - {file_path}: {err}")
+    sys.exit(1)
+
+print("[py_compile] OK — nenhum erro de sintaxe")
+PY
+fi
+
 # 2) Executa guard
 set +e
 python -u scripts/boss_final/sprint_guard.py --stage "$STAGE" 2>&1 | tee -a "$LOG"
