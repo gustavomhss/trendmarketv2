@@ -37,7 +37,9 @@ def _prepare_bundle_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
     boss_out_dir.mkdir(parents=True, exist_ok=True)
     for stage in STAGES:
         bundle_path = boss_out_dir / f"boss-stage-{stage}.zip"
-        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        with zipfile.ZipFile(
+            bundle_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
             archive.writestr("manifest.json", json.dumps({"stage": stage}))
     return boss_out_dir
 
