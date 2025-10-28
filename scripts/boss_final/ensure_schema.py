@@ -104,10 +104,9 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
 
     bundle_info = normalized.get("bundle")
     required_bundle_keys = {"path", "sha256", "size_bytes"}
-    has_complete_bundle = (
-        isinstance(bundle_info, MutableMapping)
-        and required_bundle_keys.issubset(bundle_info.keys())
-    )
+    has_complete_bundle = isinstance(
+        bundle_info, MutableMapping
+    ) and required_bundle_keys.issubset(bundle_info.keys())
 
     boss_out_dir = pathlib.Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
     bundle_override = os.environ.get("BOSS_BUNDLE_PATH")
@@ -121,7 +120,9 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
         stage_zips = sorted(boss_out_dir.glob("boss-stage-*.zip"))
         if stage_zips:
             bundle_path.parent.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            with zipfile.ZipFile(
+                bundle_path, "w", compression=zipfile.ZIP_DEFLATED
+            ) as archive:
                 for stage_zip in stage_zips:
                     archive.write(stage_zip, arcname=stage_zip.name)
 
