@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
-
-from ensure_schema import ensure_schema_metadata
 
 RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
 ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
@@ -48,11 +47,36 @@ def ensure_missing_stages(results: List[Dict[str, Any]]) -> None:
 def write_aggregate(results: List[Dict[str, Any]], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     aggregate: Dict[str, Any] = {"stages": results}
-    ensure_schema_metadata(aggregate)
-    aggregate.setdefault(
-        "generated_at",
-        datetime.now(timezone.utc).isoformat(timespec="seconds"),
+
+    version: int | None = None
+    schema_raw = aggregate.get("schema")
+    if isinstance(schema_raw, str):
+        match = re.search(r"@(\d+)$", schema_raw)
+        if match:
+            try:
+                version = int(match.group(1))
+            except Exception:  # noqa: BLE001 - defensive parsing
+                version = None
+    if version is None:
+        schema_version_raw = aggregate.get("schema_version")
+        try:
+            version = int(str(schema_version_raw))
+        except Exception:
+            version = None
+    if version is None:
+        version = 1
+
+    now = (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
     )
+    aggregate["schema"] = f"boss_final.report@{version}"
+    aggregate["schema_version"] = version
+    aggregate.setdefault("timestamp_utc", now)
+    aggregate.setdefault("generated_at", aggregate["timestamp_utc"])
+
     payload = json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n"
 
     (out_dir / "report.json").write_text(payload, encoding="utf-8")
