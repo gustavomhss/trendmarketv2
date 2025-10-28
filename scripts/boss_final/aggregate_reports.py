@@ -219,6 +219,7 @@ def main() -> int:
         "generated_at": _now_utc(),
         "stages": stages,
         "summary": {"counts": summary_counts},
+        "status": final_status,
     }
     ensure_schema_metadata(report)
     report_path = os.path.join(out_dir, "report.json")
