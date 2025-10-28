@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import zipfile
 from datetime import datetime, timezone
@@ -14,9 +13,17 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 try:  # Compatibilidade execução via módulo ou script
-    from ensure_schema import ensure_schema_metadata
+    from ensure_schema import (
+        ensure_schema_metadata,
+        expected_schema_id,
+        expected_schema_version,
+    )
 except ImportError:  # pragma: no cover - fallback para execução via pacote
-    from .ensure_schema import ensure_schema_metadata  # type: ignore
+    from .ensure_schema import (  # type: ignore
+        ensure_schema_metadata,
+        expected_schema_id,
+        expected_schema_version,
+    )
 
 RUNNER_TEMP = Path(os.environ.get("RUNNER_TEMP", "."))
 ARTS_DIR = Path(os.environ.get("ARTS_DIR") or RUNNER_TEMP / "boss-arts")
@@ -81,32 +88,14 @@ def write_aggregate(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     aggregate["status"] = summary["status"]
     aggregate["summary"] = summary
 
-    version: int | None = None
-    schema_raw = aggregate.get("schema")
-    if isinstance(schema_raw, str):
-        match = re.search(r"@(\d+)$", schema_raw)
-        if match:
-            try:
-                version = int(match.group(1))
-            except Exception:  # noqa: BLE001 - defensive parsing
-                version = None
-    if version is None:
-        schema_version_raw = aggregate.get("schema_version")
-        try:
-            version = int(str(schema_version_raw))
-        except Exception:
-            version = None
-    if version is None:
-        version = 1
-
     now = (
         datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
     )
-    aggregate["schema"] = f"boss_final.report@{version}"
-    aggregate["schema_version"] = version
+    aggregate["schema"] = expected_schema_id()
+    aggregate["schema_version"] = expected_schema_version()
     aggregate.setdefault("timestamp_utc", now)
     aggregate.setdefault("generated_at", aggregate["timestamp_utc"])
 

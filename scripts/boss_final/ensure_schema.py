@@ -11,9 +11,37 @@ import pathlib
 import re
 import sys
 import zipfile
+from functools import lru_cache
 from typing import Any, MutableMapping
 
 MANDATORY = ("schema", "schema_version", "timestamp_utc", "status")
+
+
+@lru_cache(maxsize=1)
+def expected_schema_id() -> str:
+    """Return the canonical schema identifier enforced by the JSON Schema."""
+
+    candidates = (
+        pathlib.Path("jsonschema/boss_final.report.schema.json"),
+        pathlib.Path("jsonschema/schemas/boss_final.report.schema.json"),
+    )
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        schema_node = data.get("properties", {}).get("schema", {})
+        const_value = schema_node.get("const")
+        if isinstance(const_value, str) and const_value.strip():
+            return const_value.strip()
+        enum_values = schema_node.get("enum")
+        if isinstance(enum_values, list):
+            for item in enum_values:
+                if isinstance(item, str) and item.strip():
+                    return item.strip()
+    return "boss_final.report@v1"
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -47,29 +75,43 @@ def _find_candidate() -> pathlib.Path:
 
 
 def _schema_version_default() -> int:
-    raw = os.environ.get("BOSS_SCHEMA_VERSION", "1")
-    try:
-        return int(raw.strip() or "1")
-    except (TypeError, ValueError):
-        return 1
+    raw = os.environ.get("BOSS_SCHEMA_VERSION")
+    if raw:
+        try:
+            return int(raw.strip())
+        except (TypeError, ValueError):
+            return 1
+    match = re.search(r"@v?(\d+)$", expected_schema_id())
+    if match:
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):  # pragma: no cover - defensive fallback
+            return 1
+    return 1
 
 
 def _infer_version(data: MutableMapping[str, Any]) -> int:
     version = None
-    s = data.get("schema")
-    if isinstance(s, str):
-        m = re.search(r"@(\d+)$", s)
-        if m:
+    schema_value = data.get("schema")
+    if isinstance(schema_value, str):
+        match = re.search(r"@v?(\d+)$", schema_value)
+        if match:
             try:
-                version = int(m.group(1))
-            except Exception:
+                version = int(match.group(1))
+            except Exception:  # pragma: no cover - defensive
                 version = None
     if version is None:
         try:
             version = int(str(data.get("schema_version")))
-        except Exception:
+        except Exception:  # pragma: no cover - defensive
             version = None
     return version or _schema_version_default()
+
+
+def expected_schema_version() -> int:
+    """Expose the default schema version derived from the schema identifier."""
+
+    return _schema_version_default()
 
 
 def _now_utc_z() -> str:
@@ -92,17 +134,12 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
 
     version = _infer_version(normalized)
 
-    schema_value = normalized.get("schema")
-    if not isinstance(schema_value, str) or "boss_final.report@" not in schema_value:
-        normalized["schema"] = f"boss_final.report@{version}"
+    normalized["schema"] = expected_schema_id()
 
-    if str(normalized.get("schema_version")) != str(version):
-        normalized["schema_version"] = int(version)
+    normalized["schema_version"] = int(version)
 
-    timestamp = normalized.get("timestamp_utc")
-    if not timestamp:
+    if not normalized.get("timestamp_utc"):
         normalized["timestamp_utc"] = _now_utc_z()
-        timestamp = normalized["timestamp_utc"]
 
     status = normalized.get("status")
     if isinstance(status, str) and status.strip():

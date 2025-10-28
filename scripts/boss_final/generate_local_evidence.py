@@ -7,26 +7,15 @@ import argparse
 import json
 import os
 import pathlib
-import re
 from datetime import datetime, timezone
 
-
-def _infer_version(report: dict) -> int:
-    v = None
-    s = report.get("schema")
-    if isinstance(s, str):
-        m = re.search(r"@(\d+)$", s)
-        if m:
-            try:
-                v = int(m.group(1))
-            except Exception:
-                v = None
-    if v is None:
-        try:
-            v = int(str(report.get("schema_version")))
-        except Exception:
-            v = None
-    return v or 1
+try:  # Local execution vs module import
+    from ensure_schema import expected_schema_id, expected_schema_version
+except ImportError:  # pragma: no cover - fallback when running as package
+    from .ensure_schema import (  # type: ignore
+        expected_schema_id,
+        expected_schema_version,
+    )
 
 
 def _now_utc_z() -> str:
@@ -65,12 +54,12 @@ def main() -> None:
         except Exception:
             base = {}
 
-    version = _infer_version(base)
+    version = expected_schema_version()
     now = _now_utc_z()
     status = (args.status or "PASS").strip().upper() or "PASS"
 
     payload = {
-        "schema": f"boss_final.report@{version}",
+        "schema": expected_schema_id(),
         "schema_version": version,
         "timestamp_utc": now,
         "generated_at": now,

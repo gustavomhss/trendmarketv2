@@ -1,6 +1,4 @@
 {
-  "schema": "boss_final.report@1",
-  "schema_version": 1,
   "stages": [
     {
       "name": "s1",
@@ -44,5 +42,12 @@
         "artifact not found"
       ]
     }
-  ]
+  ],
+  "status": "FAIL",
+  "schema": "boss_final.report@v1",
+  "schema_version": 1,
+  "timestamp_utc": "2025-10-28T23:12:51Z",
+  "bundle": {
+    "sha256": "9fa290f34b4085a33621780bf8aea1b6a86395b4b422e2ac7533d76dff889eaf"
+  }
 }
