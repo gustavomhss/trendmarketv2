@@ -221,7 +221,7 @@ def main() -> int:
         "summary": {"counts": summary_counts},
         "status": final_status,
     }
-    ensure_schema_metadata(report)
+    report = ensure_schema_metadata(report)
     report_path = os.path.join(out_dir, "report.json")
     with open(report_path, "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
