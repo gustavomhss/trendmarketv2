@@ -96,12 +96,12 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> bool:
             data["status"] = normalized
             changed = True
     else:
-    if not data.get("status"):
-        default_status = (
-            os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
-        )
-        data["status"] = default_status
-        changed = True
+        if not data.get("status"):
+            default_status = (
+                os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
+            )
+            data["status"] = default_status
+            changed = True
 
     missing = [field for field in MANDATORY if field not in data]
     if missing:
