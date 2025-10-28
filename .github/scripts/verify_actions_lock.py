@@ -1,166 +1,248 @@
 #!/usr/bin/env python3
-"""Validate the structure and content of actions.lock."""
+"""Validate actions.lock and ensure workflows stay pinned to recorded SHAs."""
 
 from __future__ import annotations
+
 import argparse
-import json
 import re
 import sys
-from datetime import datetime, timezone
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, NoReturn, Sequence
+from typing import (
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
-HEX40_RE = re.compile(r"^[0-9a-fA-F]{40}$")
-ISO_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+try:
+    import yaml  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    import sys
+
+    sys.path.append(str(Path(__file__).resolve().parents[2]))
+    import yaml_fallback as yaml  # type: ignore
+
+USES_RE = re.compile(
+    r"^(?P<prefix>\s*(?:-\s*)?uses:\s*)(?P<repo>[^@#\s][^@#\s]*/[^@#\s]+)@(?P<ref>[^\s#]+)(?P<space>\s*)(?P<comment>#.*)?$"
+)
+PIN_COMMENT_RE = re.compile(r"#\s*pinned\s*\(was\s+([^\)]+)\)", re.IGNORECASE)
+HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
+ISO_ZULU_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+LOCAL_PREFIXES = ("./", ".\\", "docker://")
+
+
+@dataclass(frozen=True)
+class LockRecord:
+    repo: str
+    commit: str
+    preferred_ref: str
+    resolved: Optional[str]
 
 
 class ValidationError(RuntimeError):
-    """Raised when the lock file violates the required contract."""
+    """Raised when validation fails."""
 
 
-def isoformat_now() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+def iter_yaml_files(root: Path) -> Iterator[Path]:
+    workflows = root / ".github" / "workflows"
+    if workflows.exists():
+        for path in sorted(workflows.rglob("*.yml")):
+            yield path
+        for path in sorted(workflows.rglob("*.yaml")):
+            if path.suffix != ".yml":
+                yield path
+    actions_dir = root / ".github" / "actions"
+    if actions_dir.exists():
+        for pattern in ("action.yml", "action.yaml"):
+            for path in sorted(actions_dir.rglob(pattern)):
+                yield path
 
 
-def is_iso8601(value: str) -> bool:
-    if not ISO_DATETIME_RE.fullmatch(value):
-        return False
+def load_lock(lock_path: Path) -> Tuple[Mapping[str, LockRecord], Dict[str, object]]:
+    if not lock_path.exists():
+        raise ValidationError(f"actions.lock não encontrado: {lock_path}")
     try:
-        datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    return True
+        payload = yaml.safe_load(lock_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise ValidationError(f"YAML inválido: {exc}") from exc
 
+    if not isinstance(payload, MutableMapping):
+        raise ValidationError("Formato inválido: raiz precisa ser objeto")
 
-def fail(message: str) -> NoReturn:
-    raise ValidationError(message)
+    version = payload.get("version")
+    if version not in (1, 2):
+        raise ValidationError("actions.lock: campo version inválido")
 
+    generated = payload.get("generated") or payload.get("metadata")
+    if not isinstance(generated, MutableMapping):
+        raise ValidationError("actions.lock: metadata/generated ausente")
 
-def expect(condition: bool, message: str) -> None:
-    if not condition:
-        fail(message)
-
-
-def ensure_fields(
-    payload: Dict[str, Any], fields: Iterable[str], *, context: str
-) -> None:
-    for field in fields:
-        if field not in payload:
-            fail(f"{context}: campo {field} ausente")
-        if isinstance(payload[field], str) and not payload[field].strip():
-            fail(f"{context}: campo {field} vazio")
-
-
-def write_report(report_path: Path, payload: Dict[str, Any]) -> None:
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-
-def validate_action(action: Dict[str, Any], index: int) -> Dict[str, Any]:
-    ensure_fields(
-        action,
-        ("repo", "ref", "sha", "date", "author", "rationale", "url"),
-        context=f"actions[{index}]",
-    )
-    if not HEX40_RE.fullmatch(str(action["sha"])):
-        fail(f"actions[{index}]: SHA inválido")
-    if not is_iso8601(str(action["date"])):
-        fail(f"actions[{index}]: date inválido")
-    if not str(action["url"]).startswith("https://github.com/"):
-        fail(f"actions[{index}]: url inválida")
-    return {
-        "repo": action["repo"],
-        "ref": action["ref"],
-        "sha": action["sha"],
-        "date": action["date"],
-        "author": action["author"],
-        "rationale": action["rationale"],
-        "url": action["url"],
-    }
-
-
-def validate_lock(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        fail(f"Arquivo não encontrado: {path}")
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        fail(f"JSON inválido: {exc}")
-
-    if not isinstance(payload, dict):
-        fail("Formato inválido: esperado objeto na raiz")
-
-    expect(payload.get("version") == 1, "Campo version ausente ou inválido")
-
-    metadata = payload.get("metadata")
-    if not isinstance(metadata, dict):
-        fail("metadata: esperado objeto")
-    ensure_fields(metadata, ("sha", "date", "author", "rationale"), context="metadata")
-    if not HEX40_RE.fullmatch(str(metadata["sha"])):
-        fail("metadata: SHA inválido")
-    if not is_iso8601(str(metadata["date"])):
-        fail("metadata: date inválido")
+    for key in ("sha", "date"):
+        if key not in generated:
+            raise ValidationError(f"actions.lock: campo generated.{key} ausente")
+    sha_value = str(generated.get("sha") or "").strip().lower()
+    if not HEX40_RE.fullmatch(sha_value):
+        raise ValidationError("actions.lock: sha inválido")
+    date_value = str(generated.get("date") or "").strip()
+    if not ISO_ZULU_RE.fullmatch(date_value):
+        raise ValidationError("actions.lock: date inválido")
 
     actions = payload.get("actions")
     if not isinstance(actions, list) or not actions:
-        fail("actions: lista vazia ou inválida")
+        raise ValidationError("actions.lock: campo actions ausente ou vazio")
 
-    validated_actions = []
-    for index, action in enumerate(actions, start=1):
-        if not isinstance(action, dict):
-            fail(f"actions[{index}]: esperado objeto")
-        validated_actions.append(validate_action(action, index))
+    mapping: Dict[str, LockRecord] = {}
+    for item in actions:
+        if not isinstance(item, MutableMapping):
+            raise ValidationError("actions[*]: objeto inválido")
+        key = str(item.get("key") or "").strip()
+        commit = str(item.get("commit") or "").strip().lower()
+        source = str(item.get("source") or "").strip()
+        checked_at = str(item.get("checked_at") or "").strip()
+        if not key or "@" not in key:
+            raise ValidationError("actions[*]: key inválida")
+        if not HEX40_RE.fullmatch(commit):
+            raise ValidationError(f"actions[{key}]: commit inválido")
+        if not source:
+            raise ValidationError(f"actions[{key}]: source ausente")
+        if checked_at and not ISO_ZULU_RE.fullmatch(checked_at):
+            raise ValidationError(f"actions[{key}]: checked_at inválido")
+        repo, _, ref = key.partition("@")
+        record = LockRecord(
+            repo=repo,
+            commit=commit,
+            preferred_ref=ref,
+            resolved=str(item.get("resolved") or "").strip() or None,
+        )
+        mapping[key] = record
+        mapping[f"{repo}@{commit}"] = record
+        if record.resolved:
+            mapping[f"{repo}@{record.resolved}"] = record
+    return mapping, dict(payload)
 
-    return {
-        "path": str(path),
-        "version": payload.get("version"),
-        "metadata": metadata,
-        "actions_count": len(validated_actions),
-        "actions": validated_actions,
-    }
+
+def parse_uses_line(line: str) -> Optional[Tuple[str, str, str, Optional[str]]]:
+    stripped = line.rstrip("\r\n")
+    match = USES_RE.match(stripped)
+    if not match:
+        return None
+    repo = match.group("repo")
+    if repo.startswith(LOCAL_PREFIXES):
+        return None
+    ref = match.group("ref").strip()
+    comment = match.group("comment")
+    return repo, ref, stripped, comment
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate actions.lock contents")
-    parser.add_argument("path", nargs="?", default="actions.lock")
+def expected_ref(repo: str, comment: Optional[str], lock_entry: LockRecord) -> str:
+    if comment:
+        match = PIN_COMMENT_RE.search(comment)
+        if match:
+            candidate = match.group(1).strip()
+            if candidate:
+                return candidate
+    if lock_entry.resolved:
+        return lock_entry.resolved
+    return lock_entry.preferred_ref
+
+
+def validate_workflows(root: Path, lockmap: Mapping[str, LockRecord]) -> List[str]:
+    errors: List[str] = []
+    for path in iter_yaml_files(root):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            errors.append(f"falha ao ler {path}: {exc}")
+            continue
+        for line in lines:
+            parsed = parse_uses_line(line)
+            if not parsed:
+                continue
+            repo, ref, _, comment = parsed
+            if not HEX40_RE.fullmatch(ref.lower()):
+                errors.append(
+                    f"{path}: referência não pinada para {repo}@{ref}. Rode apply_actions_lock.py"
+                )
+                continue
+            entry = lockmap.get(f"{repo}@{ref.lower()}")
+            if entry is None and comment:
+                match = PIN_COMMENT_RE.search(comment)
+                if match:
+                    original = match.group(1).strip()
+                    entry = lockmap.get(f"{repo}@{original}")
+            if entry is None:
+                errors.append(
+                    f"{path}: SHA {ref} não encontrado no actions.lock para {repo}"
+                )
+                continue
+            if entry.commit != ref.lower():
+                errors.append(
+                    f"{path}: SHA {ref} diverge do lock ({entry.commit}) para {repo}"
+                )
+                continue
+            if not comment:
+                errors.append(
+                    f"{path}: comentário '# pinned (was ...)' ausente para {repo}@{ref}"
+                )
+                continue
+            if "pinned" not in comment.lower():
+                errors.append(
+                    f"{path}: comentário inválido para {repo}@{ref}; esperado '# pinned (was ...)'."
+                )
+                continue
+            expected = expected_ref(repo, comment, entry)
+            if expected not in comment:
+                errors.append(
+                    f"{path}: comentário pin inconsistente para {repo}@{ref}."
+                )
+    return errors
+
+
+def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Verify actions.lock consistency")
+    parser.add_argument("--lock", default=".github/actions.lock")
+    parser.add_argument("--root", default=".")
     parser.add_argument(
         "--report",
-        default="out/guard/s4/actions_lock_report.json",
-        help="Arquivo de saída para o relatório JSON",
+        default="out/guard/s4/actions_lock_report.yml",
+        help="arquivo de relatório opcional",
     )
-    args = parser.parse_args(argv)
+    return parser.parse_args(list(argv) if argv is not None else None)
 
-    path = Path(args.path)
-    report_path = Path(args.report)
+
+def write_report(report_path: Path, status: str, details: Mapping[str, object]) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"status": status, **details}
+    report_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_args(argv)
+    root = Path(args.root).resolve()
+    lock_path = (root / args.lock).resolve()
+    report_path = (root / args.report).resolve()
+
     try:
-        result = validate_lock(path)
+        lockmap, raw_lock = load_lock(lock_path)
     except ValidationError as exc:
-        payload = {
-            "status": "fail",
-            "path": str(path),
-            "timestamp_utc": isoformat_now(),
-            "error": str(exc),
-        }
-        write_report(report_path, payload)
-        print(f"[fail] {exc}")
+        write_report(report_path, "fail", {"error": str(exc)})
+        print(f"[verify] erro: {exc}")
         return 3
 
-    result.update(
-        {
-            "status": "pass",
-            "timestamp_utc": isoformat_now(),
-        }
-    )
-    write_report(report_path, result)
-    print("[ok] actions.lock válido")
+    errors = validate_workflows(root, lockmap)
+    if errors:
+        write_report(report_path, "fail", {"errors": errors})
+        for error in errors:
+            print(f"[verify] {error}")
+        return 4
+
+    write_report(report_path, "pass", {"actions": list(raw_lock.get("actions", []))})
+    print("[verify] actions.lock consistente com workflows")
     return 0
 
 
