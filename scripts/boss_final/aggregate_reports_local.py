@@ -173,6 +173,8 @@ def main() -> int:
     results = collect_stage_results(ARTS_DIR)
     ensure_missing_stages(results)
     aggregate = write_aggregate(results)
+    summary_for_humans = aggregate.get("summary")
+    generated_at_for_humans = aggregate.get("generated_at")
 
     os.environ.setdefault("BOSS_OUT_DIR", str(boss_out_dir))
     os.environ.setdefault("BOSS_STAGE_GLOB", stage_glob)
@@ -186,6 +188,8 @@ def main() -> int:
         }
 
     report = ensure_schema_metadata(aggregate)
+    for key in ("summary", "generated_at"):
+        report.pop(key, None)
 
     payload = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
 
@@ -198,6 +202,18 @@ def main() -> int:
 
     boss_out_dir.mkdir(parents=True, exist_ok=True)
     (boss_out_dir / "boss-final-report.json").write_text(payload, encoding="utf-8")
+
+    human: list[str] = []
+    if summary_for_humans:
+        human.append(
+            "# Boss Final\n\n"
+            + json.dumps(summary_for_humans, ensure_ascii=False, indent=2)
+        )
+    if generated_at_for_humans:
+        human.append(f"\n\n_Gerado em_: {generated_at_for_humans}")
+    if human:
+        boss_out_dir.mkdir(parents=True, exist_ok=True)
+        (boss_out_dir / "summary.md").write_text("\n".join(human), encoding="utf-8")
 
     summary = report.get("summary", summarize_status(results))
     print(json.dumps(summary))

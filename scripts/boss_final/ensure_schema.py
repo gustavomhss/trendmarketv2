@@ -13,7 +13,7 @@ import sys
 import zipfile
 from typing import Any, MutableMapping
 
-MANDATORY = ("schema", "schema_version", "timestamp_utc", "generated_at", "status")
+MANDATORY = ("schema", "schema_version", "timestamp_utc", "status")
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -103,9 +103,6 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
     if not timestamp:
         normalized["timestamp_utc"] = _now_utc_z()
         timestamp = normalized["timestamp_utc"]
-
-    if not normalized.get("generated_at"):
-        normalized["generated_at"] = timestamp
 
     status = normalized.get("status")
     if isinstance(status, str) and status.strip():
@@ -200,6 +197,9 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
         raise SystemExit(
             f"[ensure-schema] campos obrigatórios ausentes após normalização: {', '.join(missing)}"
         )
+
+    for key in ("summary", "generated_at"):
+        normalized.pop(key, None)
 
     return normalized
 

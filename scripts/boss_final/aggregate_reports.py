@@ -9,6 +9,7 @@ import sys
 import zipfile
 from datetime import datetime, timezone
 from io import BytesIO
+from pathlib import Path
 from typing import Dict, List
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -215,17 +216,35 @@ def main() -> int:
         summary_counts[status] = summary_counts.get(status, 0) + 1
 
     final_status = "PASS" if summary_counts.get("passed", 0) == STAGE_COUNT else "FAIL"
+    raw_summary = {"counts": summary_counts}
+    generated_at = _now_utc()
     report = {
-        "generated_at": _now_utc(),
+        "generated_at": generated_at,
         "stages": stages,
-        "summary": {"counts": summary_counts},
+        "summary": raw_summary,
         "status": final_status,
     }
     report = ensure_schema_metadata(report)
+    summary_for_humans = raw_summary
+    generated_at_for_humans = generated_at
+    for key in ("summary", "generated_at"):
+        report.pop(key, None)
     report_path = os.path.join(out_dir, "report.json")
     with open(report_path, "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
+    human: list[str] = []
+    if summary_for_humans:
+        human.append(
+            "# Boss Final\n\n"
+            + json.dumps(summary_for_humans, ensure_ascii=False, indent=2)
+        )
+    if generated_at_for_humans:
+        human.append(f"\n\n_Gerado em_: {generated_at_for_humans}")
+    if human:
+        boss_out = Path("out/boss")
+        boss_out.mkdir(parents=True, exist_ok=True)
+        (boss_out / "summary.md").write_text("\n".join(human), encoding="utf-8")
     guard_path = os.path.join(out_dir, "guard_status.txt")
     with open(guard_path, "w", encoding="utf-8") as handle:
         handle.write(f"{final_status}\n")
