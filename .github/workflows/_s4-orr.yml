@@ -88,9 +88,11 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Gerar actions.lock
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          python3 -u .github/scripts/gen_actions_lock.py --root . --lock .github/actions.lock
+          python3 -m pip install --quiet PyYAML
+          python3 .github/scripts/gen_actions_lock.py
 
       - name: Aplicar actions.lock (pin por SHA)
         run: |
@@ -104,8 +106,8 @@ jobs:
 
       - name: Validar actions.lock
         run: |
-          set -euo pipefail
-          python3 -u .github/scripts/verify_actions_lock.py --root . --lock .github/actions.lock
+          python3 -m pip install --quiet PyYAML
+          python3 .github/scripts/verify_actions_lock.py
 
       - name: Security | Install Gitleaks (tarball)
         if: ${{ inputs.run_security }}

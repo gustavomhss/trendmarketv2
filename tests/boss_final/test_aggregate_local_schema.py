@@ -60,7 +60,8 @@ def test_required_fields(
     assert isinstance(data.get("schema_version"), int) and data["schema_version"] > 0, (
         "Campo `schema_version` ausente ou inválido"
     )
-    assert "generated_at" in data, "`generated_at` ausente"
+    assert "generated_at" not in data, "`generated_at` não deve estar presente"
+    assert "summary" not in data, "`summary` não deve estar presente"
     assert "timestamp_utc" in data, "`timestamp_utc` ausente"
     assert data.get("status") == "PASS", "`status` ausente ou inválido"
     bundle = data.get("bundle") or {}
@@ -68,6 +69,12 @@ def test_required_fields(
     bundle_path = pathlib.Path(bundle["path"])
     assert bundle_path.exists()
     assert bundle["size_bytes"] > 0
+
+    summary_path = boss_out_dir / "summary.md"
+    assert summary_path.exists(), "summary.md deve ser gerado"
+    summary_text = summary_path.read_text(encoding="utf-8")
+    assert "Boss Final" in summary_text
+    assert "Gerado em" in summary_text
 
     subprocess.check_call(
         ["python", "scripts/boss_final/aggregate_reports_local.py"],
