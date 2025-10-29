@@ -40,6 +40,7 @@ jobs:
       - name: Pytest
         run: pytest tests/test_normalizer.py tests/test_signature.py
       - name: Generate canonical batch
+        run: python scripts/ci/generate_canonical_batch.py
         run: |
           python - <<'PY'
 from datetime import datetime, timezone
