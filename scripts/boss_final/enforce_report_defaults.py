@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import json
-import sys
+import json, sys
 from pathlib import Path
 
 CANDIDATES = [
@@ -11,24 +10,25 @@ CANDIDATES = [
 ]
 
 DROP_KEYS = {"name", "clean", "exit_code"}
-ALLOWED = {"PASSED", "FAILED", "SKIPPED"}
+ALLOWED = {"PASS", "FAIL", "SKIP"}
 
 
 def norm_status(s: str) -> str:
     t = (s or "").strip().lower()
     if t in {"pass", "passed", "ok", "success", "successful", "green", "aprovado"}:
-        return "PASSED"
+        return "PASS"
     if t in {"fail", "failed", "error", "err", "broken", "red", "reprovado"}:
-        return "FAILED"
+        return "FAIL"
     if t in {"skip", "skipped", "ignored", "noop", "na", "n/a"}:
-        return "SKIPPED"
+        return "SKIP"
     u = (s or "").strip().upper()
-    if u == "PASS":
-        return "PASSED"
-    if u in ALLOWED:
-        return u
-    # Fallback seguro: se for algo inesperado, marque como FAILED
-    return "FAILED"
+    if u in {"PASSED", "PASS"}:
+        return "PASS"
+    if u in {"FAILED", "FAIL"}:
+        return "FAIL"
+    if u in {"SKIPPED", "SKIP"}:
+        return "SKIP"
+    return "FAIL"
 
 
 def load_target() -> Path | None:
@@ -41,7 +41,30 @@ def load_target() -> Path | None:
     return None
 
 
-def main() -> None:
+def sanitize_variants(v):
+    if not isinstance(v, dict):
+        return {}
+    changed = False
+    for vk, vv in list(v.items()):
+        if isinstance(vv, str):
+            v[vk] = {"status": norm_status(vv), "notes": ""}
+            changed = True
+        elif isinstance(vv, dict):
+            vv["status"] = norm_status(vv.get("status", ""))
+            if "notes" not in vv or vv.get("notes") is None:
+                vv["notes"] = ""
+                changed = True
+            for dk in list(DROP_KEYS):
+                if dk in vv:
+                    del vv[dk]
+                    changed = True
+        else:
+            v[vk] = {"status": "FAIL", "notes": ""}
+            changed = True
+    return v
+
+
+def main():
     p = load_target()
     if not p:
         print("[enforce] nenhum report.json encontrado", file=sys.stderr)
@@ -59,24 +82,26 @@ def main() -> None:
             stages[k] = {"status": norm_status(v), "variants": {}, "notes": ""}
             changed = True
             continue
-
         if not isinstance(v, dict):
-            stages[k] = {"status": "FAILED", "variants": {}, "notes": ""}
+            stages[k] = {"status": "FAIL", "variants": {}, "notes": ""}
             changed = True
             continue
 
-        # normaliza status
         v["status"] = norm_status(v.get("status", ""))
-
-        # garante campos exigidos
         if "variants" not in v or not isinstance(v.get("variants"), dict):
             v["variants"] = {}
             changed = True
+        else:
+            before = json.dumps(v["variants"], sort_keys=True)
+            v["variants"] = sanitize_variants(v["variants"])
+            after = json.dumps(v["variants"], sort_keys=True)
+            if before != after:
+                changed = True
+
         if "notes" not in v or v.get("notes") is None:
             v["notes"] = ""
             changed = True
 
-        # remove chaves rejeitadas pelo schema
         for dk in list(DROP_KEYS):
             if dk in v:
                 del v[dk]
@@ -86,7 +111,7 @@ def main() -> None:
         p.write_text(
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
-        print(f"[enforce] defaults/sanitize aplicados em {p}")
+        print(f"[enforce] normalize/sanitize aplicado em {p}")
     else:
         print("[enforce] nada a alterar")
 
