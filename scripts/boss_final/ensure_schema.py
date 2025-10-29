@@ -17,22 +17,39 @@ from typing import Any, MutableMapping
 MANDATORY = ("schema", "schema_version", "timestamp_utc", "status")
 
 
-@lru_cache(maxsize=1)
-def _load_schema_definition() -> dict[str, Any]:
-    """Load the Boss Final JSON Schema definition from known locations."""
+_SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+_SCHEMA_CANDIDATES = (
+    _REPO_ROOT / "jsonschema" / "boss_final.report.schema.json",
+    _REPO_ROOT / "jsonschema" / "schemas" / "boss_final.report.schema.json",
+    pathlib.Path("jsonschema/boss_final.report.schema.json"),
+    pathlib.Path("jsonschema/schemas/boss_final.report.schema.json"),
+)
 
-    candidates = (
-        pathlib.Path("jsonschema/boss_final.report.schema.json"),
-        pathlib.Path("jsonschema/schemas/boss_final.report.schema.json"),
-    )
-    for path in candidates:
+
+@lru_cache(maxsize=1)
+def _load_schema_definition() -> tuple[dict[str, Any], pathlib.Path]:
+    """Locate and load the Boss Final JSON Schema."""
+
+    errors: list[str] = []
+    for path in _SCHEMA_CANDIDATES:
         if not path.exists():
+            errors.append(f"{path} (missing)")
             continue
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
     return {}
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"{path} (invalid JSON: {exc})")
+            continue
+        return data, path
+    joined = "; ".join(errors) if errors else "no candidates"  # pragma: no cover - defensive
+    raise FileNotFoundError(
+        "Boss Final schema not found; checked: " + joined
+    )
 
 
 @lru_cache(maxsize=1)
@@ -40,6 +57,11 @@ def expected_schema_id() -> str:
     """Return the canonical schema identifier enforced by the JSON Schema."""
 
     data = _load_schema_definition()
+    try:
+        data, _ = _load_schema_definition()
+    except FileNotFoundError:
+        return "boss_final.report@v1"
+
     schema_node = data.get("properties", {}).get("schema", {})
     const_value = schema_node.get("const")
     if isinstance(const_value, str) and const_value.strip():
@@ -127,12 +149,35 @@ def expected_schema_version() -> int:
     if isinstance(const_value, str) and const_value.isdigit():
         return int(const_value)
     enum_values = version_node.get("enum")
+    """Expose the default schema version derived from the schema identifier."""
+    try:
+        data, _ = _load_schema_definition()
+    except FileNotFoundError:
+        return _schema_version_default()
+
+    schema_version_node = data.get("properties", {}).get("schema_version", {})
+    const_value = schema_version_node.get("const")
+    if isinstance(const_value, int):
+        return const_value
+    if isinstance(const_value, str):
+        try:
+            return int(const_value.strip())
+        except ValueError:
+            pass
+
+    enum_values = schema_version_node.get("enum")
     if isinstance(enum_values, list):
         for item in enum_values:
             if isinstance(item, int):
                 return item
             if isinstance(item, str) and item.isdigit():
                 return int(item)
+            if isinstance(item, str):
+                try:
+                    return int(item.strip())
+                except ValueError:
+                    continue
+
     return _schema_version_default()
 
 
