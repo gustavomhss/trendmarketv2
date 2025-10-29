@@ -4,8 +4,16 @@ import sys
 from pathlib import Path
 
 ALLOWED_STAGE_KEYS = {
-    "status", "checks", "notes", "variants", "triage", "evidence", "summary", "runtime"
+    "status",
+    "checks",
+    "notes",
+    "variants",
+    "triage",
+    "evidence",
+    "summary",
+    "runtime",
 }
+
 
 def main():
     p = Path(sys.argv[1] if len(sys.argv) > 1 else "out/boss_final/report.json")
@@ -27,12 +35,15 @@ def main():
                     v.pop(kk, None)
                     touched = True
         if touched:
-            p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            p.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
             print("[sanitize] report ajustado para o schema")
         else:
             print("[sanitize] nada a fazer")
     else:
         print("[sanitize] objeto 'stages' ausente/ inválido; nada a fazer")
+
 
 if __name__ == "__main__":
     main()
