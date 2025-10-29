@@ -47,13 +47,6 @@ def main() -> None:
     )
     args = p.parse_args()
 
-    base = {}
-    if args.report_path.exists():
-        try:
-            base = json.loads(args.report_path.read_text(encoding="utf-8"))
-        except Exception:
-            base = {}
-
     version = expected_schema_version()
     now = _now_utc_z()
     status = (args.status or "PASS").strip().upper() or "PASS"
