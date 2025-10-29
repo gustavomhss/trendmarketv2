@@ -13,6 +13,7 @@ on:
       - tests/goldens/normalizer/**
       - .github/workflows/validate-s7.yml
       - scripts/ci/validate_s7.py
+      - scripts/ci/generate_canonical_batch.py
   workflow_dispatch: {}
 
 jobs:
@@ -46,38 +47,7 @@ jobs:
         run: pytest -q tests/test_normalizer.py tests/test_signature.py
 
       - name: Generate canonical batch
-        shell: bash
-        run: |
-          python - <<'PY'
-from datetime import datetime, timezone
-from pathlib import Path
-from services.oracle.normalizer.normalizer import build_event
-from services.oracle.normalizer.merkle_append_only import write_batch
-
-now = datetime.now(timezone.utc).replace(microsecond=0)
-raw_events = [
-    {
-        "title": "Evento Workflow 1",
-        "lang": "pt",
-        "category": "mercado",
-        "source": "operador",
-        "observed_at": now.isoformat().replace("+00:00","Z"),
-        "payload": {"valor": 1},
-    },
-    {
-        "title": "Evento Workflow 2",
-        "lang": "es",
-        "category": "salud",
-        "source": "ministerio",
-        "observed_at": now.isoformat().replace("+00:00","Z"),
-        "payload": {"valor": 2},
-    },
-]
-events = [build_event(evt) for evt in raw_events]
-Path("out/evidence/S7_event_model").mkdir(parents=True, exist_ok=True)
-write_batch(events, batch_ts=now)
-print("generated batch")
-PY
+        run: python scripts/ci/generate_canonical_batch.py
 
       - name: Sign batch
         env:
