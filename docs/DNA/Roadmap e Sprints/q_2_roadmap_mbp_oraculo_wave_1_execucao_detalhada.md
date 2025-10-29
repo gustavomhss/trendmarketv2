@@ -1,175 +1,72 @@
-# Q2 Roadmap — MBP + Oráculo (Wave 1) — Execução Detalhada — **v2 com melhorias do comitê**
+# Q2 vFinal++ — MBP + Oráculo (Wave 1) — Especificação 100/10 (S7..S12) + Superprompt Codex
 
-Contexto: Masterplan v9 (Ultra‑Expanded). Este Q2 cobre **S7–S12** e entrega **R‑1.0** (Oráculo 1.5 + MBP v1 binário + Status/API públicas v1 + Antimanipulação v1), pronto para **Beta Fechado**. **Todas as melhorias solicitadas pelo comitê foram incorporadas abaixo sem alterar o cut‑line.**
+Contexto: Repositório canônico `trendmarketv2`. DNA v2 e A110 são fonte canônica. Free‑tier estrito (DuckDB/SQLite, GitHub Actions, testnets EVM). Orçamento em dinheiro reservado apenas para Beta Fechado. Corte de Q2 = R‑1.0 pronto para Beta Fechado. Este documento substitui versões anteriores do Q2 e consolida as melhorias do comitê, elevando a spec a 100/10.
 
----
+Objetivo macro de Q2: provar tecnicamente o oráculo BR/LatAm 0→1 em produção e operar o MBP binário com governança de risco (limites de exposição + kill‑switch por categoria), transparência pública e trilhas de evidências, reduzindo risco tecnológico e operacional para Q3.
 
-## Δ Deltas incorporados em Q2 (resumo)
-1) **Build gates (CI)** com **invariantes I1..I7** e **harness de append‑only (Merkle)**.
-2) **Limites de exposição** publicados (por mercado/usuário) e **kill‑switch por categoria** com runbook e testes.
-3) **Status page** com **monitor externo**, link de **abuso/appeals** e **template público de post‑mortem**.
-4) **A11y/UX**: microcopy final (PT‑BR/ES) e **acessibilidade de teclado/ARIA** nas telas de **Disputes** e **Status**.
-5) **Shadow backtests** da função de **fees** (sem efeito no preço) + **relatório semanal** para embasar Q3.
+Resultados‑chave até R‑1.0: staleness p95 ≤ 20s e divergence p95 ≤ 1,0% por 7 dias; auto‑resolução ≥ 95% com override ≤ 5%; uptime ≥ 99,5% (Q2); status público com monitor externo, link de abuso/appeals e template de post‑mortem; política de exposição publicada e kill‑switch por categoria testado em staging; primeiro relatório semanal de shadow backtests de fee; 0 P1 por 14 dias antes do corte; bundles de evidência S7..S12 assinados.
 
----
+Invariantes de Build (I1..I7) — gates bloqueantes no CI: I1: nenhum vazamento de segredo (gitleaks==0). I2: Trivy HIGH/CRITICAL==0. I3: workflows YAML válidos. I4: evidências presentes por sprint. I5: toolchain ruff/pytest instalada e operante. I6: docs críticos presentes (policy de exposição, runbook kill‑switch, post‑mortem template). I7: doc público da Status API presente.
 
-## 0) Objetivos e Resultados‑chave de Q2 (ajustados)
-**Objetivo macro:** provar tecnicamente o oráculo BR/LatAm 0→1 em produção **e** operar o MBP binário com governança de risco (exposição/kill‑switch), transparência pública e trilhas de evidências, reduzindo risco tecnológico e operacional para Q3.
+Invariantes de Produto (P1..P9) — validadas por watchers/testes:
+P1: proof append‑only por sprint que toca ingest.
+P2: staleness por fonte ≤ 15s (staging).
+P3: divergence p95 global ≤ 1%.
+P4: finalização do consenso ≤ 90s.
+P5: throughput consenso ≥ 5k eventos/min p95 (dataset sintético) com memória ≤ 512MB e CPU ≤ 1 vCPU em CI; footprint steady‑state ≤ 128MB.
+P6: ≥95% auto‑resolução e override ≤5%.
+P7: exposure policy paramétrica (por categoria/tier/fonte) aplicada e com testes de limites; kill‑switch testado (ativar/reverter).
+P8: A11y WCAG AA comprovada por matriz e evidência de navegação por teclado/taborder em Disputes/Status.
+P9: status público UP 7 dias + shadow report semanal gerado.
 
-**KR até R‑1.0:**
-- Oráculo: `staleness p95 ≤ 20s`, `divergence p95 ≤ 1,0%` (meta interim), uptime ≥ 99,5% (Q2).  
-- Resolução automática: ≥ 95% dos mercados binários resolvidos sem intervenção; `override ≤ 5%`.  
-- Antimanipulação v1: ataques simulados não elevam `divergence p95 > 1%` e `staleness p95 > 20s`.  
-- **Risco/mercado**: **limites de exposição publicados** (mercado/usuário) e **kill‑switch por categoria operacional**.  
-- Transparência: **status público** (incl. **monitor externo**, **error budgets agregados**, **abuso/appeals**, **post‑mortem template**) e **API v1** + **SDK verify**.  
-- Confiabilidade: **0 P1** por 14 dias consecutivos antes do corte; painéis de integridade publicados. 
+Plano de Sprints (S7→S12, duas semanas cada):
 
----
+S7 — Modelo de Evento, Normalização, Prova Append‑only e Assinatura Ed25519 com Rotação. Escopo: contrato canônico `contracts/data/event_v1.json`; normalizador PT/ES (canonização, datas ISO, entidades, `equivalenceHash` determinístico); dedup (hash+heurística); writer de lote com Merkle root + timestamp; **assinatura Ed25519** do lote; **rotação de chaves a cada 90 dias** com cadeia de confiança e política de custódia; harness de verificação append‑only + assinatura; ADRs de modelo, assinatura, rotação/custódia; regras de frescor iniciais. DoD: testes goldens 100%; p95 normalização ≤ 150 ms; `out/evidence/S7_event_model/proof_append_only.json` e `signature.json` gerados; `keystore.json` presente; ADR‑Event‑Model, ADR‑Event‑Signing e ADR‑Key‑Rotation versionados. Aceitação: P1 verde, I1..I5 verdes.
 
-## 1) Plano de Sprints (S7→S12) — com melhorias
+S8 — Adapters Tier‑1 BR/LatAm e Health/Compliance. Escopo: ~15 fontes com DSL mínima (fetch→parse→normalize), idempotência, retries, rate‑limit e circuit breaker; respeito a robots/ToS; health endpoints por fonte; painel “Oracle Sources”; segregação mínima de funções (dois operadores em rodízio, logs assinados). DoD: staleness p95 por fonte ≤ 15s (staging); falha isolada não derruba pipeline; `out/evidence/S8_sources_health/health_report.json`. Aceitação: P2 verde, I1..I5 verdes.
 
-### S7 — Modelo de Evento & Normalização (Semana 1–2)
-**Objetivo:** definir o contrato canônico do oráculo e normalizar entradas multi‑idioma, com cadeia de evidências e assinatura de lotes **com prova simples de append‑only**.
+S9 — Consenso v1 (2/3 + mediana ponderada), Watchers, Perf/Throughput & Memória. Escopo: engine `services/oracle/consensus/v1` com quorum 2/3; mediana ponderada por `trust_0`; watchers de staleness/divergence/uptime; **bench de throughput/memória** com dataset sintético (50k, 100k, 250k eventos) e orçamentos definidos; build gates no CI; ADR de consenso + ADR de perf. DoD: divergence p95 ≤ 1%, finalização ≤ 90s, **≥ 5k eventos/min p95** no dataset de 100k com memória ≤ 512MB em CI e steady ≤ 128MB local; `out/evidence/S9_consensus_v1/` com logs de quórum, `perf_report.json` e `ci_gates_report.json`; I1..I7 OK. Aceitação: P3, P4, P5 verdes, I1..I7 verdes.
 
-**Entregáveis (atualizados):**
-- Esquema canônico `contracts/data/event_v1.json`.
-- Normalizador `services/oracle/normalizer/*` (canonização PT/ES, datas ISO, entidades, equivalenceHash).
-- Dedup inicial (hash + heurística lexical).
-- **Writer de lote com Merkle tree (`B_t`) + timestamp + assinatura Ed25519** e **harness de verificação append‑only** (gera `proof_append_only.json`).
-- ADRs: `ADR-Event-Model.md`, `ADR-Event-Signing.md` (inclui política de relógio e drift).
-- Painel “Oracle Pipeline”; regras Prometheus de frescor por fonte; **teste automático de drift NTP**.
+S10 — MBP v1 Binário, Settlement e Disputa v1 com A11y e Exposição Paramétrica. Escopo: settlement binário e ledger local (DuckDB/CSV), reconciliação D+1; disputa v1 (janela, stake, override auditado); microcopy final PT‑BR/ES; **A11y WCAG AA** (teclado/ARIA) nas telas de Dispute; **política de exposição paramétrica** (YAML) por categoria/tier/fonte publicada e validações no backend. DoD: ≥ 95% auto‑resolução; override ≤ 5%; **A11y matrix** anexada e evidência de teclado/taborder gravada; `out/evidence/S10_end_to_end_settlement/` com extratos e prints A11y; `exposure_policy_q2.yml` e testes de limites aprovados. Aceitação: P6, P7 (policy) e P8 verdes, I1..I7 verdes.
 
-**DoD:** parsers 100% em goldens; p95 normalização ≤ 150ms; evidence `out/evidence/S7_event_model/` **contendo `proof_append_only.json`**.
+S11 — Antimanipulação v1, Simulador e Kill‑switch por Categoria. Escopo: guardas (outlier, semantic‑dedup, clusterização leve); simulador de ataques com KPIs; kill‑switch por categoria (flag runtime + banner em UI) e runbook `docs/runbooks/kill_switch_category.md`. DoD: sob ataques simulados, divergence p95 ≤ 1% e staleness p95 ≤ 20s; ativação/reversão do kill‑switch com `out/evidence/S11_attack_sims/kill_switch_test.log`. Aceitação: P7 (completo) verde, I1..I7 verdes.
 
----
+S12 — Transparência Pública v1 (Status/API/SDK), Shadow Backtests semanal e Monitor Externo. Escopo: Status API v1 (`/status`); **monitor externo UptimeRobot (Free, 5‑min interval) configurado**, alvo `/status` com latência < 1.5s p95 e disponibilidade ≥ 99,5%; link de abuso/appeals e template de post‑mortem público; API v1 com quotas/chaves e **webhooks HMAC**; **SDK v0 (read/verify) com contrato de versionamento SemVer** e **testes de conformidade**; pipeline de shadow backtests de fee com relatório semanal MD→PDF. DoD: p95 da API ≤ 200ms local; monitor “UP” 7 dias (capturas do UptimeRobot + `monitor_external_report.json`); primeiro relatório semanal publicado; `out/evidence/S12_api_status/` preenchido; testes de conformance do SDK v0 aprovados. Aceitação: P9 e I1..I7 verdes.
 
-### S8 — Adapters Tier‑1 BR/LatAm & Health (Semana 3–4)
-**Objetivo:** integrar ~15 fontes (APIs/RSS/HTML) com idempotência, retries, rate‑limits e health por fonte, respeitando robots/ToS.
+Estrutura de Repositório (alvos de Q2, atualizada): contracts/data/event_v1.json; services/oracle/normalizer/*; services/oracle/adapters/*; services/oracle/consensus/v1/*; services/oracle/guards/*; services/mbp/binary/*; services/mbp/validation/exposure.py; api/status.py; ui/disputes/*; ui/banners/kill_switch_banner.*; scripts/fees/fees_shadow.py; scripts/perf/consensus_bench.py; scripts/ci/*; scripts/dr/backup_restore.sh; scripts/crypto/sign_batch.py; tools/crypto/keystore.json; docs/econ/exposure_policy_q2.md; **docs/econ/exposure_policy_q2.yml**; docs/runbooks/kill_switch_category.md; docs/public/postmortem_template.md; docs/public/status_api_v1.md; **docs/public/monitor_external.md**; **docs/a11y/wcag_aa_matrix_disputes_status.md**; docs/release/R-1.0-checklist.md; models/tla/append_only/append_only.tla; models/tla/consensus/consensus_v1.tla; models/tla/guards/kill_switch.tla; out/evidence/<SPRINT>/ (gerado).
 
-**Entregáveis (atualizados):**
-- Adapters com DSL; idempotência; retries; rate‑limit; circuit breaker; compliance robots/CSP.
-- Health endpoints por fonte; painel “Oracle Sources”.
-- Política **nível‑0** (rascunho) e **segregação de funções** no pipeline (rodízio entre **2 operadores**; logs assinados).
+Criptografia — Assinatura Ed25519, Rotação e Custódia: `tools/crypto/keystore.json` armazena chaves com `kid`, `alg: Ed25519`, `created_at`, `not_after`, `issuer`, `pubkey`, `status`. Política: rotação a cada 90d; retenção de 1 chave ativa + 1 anterior (overlap 7d); custódia lógica separada (pasta com permissões restritas + audit trail). CLI: `scripts/crypto/sign_batch.py` assina o `batch_{ts}.json` (Merkle root) gerando `signature.json` com `{kid, alg, sig, merkle_root, ts}`; verificador no CI valida assinatura. ADR‑Key‑Rotation documenta cadeia de confiança e processo de rotação; `run_invariants.py` falha se `keystore.json` estiver ausente/fora da política.
 
-**DoD:** staleness p95 por‑fonte ≤ 15s (staging); falha isolada não derruba pipeline; evidence `S8_sources_health/`.
+Exposure Policy Paramétrica (YAML) + Testes de Limite: `docs/econ/exposure_policy_q2.yml` contém `categories: [politics, sports, entertainment, ...]`, `tiers: [guest, verified, pro]`, `limits: { per_market_pool_cap, per_user_category_cap, per_user_daily_cap }`, `sources_overrides`. Backend aplica validações; testes `tests/test_exposure_limits.py` cobrem limites, fronteiras (==, >, <) e combinações tier×categoria×fonte; UI exibe mensagens específicas PT‑BR/ES; doc MD espelha YAML e é linkado na UI.
 
----
+WCAG AA — Matriz e Evidência: `docs/a11y/wcag_aa_matrix_disputes_status.md` cataloga critérios (percebível/operável/compreensível/robusto), roles/ARIA, foco visível, ordem tabular, atalhos de teclado, contrastes, labels, estados; protocolo de teste inclui **vídeo/gif** de navegação por teclado (sem mouse) cobrindo fluxo Dispute/Status; evidências salvas em `out/evidence/S10_end_to_end_settlement/a11y/`.
 
-### S9 — Consenso v1 (2/3 + median) & Watchers (Semana 5–6)
-**Objetivo:** consolidar consenso jornalístico e ativar watchers bloqueantes, **com build gates de invariantes**.
+DR Test — Backup/Restore (Q2): `scripts/dr/backup_restore.sh` realiza dump horário (DuckDB/CSV), simula perda e restaura; critérios de aprovação: RPO ≤ 10m, RTO ≤ 45m; salva logs/tempos em `out/evidence/DR_Q2/backup_restore.log`; PR final precisa anexar esse log.
 
-**Entregáveis (atualizados):**
-- Engine `services/oracle/consensus/v1/*` (estados, quorum 2/3, mediana ponderada por `trust_0`).
-- Watchers: staleness global, divergence por categoria, uptime; painel “Oracle Integrity v1”.
-- **Build gates (CI) executando invariantes I1..I7 (safety)** como pre‑checks; falha de gate bloqueia merge.
-- ADR: `ADR-Consensus-v1.md`.
+Perf Harness & k6: `scripts/perf/consensus_bench.py` gera datasets 50k/100k/250k, mede latências/throughput/memória; escreve `out/reports/perf/perf_report.json` e gráfico simples PNG. `k6` para `/status` com 50 VUs/3min e SLO p95 ≤ 200ms (arquivo `k6/status_test.js`); resultados copiados para `out/evidence/S12_api_status/`.
 
-**DoD:** `divergence p95 ≤ 1%`; finalização ≤ 90s; **CI verde com gates de invariantes ativos**; evidence `S9_consensus_v1/`.
+SDK v0 — Contrato e Conformance: SemVer estrito. `sdk/python/` com funções `read_status()`, `verify_signature(batch, signature, pubkey)`. Testes `tests/sdk/test_sdk_conformance.py` garantem: compatibilidade do wire format, verificação Ed25519, tratamento de erros e versionamento (`__version__`). Checklist de publicação e CHANGELOG.
 
----
+Monitor Externo — UptimeRobot Free: documentação em `docs/public/monitor_external.md` (intervalo 5min, 2 falhas seguidas para DOWN, latência p95 < 1.5s, alvo `/status` com cabeçalho `Cache-Control: no-store`). Evidência `monitor_external_report.json` + screenshots exportados semanalmente para `out/evidence/S12_api_status/`.
 
-### S10 — MBP v1: Settlement Binário + Disputa v1 (Semana 7–8)
-**Objetivo:** ligar oráculo ao MBP binário e automatizar resolução/payout, **publicando limites de exposição** e **A11y/UX completas nas telas de Disputes**.
+Mapeamento P‑invariantes → TLA+/Assertions: P1↔`append_only.tla` (invariantes: impossibilidade de remoção/alteração; monotonicidade da raiz Merkle). P3/P4↔`consensus_v1.tla` (segurança: não‑divergência de decisão; liveness: decisão ≤ N rounds; quorum ≥2/3). P7↔`kill_switch.tla` (safety: com kill‑switch ativo, nenhum evento da categoria é processado; liveness: reversão reativa após sinal). `run_tla` no CI executa Apalache nessas specs quando presentes e publica traces em `out/evidence/<SPRINT>/tla/`.
 
-**Entregáveis (atualizados):**
-- Settlement binário; ledger; reconciliação D+1.
-- Disputa v1: contest window; stake; override auditado; **microcopy final PT‑BR/ES**; **acessibilidade de teclado/ARIA** (WCAG AA) para fluxos de disputa.
-- **Limites de exposição publicados:** documento `docs/econ/exposure_policy_q2.md` (mercado/usuário) + validações no backend para MBP v1.
-- Painel “Settlement & Disputes”.
+CI/ORR (refinado): `_s4-orr.yml` agora também verifica (I8) keystore válido e assinatura presente quando existir `out/evidence/*/batch_*.json` (falha se ausente). `run_invariants.py` inclui validação de `keystore.json`, `signature.json`, `monitor_external_report.json` (quando S12), presença de `perf_report.json` (S9) e de `a11y/` (S10).
 
-**DoD:** ≥ 95% auto‑resolução; override ≤ 5%; **A11y (teclado/ARIA) validada**; evidence `S10_end_to_end_settlement/`.
+SLOs e Alertas (Q2): ingest p95 ≤ 150 ms; agregação p95 ≤ 200 ms; consenso p95 ≤ 400 ms; API p95 ≤ 200 ms; throughput consenso ≥ 5k ev/min p95 (100k dataset) em CI; burn‑rate (1h/6h/24h); MTTR p95 ≤ 6h. DR: backup horário; restore test 1×; RPO ≤ 10 m, RTO ≤ 45 m.
 
----
+Segurança e Privacidade: CSP/Trusted Types, OAuth2+PKCE, HMAC nos webhooks, rotação de chaves 90d, LGPD minimização/DSRs, link de appeals.
 
-### S11 — Antimanipulação v1 + Simulador (Semana 9–10)
-**Objetivo:** elevar resiliência contra spam/poisoning, **habilitando kill‑switch por categoria com runbook** e testes.
+RACI/WIP: S7 Oráculo; S8 Oráculo; S9 Oráculo+SRE; S10 MBP+Produto/UX; S11 Oráculo+Segurança; S12 Plataforma+DevRel. WIP ≤ 2 sprints.
 
-**Entregáveis (atualizados):**
-- Guardas: outlier; semantic‑dedup; clusterização; **kill‑switch por categoria** (API interna + flag de runtime + banner na UI).
-- Simulador de ataques; KPIs; **runbook de kill‑switch** (`docs/runbooks/kill_switch_category.md`).
-- Painéis de ataque; relatório público no evidence.
+Riscos/Mitigações: fontes mudam → adapters tolerantes + fallback 24–48h. Divergência >1% persistente → ajuste `trust_0` + triagem auditada. Disputas frívolas → depósito mínimo + anti‑spam. Falhas API → WAF/rate‑limit; modo leitura; health externo. PII → isolamento/rotação/notificação/RCA com post‑mortem.
 
-**DoD:** sob ataques simulados, `divergence p95 ≤ 1%` e `staleness p95 ≤ 20s`; **kill‑switch testado (ativação/reversão) em staging**; evidence `S11_attack_sims/`.
+Go/No‑Go R‑1.0 (atualizado): staleness p95 ≤ 20s e divergence p95 ≤ 1% por 7 dias; ≥ 95% auto‑resolução; 0 P1 por 14 dias; status público com monitor externo (UptimeRobot) e appeals/post‑mortem; exposure policy paramétrica publicada e kill‑switch testado; bundles S7..S12 assinados; shadow report semanal #1; DR log aprovado; perf P5 atingido.
 
----
+Execução PR‑first (ordem e convenções): branches `q2/s7-event-model`, `q2/s8-adapters`, `q2/s9-consensus`, `q2/s10-mbp`, `q2/s11-anti-manip`, `q2/s12-status`. Cada PR: escopo, mudanças, DoD, evidências `out/evidence/<SPRINT>/`, resultado I1..I7(+I8), links ADRs/TLA. Merge somente com `_s4-orr` verde. PR final `release/r-1.0` com checklist e evidências.
 
-### S12 — Transparência Pública v1 (Status, API v1, SDK v0) (Semana 11–12)
-**Objetivo:** expor o estado do oráculo com **monitor externo**, **abuso/appeals**, **post‑mortem template** e **shadow backtests** de fee (sem impacto de preço).
+Plano de Testes: unitários (normalizador, equivalenceHash, guards, payout, SDK), integrados (adapters com fixtures, consenso em datasets, ledger/reconciliação), E2E determinísticos (criação→aposta→resolução→payout→disputa), perf/soak e DR.
 
-**Entregáveis (atualizados):**
-- **Status público**: staleness/divergence/uptime; **monitor externo third‑party** ativo; **link de abuso/appeals**; **template de post‑mortem público** (`docs/public/postmortem_template.md`); **error budgets agregados**.
-- **API v1** estável; quotas/chaves; webhooks HMAC; docs e exemplos.
-- **SDK v0 (read/verify)**.
-- **Shadow backtests**: pipeline que reprocessa trades/telemetria sob a função de fee v1.2 em modo sombra; relatório **semanal** `out/reports/fees_shadow_Q2/week_*.pdf`.
+Quickstart local de validação: `pytest -q`; `python services/oracle/normalizer/merkle_append_only.py`; `python scripts/crypto/sign_batch.py out/evidence/S7_event_model/batch_*.json`; `uvicorn api.status:app --host 0.0.0.0 --port 8080`; `k6 run k6/status_test.js`; `python scripts/perf/consensus_bench.py`; `bash scripts/dr/backup_restore.sh`.
 
-**DoD:** API p95 ≤ 200ms; **monitor externo reportando “UP” por 7 dias**; **primeiro relatório semanal de shadow backtest publicado**; evidence `S12_api_status/`.
-
----
-
-## 2) Release Train de Q2 — **R‑1.0 (Beta Fechado)**
-**Cut‑line:** após S12, com watchers estáveis, status público ativo e resolução binária automatizada.
-
-**Go/No‑Go (atualizado):**
-- [ ] `staleness p95 ≤ 20s`, `divergence p95 ≤ 1%` por 7 dias.
-- [ ] ≥ 95% auto‑resolução; 0 P1 por 14 dias.
-- [ ] Status page ativa com **monitor externo**, **abuso/appeals** e **post‑mortem template**.
-- [ ] **Política de exposição** publicada e **kill‑switch por categoria** testado em staging.
-- [ ] Evidence bundles S7..S12 assinados; painéis públicos.
-- [ ] **Relatório semanal #1 de shadow backtests** disponível.
-
-**Rollout do Beta Fechado:** convidados; termo de uso; feedback estruturado; limites de mercados/volume; observabilidade reforçada.
-
----
-
-## 3) Observabilidade, SRE e Operações em Q2 (ajustes)
-- **SLO waterfall p95:** ingest ≤150ms; agg ≤200ms; consenso ≤400ms; API ≤200ms.  
-- **Monitor externo** do status; **alertas de burn‑rate** (1h/6h/24h); **MTTR p95 ≤ 6h** (Q2).  
-- **DR**: backup horário; restore test 1×; RPO≤10m, RTO≤45m (Q2). 
-
----
-
-## 4) Segurança, Privacidade e Compliance (reforços)
-- **CSP/Trusted Types strict** desde a PWA; OAuth2+PKCE/HMAC; rotação de chaves 90d.  
-- **LGPD**: PII mínima (lista de espera/beta); DSRs; **link de appeals** no status.  
-- **Pentest interno leve** em Q2; bug bounty ativa em Q3.
-
----
-
-## 5) RACI/Streams e WIP (inalterado)
-- **Streams**: Oráculo (S7–S9, S11, S12), MBP (S10), Plataforma (S12).  
-- **Dono por sprint**: S7 Oráculo; S8 Oráculo; S9 Oráculo+SRE; S10 MBP+Produto/UX; S11 Oráculo+Segurança; S12 Plataforma+DevRel.  
-- **WIP**: máx. 2 sprints simultâneas.
-
----
-
-## 6) Riscos de Q2 e Mitigações (ajustados)
-1) Mudança de layout → validadores + fallback; correção 24–48h.  
-2) Divergência persistente > 1% → ajuste `trust_0` + triagem temporária auditada.  
-3) Disputas frívolas → depósito mínimo + heurística anti‑spam.  
-4) Falhas API → WAF/rate‑limits; modo leitura; health externo.  
-5) Dados/PII → isolamento/rotação/notificação/RCA; **template de post‑mortem** público.
-
----
-
-## 7) Entregáveis do Repositório (Q2) — **acrescidos**
-- Código: (`S7`) writer + **harness append‑only**; (`S9`) **CI gates de invariantes I1..I7**; (`S10`) **exposure policy** + validações; (`S11`) **kill‑switch categoria** + runbook; (`S12`) **monitor externo** + **shadow backtests**.
-- Docs: `docs/econ/exposure_policy_q2.md`, `docs/runbooks/kill_switch_category.md`, `docs/public/postmortem_template.md`, `docs/public/status_api_v1.md` (abuso/appeals), ADRs S7..S12.
-- Evidence: incluir em cada bundle artefatos dos deltas (ex.: `proof_append_only.json`, `ci_gates_report.json`, `exposure_policy.pdf`, `kill_switch_test.log`, `monitor_external_report.json`, `fees_shadow_report.pdf`).
-
----
-
-## 8) Comunicação e Investor Update (ajustes)
-- Mensagem‑chave: “Oráculo verificável + resolução automática **com governança de risco e transparência operacional** (monitor externo, appeals, post‑mortem)”.
-- Métricas: staleness/divergence, % auto‑resolução, disputas, uptime, incidentes/tempo de resposta, **policy de exposição e kill‑switch**.
-
----
-
-## 9) Pós‑Q2 (preparação para Q3) — reforçado
-- Consolidar **Tier‑2 fontes** e metas de cobertura (S13).  
-- Preparar **reputação dinâmica** (S15) com pesos iniciais derivados dos dados de Q2.  
-- Usar **shadow backtests** para estimar {k1,k2,k3} e cenários de halts; relatório final de Q2 como insumo para S16.
-
----
-
-**Conclusão:** Q2 v2 mantém o corte **R‑1.0** e adiciona controles críticos (gates formais, exposição/kill‑switch, transparência operacional, A11y, e backtests sombra) sem estourar prazo. Pronto para execução e reporte."}]}
-
+Superprompt — Versão Definitiva (Q2 vFinal++ → Codex, PR‑first, zero placeholders): Papel: AG2 (Codex Eng). Repositório: `trendmarketv2`. Objetivo: materializar integralmente esta especificação de Q2 (S7..S12) para entregar R‑1.0. Restrições: free‑tier; tudo reprodutível; evidências por sprint; gates I1..I7(+I8) bloqueantes. Estratégia: 6 PRs (S7..S12) + PR final de release. Para cada PR, criar exatamente a estrutura e os arquivos listados nesta spec, implementar funcionalidades, testes, TLA stubs e evidências conforme DoD/Aceitação; atualizar `CHANGELOG.md`; rodar `_s4-orr` até verde e publicar `s4-orr-evidence`. Abrir PR “R‑1.0 Release Train” com checklist e links de evidências. Política de falha: qualquer gate vermelho bloqueia merge; corrigir antes de re‑rodar. Resultado esperado: oráculo verificável (append‑only + assinatura/rotação), consenso v1 com metas de perf/mem, MBP binário com settlement/dispute/A11y/limites paramétricos, kill‑switch por categoria, status público/monitor/appeals/post‑mortem, shadow backtests semanais, DR test e ORR/CI sólidos; pronto para Beta Fechado (R‑1.0).
