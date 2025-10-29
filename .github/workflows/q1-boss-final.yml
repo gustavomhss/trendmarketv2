@@ -54,20 +54,21 @@ jobs:
       STAGE: ${{ matrix.stage }}
       CLEAN_RUNNER: 'false'
     steps:
-      - name: Guard: bloquear uses @v*
+      - name: "Guard: bloquear uses @v*"
+        shell: bash
         run: |
           set -euo pipefail
           if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
             echo "[guard] Encontrado uses @v* — bloqueando" >&2
             exit 2
           fi
-      - name: Checkout
+      - name: "Checkout"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: "3.11"
           check-latest: true
-      - name: Setup Python + venv + deps
+      - name: "Setup Python + venv + deps"
         uses: ./.github/actions/setup-python-venv
 
       - name: Ensure Ruff version (pin)
@@ -85,7 +86,7 @@ jobs:
             exit 1
           fi
 
-      - name: Prepare stage artifact directory
+      - name: "Prepare stage artifact directory"
         run: |
           set -euo pipefail
           ART_DIR="${{ runner.temp }}/boss-stage-${STAGE}"
@@ -94,16 +95,16 @@ jobs:
           echo "STAGE_ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
           echo "ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
 
-      - name: Execute sprint guard
+      - name: "Execute sprint guard"
         timeout-minutes: 5
         run: bash scripts/boss_final/ci_stage_wrapper.sh
-      - name: List stage artifact dir (debug)
+      - name: "List stage artifact dir (debug)"
         if: always()
         run: |
           set -euo pipefail
           ls -la "${{ runner.temp }}" || true
           ls -la "${{ env.ARTIFACT_DIR }}" || true
-      - name: Compact stage artifact
+      - name: "Compact stage artifact"
         if: always()
         env:
           STAGE: ${{ env.STAGE }}
@@ -120,7 +121,7 @@ jobs:
           rm -f "$zip_path"
           (cd "$art_dir" && zip -r -q "$OLDPWD/$zip_path" .)
           ls -lh "$zip_path"
-      - name: Upload stage artifact (zip)
+      - name: "Upload stage artifact (zip)"
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
@@ -141,33 +142,34 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
-      - name: Guard: bloquear uses @v*
+      - name: "Guard: bloquear uses @v*"
+        shell: bash
         run: |
           set -euo pipefail
           if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
             echo "[guard] Encontrado uses @v* — bloqueando" >&2
             exit 2
           fi
-      - name: Checkout
+      - name: "Checkout"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - name: Setup Python + venv + deps
+      - name: "Setup Python + venv + deps"
         uses: ./.github/actions/setup-python-venv
 
-      - name: Prepare artifact workspace
+      - name: "Prepare artifact workspace"
         if: always()
         run: |
           set -euo pipefail
           mkdir -p "${{ runner.temp }}/boss-arts"
           mkdir -p "${{ runner.temp }}/boss-aggregate"
 
-      - name: Download stage artifacts
+      - name: "Download stage artifacts"
         if: always()
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (v5)
         with:
           pattern: boss-stage-*
           merge-multiple: true
 
-      - name: Prepare out/boss
+      - name: "Prepare out/boss"
         if: always()
         shell: bash
         run: |
@@ -179,7 +181,7 @@ jobs:
           done
           ls -lh out/boss || true
 
-      - name: Aggregate reports (local)
+      - name: "Aggregate reports (local)"
         if: always()
         id: aggregate
         env:
@@ -193,7 +195,7 @@ jobs:
           . .venv/bin/activate 2>/dev/null || true
           python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
-      - name: Ensure `schema` on local aggregate report
+      - name: "Ensure `schema` on local aggregate report"
         if: steps.aggregate.outcome == 'success'
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
@@ -216,7 +218,7 @@ jobs:
           PY
           python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
 
-      - name: Enforce report defaults (notes)
+      - name: "Enforce report defaults (notes)"
         if: steps.aggregate.outcome == 'success'
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
@@ -225,7 +227,7 @@ jobs:
           . .venv/bin/activate 2>/dev/null || true
           python3 scripts/boss_final/enforce_report_defaults.py "$REPORT_DIR/report.json" || true
 
-      - name: Validate report schema (local)
+      - name: "Validate report schema (local)"
         if: steps.aggregate.outcome == 'success'
         env:
           REPORT_DIR: ${{ runner.temp }}/boss-aggregate
@@ -238,7 +240,7 @@ jobs:
           fi
           python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
 
-      - name: Generate local aggregate evidence bundle
+      - name: "Generate local aggregate evidence bundle"
         if: steps.aggregate.outcome == 'success'
         id: local_evidence
         env:
@@ -252,7 +254,7 @@ jobs:
           python scripts/boss_final/ensure_schema.py out/boss_final/report.local.json
           python scripts/boss_final/generate_local_evidence.py out/boss_final/report.local.json
 
-      - name: Append local aggregate summary
+      - name: "Append local aggregate summary"
         if: steps.aggregate.outcome == 'success'
         shell: bash
         run: |
@@ -267,7 +269,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Upload Boss Final aggregate
+      - name: "Upload Boss Final aggregate"
         if: steps.aggregate.outcome == 'success'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
@@ -278,7 +280,7 @@ jobs:
           retention-days: 7
           overwrite: true
 
-      - name: Evaluate guard status
+      - name: "Evaluate guard status"
         if: steps.aggregate.outcome == 'success'
         id: guard
         env:
@@ -294,7 +296,7 @@ jobs:
             exit 1
           fi
 
-      - name: Publish Boss Final summary
+      - name: "Publish Boss Final summary"
         if: steps.aggregate.outcome == 'success'
         uses: ./.github/actions/github-script
         env:
@@ -331,10 +333,10 @@ jobs:
               }
             }
 
-      - name: Enforce aggregate status
+      - name: "Enforce aggregate status"
         if: steps.aggregate.outcome == 'failure'
         run: exit 1
 
-      - name: Fail when any stage guard failed
+      - name: "Fail when any stage guard failed"
         if: ${{ always() && needs.stage.result == 'failure' }}
         run: exit 1
