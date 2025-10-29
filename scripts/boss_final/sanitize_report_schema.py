@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import json, sys
+import json
+import sys
 from pathlib import Path
 
 ALLOWED_STAGE_KEYS = {

@@ -174,7 +174,9 @@ def _telemetry_defaults() -> TelemetryHook:
     )
     node_snippet = """
 // src/rollout/metrics.js
-import { metrics, trace, context } from '@opentelemetry/api';
+import { metrics
+import trace
+import context } from '@opentelemetry/api';
 const meter = metrics.getMeter('mbp-s2');
 export const canaryCounter = meter.createCounter('mbp.canary.decisions', {
   description: 'Decisões de roteamento: canary/stable',
@@ -231,7 +233,9 @@ def record_decision(decision: str, **attrs):
 def _typed_variants_defaults() -> TypedVariants:
     ts_snippet = """
 // src/middleware/shadow.ts
-import type { Request, Response, NextFunction } from 'express';
+import type { Request
+import Response
+import NextFunction } from 'express';
 import fetch from 'node-fetch';
 
 const SHADOW_ENABLED = process.env.SHADOW_ENABLED === 'true';
