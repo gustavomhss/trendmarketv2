@@ -37,6 +37,10 @@ def _load_schema_definition() -> tuple[dict[str, Any], pathlib.Path]:
             errors.append(f"{path} (missing)")
             continue
         try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+    return {}
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             errors.append(f"{path} (invalid JSON: {exc})")
@@ -52,6 +56,7 @@ def _load_schema_definition() -> tuple[dict[str, Any], pathlib.Path]:
 def expected_schema_id() -> str:
     """Return the canonical schema identifier enforced by the JSON Schema."""
 
+    data = _load_schema_definition()
     try:
         data, _ = _load_schema_definition()
     except FileNotFoundError:
@@ -134,6 +139,16 @@ def _infer_version(data: MutableMapping[str, Any]) -> int:
 
 
 def expected_schema_version() -> int:
+    """Return the canonical schema version declared by the JSON Schema."""
+
+    data = _load_schema_definition()
+    version_node = data.get("properties", {}).get("schema_version", {})
+    const_value = version_node.get("const")
+    if isinstance(const_value, int):
+        return const_value
+    if isinstance(const_value, str) and const_value.isdigit():
+        return int(const_value)
+    enum_values = version_node.get("enum")
     """Expose the default schema version derived from the schema identifier."""
     try:
         data, _ = _load_schema_definition()
@@ -155,6 +170,8 @@ def expected_schema_version() -> int:
         for item in enum_values:
             if isinstance(item, int):
                 return item
+            if isinstance(item, str) and item.isdigit():
+                return int(item)
             if isinstance(item, str):
                 try:
                     return int(item.strip())
