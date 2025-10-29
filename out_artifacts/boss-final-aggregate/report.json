@@ -1,0 +1,107 @@
+{
+  "schema": "trendmarketv2.q1.boss.report",
+  "schema_version": 2,
+  "timestamp_utc": "2025-10-27T03:55:29Z",
+  "status": "FAIL",
+  "stages": {
+    "s1": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    },
+    "s2": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    },
+    "s3": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    },
+    "s4": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    },
+    "s5": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    },
+    "s6": {
+      "status": "FAIL",
+      "notes": "primary:FAIL | clean:FAIL",
+      "variants": {
+        "primary": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        },
+        "clean": {
+          "status": "FAIL",
+          "notes": "Dados do variant ausentes (artifact não encontrado)",
+          "timestamp_utc": "2025-10-27T03:55:29Z"
+        }
+      }
+    }
+  },
+  "bundle": {
+    "sha256": "dcf1a640dca5947e844184d679b86883e2953f46664eb37ca76f38e9011e5409"
+  }
+}
