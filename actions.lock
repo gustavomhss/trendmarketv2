@@ -1,53 +1,53 @@
 {
   "version": 1,
   "metadata": {
-    "sha": "90625b8ea681669ff21ad8aca36d6a221f7c9350",
-    "date": "2025-10-29T00:48:44Z",
+    "sha": "881343574f7bab4e0dcc2d30a54f1afd1e064514",
+    "date": "2025-10-29T01:14:01Z",
     "author": "CI Bot <ci@trendmarketv2.local>",
     "rationale": "auto-sync action pins for workflow consistency"
   },
   "actions": [
     {
       "repo": "actions/checkout",
-      "ref": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "ref": "v4",
       "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
-      "date": "2025-10-29T00:48:44Z",
+      "date": "2025-10-29T01:14:01Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/checkout/commit/11bd71901bbe5b1630ceea73d27597364c9af683"
     },
     {
       "repo": "actions/download-artifact",
-      "ref": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
+      "ref": "v4",
       "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-      "date": "2025-10-29T00:48:44Z",
+      "date": "2025-10-29T01:14:01Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/download-artifact/commit/d3f86a106a0bac45b974a628896c90dbdf5c8093"
     },
     {
       "repo": "actions/setup-python",
-      "ref": "42375524e23c412d93fb67b49958b491fce71c38",
+      "ref": "v5",
       "sha": "42375524e23c412d93fb67b49958b491fce71c38",
-      "date": "2025-10-29T00:48:44Z",
+      "date": "2025-10-29T01:14:01Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
     },
     {
       "repo": "actions/upload-artifact",
-      "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "ref": "v4",
       "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
-      "date": "2025-10-29T00:48:44Z",
+      "date": "2025-10-29T01:14:01Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/upload-artifact/commit/ea165f8d65b6e75b540449e92b4886f43607fa02"
     },
     {
       "repo": "docker/login-action",
-      "ref": "e995cd7a8f6f9b877a4c1a27820f3e397985f9f2",
+      "ref": "v3",
       "sha": "e995cd7a8f6f9b877a4c1a27820f3e397985f9f2",
-      "date": "2025-10-29T00:48:44Z",
+      "date": "2025-10-29T01:14:01Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/docker/login-action/commit/e995cd7a8f6f9b877a4c1a27820f3e397985f9f2"

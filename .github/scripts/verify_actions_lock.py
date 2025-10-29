@@ -13,7 +13,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCK_PATH = ROOT / "actions.lock"
@@ -21,6 +21,9 @@ DEFAULT_REPORT_PATH = ROOT / "out" / "guard" / "s4" / "actions_lock_report.json"
 HEX40_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 ACTION_PATTERN = re.compile(
     r"^(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+)(?P<path>(?:/[A-Za-z0-9_.\-/]+)?)$"
+)
+USES_PATTERN = re.compile(
+    r"^(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.\-/]+)?)@(?P<ref>[^\s@]+)$"
 )
 USER_AGENT = "trendmarketv2-actions-lock-verify"
 
@@ -233,18 +236,35 @@ def validate_actions_entries(
     return issues, checked
 
 
-def validate_workflow_pins(workflows_dir: Path) -> List[ValidationIssue]:
+def validate_workflow_refs(
+    workflows_dir: Path, lock_refs: Dict[str, set[str]]
+) -> List[ValidationIssue]:
     issues: List[ValidationIssue] = []
     for workflow, uses_value in collect_workflow_uses(workflows_dir):
-        if "@" not in uses_value:
+        match = USES_PATTERN.match(uses_value)
+        if not match:
             issues.append(
-                ValidationIssue(workflow, f"uses entry without @: {uses_value}")
+                ValidationIssue(workflow, f"invalid uses entry: {uses_value}")
             )
             continue
-        ref = uses_value.split("@", 1)[1].strip()
-        if not HEX40_RE.fullmatch(ref):
+        repo = match.group("repo")
+        ref = match.group("ref")
+        allowed_refs = lock_refs.get(repo)
+        if not allowed_refs:
             issues.append(
-                ValidationIssue(workflow, f"reference not pinned to SHA: {uses_value}")
+                ValidationIssue(
+                    workflow,
+                    f"{repo}@{ref} missing from actions.lock",
+                )
+            )
+            continue
+        if ref not in allowed_refs:
+            available = ", ".join(sorted(allowed_refs))
+            issues.append(
+                ValidationIssue(
+                    workflow,
+                    f"{repo}@{ref} not listed in actions.lock (available: {available})",
+                )
             )
     return issues
 
@@ -269,11 +289,20 @@ def main(argv: List[str] | None = None) -> int:
     issues = validate_lock_structure(lock_data)
     actions = lock_data.get("actions")
     checked_actions = 0
+    lock_refs: Dict[str, set[str]] = {}
     if isinstance(actions, list) and actions:
         action_issues, checked_actions = validate_actions_entries(actions, token)
         issues.extend(action_issues)
+        for entry in actions:
+            repo_value = entry.get("repo")
+            ref_value = entry.get("ref")
+            if not isinstance(repo_value, str) or not isinstance(ref_value, str):
+                continue
+            if not ACTION_PATTERN.match(repo_value):
+                continue
+            lock_refs.setdefault(repo_value, set()).add(ref_value)
     workflows_dir = ROOT / ".github" / "workflows"
-    issues.extend(validate_workflow_pins(workflows_dir))
+    issues.extend(validate_workflow_refs(workflows_dir, lock_refs))
 
     report = {
         "lock_path": str(lock_path.relative_to(ROOT)),
