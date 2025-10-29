@@ -97,7 +97,7 @@ jobs:
           echo "PLAN_OK"
 
       - name: Publicar artefatos (plan)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: crd-epic-plan-${{ github.ref_name }}-${{ github.run_id }}
           path: ${{ steps.io.outputs.out_dir }}/

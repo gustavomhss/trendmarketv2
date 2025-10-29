@@ -52,7 +52,9 @@ def rewrite_line(line: str) -> tuple[str, bool]:
 
     comment = f"  # pinned (was {ref.split('@', 1)[1]})"
 
-    replacement = f"{match.group('prefix')}{match.group('quote')}{pinned}{match.group('quote')}"
+    replacement = (
+        f"{match.group('prefix')}{match.group('quote')}{pinned}{match.group('quote')}"
+    )
     suffix = match.group("suffix") or ""
     if suffix.strip():
         replacement += suffix

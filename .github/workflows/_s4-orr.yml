@@ -199,7 +199,7 @@ jobs:
 
       - name: Security | Upload findings
         if: ${{ always() && inputs.run_security }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: security-findings
           path: out/security/**
@@ -347,7 +347,7 @@ jobs:
           exit "$RC"
 
       - name: Upload TLA report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
         with:
           name: tla-report
@@ -483,7 +483,7 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: s4-dbt-docs
           path: analytics/dbt/target
@@ -491,7 +491,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: s5-bundle
           path: |
@@ -504,7 +504,7 @@ jobs:
 
       - name: Upload auditoria pip
         if: ${{ always() && !inputs.run_tla }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: pip-audit
           path: out/pip-audit
@@ -512,7 +512,7 @@ jobs:
 
       - name: Upload s5-orr evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: s5-orr-evidence
           path: |
