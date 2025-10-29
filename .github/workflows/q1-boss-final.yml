@@ -54,6 +54,13 @@ jobs:
       STAGE: ${{ matrix.stage }}
       CLEAN_RUNNER: 'false'
     steps:
+      - name: Guard: bloquear uses @v*
+        run: |
+          set -euo pipefail
+          if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
+            echo "[guard] Encontrado uses @v* — bloqueando" >&2
+            exit 2
+          fi
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
@@ -134,6 +141,13 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
+      - name: Guard: bloquear uses @v*
+        run: |
+          set -euo pipefail
+          if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
+            echo "[guard] Encontrado uses @v* — bloqueando" >&2
+            exit 2
+          fi
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - name: Setup Python + venv + deps
@@ -201,6 +215,15 @@ jobs:
           print(f"[boss-final] expected schema={expected} | current={actual}")
           PY
           python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
+
+      - name: Enforce report defaults (notes)
+        if: steps.aggregate.outcome == 'success'
+        env:
+          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate 2>/dev/null || true
+          python3 scripts/boss_final/enforce_report_defaults.py "$REPORT_DIR/report.json" || true
 
       - name: Validate report schema (local)
         if: steps.aggregate.outcome == 'success'
