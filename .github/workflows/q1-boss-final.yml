@@ -148,7 +148,7 @@ jobs:
 
       - name: Download stage artifacts
         if: always()
-        uses: actions/download-artifact@cc20338ba2f079446182a90c0d65f173b7af4b23  # pinned (was v4)
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (v5)
         with:
           pattern: boss-stage-*
           merge-multiple: true
