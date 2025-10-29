@@ -3,21 +3,22 @@ name: validate-s7
 on:
   pull_request:
     paths:
-      - 'contracts/data/event_v1.json'
-      - 'services/oracle/normalizer/**'
-      - 'scripts/crypto/**'
-      - 'docs/ADR/**'
-      - 'models/tla/append_only/**'
-      - 'tests/test_normalizer.py'
-      - 'tests/test_signature.py'
-      - 'tests/goldens/normalizer/**'
-      - '.github/workflows/validate-s7.yml'
-      - 'scripts/ci/validate_s7.py'
-  workflow_dispatch:
+      - contracts/data/event_v1.json
+      - services/oracle/normalizer/**
+      - scripts/crypto/**
+      - docs/ADR/**
+      - models/tla/append_only/**
+      - tests/test_normalizer.py
+      - tests/test_signature.py
+      - tests/goldens/normalizer/**
+      - .github/workflows/validate-s7.yml
+      - scripts/ci/validate_s7.py
+  workflow_dispatch: {}
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    name: S7 validation
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       actions: read
@@ -27,20 +28,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest pynacl cryptography psutil
+
       - name: Ruff lint
         run: ruff check .
+
       - name: Pytest
-        run: pytest tests/test_normalizer.py tests/test_signature.py
+        run: pytest -q tests/test_normalizer.py tests/test_signature.py
+
       - name: Generate canonical batch
-        run: python scripts/ci/generate_canonical_batch.py
+        shell: bash
         run: |
           python - <<'PY'
 from datetime import datetime, timezone
@@ -48,13 +54,14 @@ from pathlib import Path
 from services.oracle.normalizer.normalizer import build_event
 from services.oracle.normalizer.merkle_append_only import write_batch
 
+now = datetime.now(timezone.utc).replace(microsecond=0)
 raw_events = [
     {
         "title": "Evento Workflow 1",
         "lang": "pt",
         "category": "mercado",
         "source": "operador",
-        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "observed_at": now.isoformat().replace("+00:00","Z"),
         "payload": {"valor": 1},
     },
     {
@@ -62,31 +69,39 @@ raw_events = [
         "lang": "es",
         "category": "salud",
         "source": "ministerio",
-        "observed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "observed_at": now.isoformat().replace("+00:00","Z"),
         "payload": {"valor": 2},
     },
 ]
-now = datetime.now(timezone.utc)
-normalised = [dict(build_event(evt, now=now)) for evt in raw_events]
-write_batch(normalised, batch_ts=now)
+events = [build_event(evt) for evt in raw_events]
+Path("out/evidence/S7_event_model").mkdir(parents=True, exist_ok=True)
+write_batch(events, batch_ts=now)
+print("generated batch")
 PY
+
       - name: Sign batch
         env:
-          ORACLE_ED25519_SEED: YjVJzNqMrMo6vdEAHj0AVMSn7UvBcQDzXagHgN5KVPg=
+          ORACLE_ED25519_SEED: ${{ secrets.ORACLE_ED25519_SEED }}
         run: python scripts/crypto/sign_batch.py
+
       - name: Verify signature
         run: python scripts/crypto/verify_signature.py
+
       - name: Validate sprint gates
         run: python scripts/ci/validate_s7.py
-      - name: Upload validation artefacts
+
+      - name: Upload validation artifacts
         uses: actions/upload-artifact@v4
         with:
           name: s7-validation-artifacts
           path: |
             out/reports/validation/
             out/evidence/S7_event_model/
-      - name: Oracle review runner
-        uses: ./.github/workflows/_s4-orr.yml
-        with:
-          run_tla: true
-        secrets: inherit
+
+  call-orr:
+    name: ORR gates (_s4-orr)
+    uses: ./.github/workflows/_s4-orr.yml
+    needs: validate
+    with:
+      run_tla: true
+    secrets: inherit
