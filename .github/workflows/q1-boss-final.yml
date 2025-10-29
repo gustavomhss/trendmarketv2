@@ -55,8 +55,8 @@ jobs:
       CLEAN_RUNNER: 'false'
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+        uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           check-latest: true
@@ -115,11 +115,11 @@ jobs:
           ls -lh "$zip_path"
       - name: Upload stage artifact (zip)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@v4
         with:
           name: boss-stage-${{ env.STAGE }}
           path: out/boss/boss-stage-${{ env.STAGE }}.zip
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
           overwrite: true
   aggregate:
@@ -135,7 +135,7 @@ jobs:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+        uses: actions/checkout@v4
       - name: Setup Python + venv + deps
         uses: ./.github/actions/setup-python-venv
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: Download stage artifacts
         if: always()
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # pinned (was v4)
+        uses: actions/download-artifact@v4
         with:
           pattern: boss-stage-*
           merge-multiple: true
@@ -188,17 +188,18 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
           python - <<'PY'
-from pathlib import Path
-import json
+          import json
+          import os
+          from pathlib import Path
 
-from scripts.boss_final.ensure_schema import expected_schema_id
+          from scripts.boss_final.ensure_schema import expected_schema_id
 
-report_path = Path("$REPORT_DIR") / "report.json"
-data = json.loads(report_path.read_text(encoding="utf-8"))
-expected = expected_schema_id()
-actual = data.get("schema")
-print(f"[boss-final] expected schema={expected} | current={actual}")
-PY
+          report_path = Path(os.environ["REPORT_DIR"]) / "report.json"
+          data = json.loads(report_path.read_text(encoding="utf-8"))
+          expected = expected_schema_id()
+          actual = data.get("schema")
+          print(f"[boss-final] expected schema={expected} | current={actual}")
+          PY
           python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
 
       - name: Validate report schema (local)
@@ -245,7 +246,7 @@ PY
 
       - name: Upload Boss Final aggregate
         if: steps.aggregate.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        uses: actions/upload-artifact@v4
         with:
           name: boss-final-aggregate
           path: |

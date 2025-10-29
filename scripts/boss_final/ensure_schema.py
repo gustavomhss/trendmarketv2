@@ -20,6 +20,8 @@ MANDATORY = ("schema", "schema_version", "timestamp_utc", "status")
 _SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 _SCHEMA_CANDIDATES = (
+    _REPO_ROOT / "schemas" / "q1_boss_report.schema.json",
+    pathlib.Path("schemas/q1_boss_report.schema.json"),
     _REPO_ROOT / "jsonschema" / "boss_final.report.schema.json",
     _REPO_ROOT / "jsonschema" / "schemas" / "boss_final.report.schema.json",
     pathlib.Path("jsonschema/boss_final.report.schema.json"),
@@ -52,20 +54,22 @@ def expected_schema_id() -> str:
     """Return the canonical schema identifier enforced by the JSON Schema."""
 
     try:
-        data, _ = _load_schema_definition()
+        data, schema_path = _load_schema_definition()
     except FileNotFoundError:
         return "boss_final.report@v1"
 
-    schema_node = data.get("properties", {}).get("schema", {})
-    const_value = schema_node.get("const")
-    if isinstance(const_value, str) and const_value.strip():
-        return const_value.strip()
-    enum_values = schema_node.get("enum")
-    if isinstance(enum_values, list):
-        for item in enum_values:
-            if isinstance(item, str) and item.strip():
-                return item.strip()
-    return "boss_final.report@v1"
+    try:
+        const_value = data["properties"]["schema"]["const"]
+    except Exception as exc:  # pragma: no cover - defensive
+        raise RuntimeError(
+            f"Não foi possível determinar 'schema.const' em {schema_path}: {exc}"
+        ) from exc
+
+    if not isinstance(const_value, str) or not const_value.strip():
+        raise RuntimeError(
+            f"Valor inválido para 'schema.const' em {schema_path}: {const_value!r}"
+        )
+    return const_value.strip()
 
 
 def _schema_version_default() -> int:
