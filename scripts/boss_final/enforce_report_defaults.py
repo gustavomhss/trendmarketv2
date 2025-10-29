@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import json
 import sys
+import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 STATUS_MAP = {
     "PASS": "PASS",
@@ -26,11 +28,10 @@ REQUIRED_VARIANTS = ("primary", "clean")
 
 
 def now_ts_utc() -> str:
-    # ISO 8601 sem micros, com Z, para satisfazer schema format:"date-time"
     return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def nstatus(value):
+def nstatus(value: Any) -> Optional[str]:
     if value is None:
         return None
     text = str(value).strip()
@@ -39,165 +40,183 @@ def nstatus(value):
     return STATUS_MAP.get(text, text.upper())
 
 
-def as_notes(value):
+def as_notes(value: Any) -> str:
     return value if isinstance(value, str) else ""
 
 
-def as_timestamp(value):
+def as_timestamp(value: Any) -> str:
     if isinstance(value, str) and value.strip():
-        # aceita um valor já presente; schema validará o formato
         return value.strip()
     return now_ts_utc()
 
 
-def norm_variant(variant_dict, fallback_status):
-    result = {}
-    if isinstance(variant_dict, dict):
-        status = nstatus(variant_dict.get("status")) or fallback_status or "FAIL"
-        for key, val in variant_dict.items():
-            if key in ALLOWED_VARIANT_KEYS:
-                result[key] = val
-        result["status"] = status
-    else:
-        result["status"] = fallback_status or "FAIL"
-    result["notes"] = as_notes(result.get("notes"))
-    result["timestamp_utc"] = as_timestamp(result.get("timestamp_utc"))
-    return result
-
-
-def stage_from_scalar(scalar):
-    status = nstatus(scalar) or "FAIL"
-    ts = now_ts_utc()
-    return {
-        "status": status,
-        "notes": "",
-        "variants": {
-            "primary": {"status": status, "notes": "", "timestamp_utc": ts},
-            "clean": {"status": status, "notes": "", "timestamp_utc": ts},
-        },
-    }
-
-
-def norm_stage(stage_val):
-    if isinstance(stage_val, str):
-        return stage_from_scalar(stage_val)
-    if not isinstance(stage_val, dict):
-        return stage_from_scalar("FAIL")
-
-    top_clean = stage_val.get("clean", None)
-    st_top = nstatus(stage_val.get("status"))
-    notes = as_notes(stage_val.get("notes"))
-
-    variants_in = stage_val.get("variants")
-    if not isinstance(variants_in, dict):
-        variants_in = {}
-
-    out_variants = {}
-    for name, vd in variants_in.items():
-        out_variants[name] = norm_variant(vd, st_top)
-
-    for required in REQUIRED_VARIANTS:
-        if required not in out_variants:
-            if required == "clean" and isinstance(top_clean, (bool, str, int)):
-                truthy = str(top_clean).strip().lower() in {
-                    "1",
-                    "true",
-                    "yes",
-                    "y",
-                    "on",
-                }
-                out_variants[required] = {
-                    "status": "PASS" if truthy else (st_top or "FAIL"),
-                    "notes": "",
-                    "timestamp_utc": now_ts_utc(),
-                }
-            else:
-                out_variants[required] = {
-                    "status": (st_top or "FAIL"),
-                    "notes": "",
-                    "timestamp_utc": now_ts_utc(),
-                }
-
-    st_final = nstatus(out_variants["primary"].get("status")) or "FAIL"
-
-    cleaned_variants = {}
-    for name, vd in out_variants.items():
-        coerced = {
-            "status": nstatus(vd.get("status")) or "FAIL",
-            "notes": as_notes(vd.get("notes")),
-            "timestamp_utc": as_timestamp(vd.get("timestamp_utc")),
+def coerce_variant(obj: Any, fallback: Optional[str] = None) -> Dict[str, Any]:
+    if isinstance(obj, str):
+        st = nstatus(obj) or (fallback or "FAIL")
+        return {"status": st, "notes": "", "timestamp_utc": now_ts_utc()}
+    if isinstance(obj, dict):
+        st = nstatus(obj.get("status")) or (fallback or "FAIL")
+        return {
+            "status": st,
+            "notes": as_notes(obj.get("notes")),
+            "timestamp_utc": as_timestamp(obj.get("timestamp_utc")),
         }
-        cleaned_variants[name] = coerced
+    st = fallback or "FAIL"
+    return {"status": st, "notes": "", "timestamp_utc": now_ts_utc()}
 
-    return {"status": st_final, "notes": notes, "variants": cleaned_variants}
+
+def normalize_stage(value: Any) -> Dict[str, Any]:
+    top_status: Optional[str] = None
+    top_clean: Optional[str] = None
+    variants_in: Optional[Dict[str, Any]] = None
+
+    if isinstance(value, str):
+        top_status = nstatus(value) or "FAIL"
+    elif isinstance(value, dict):
+        top_status = nstatus(value.get("status"))
+        top_clean = nstatus(value.get("clean"))
+        var = value.get("variants")
+        if isinstance(var, dict):
+            variants_in = var
+
+    variants_out: Dict[str, Dict[str, Any]] = {}
+    variants_out["primary"] = coerce_variant(
+        variants_in.get("primary") if variants_in else None,
+        fallback=top_status or "FAIL",
+    )
+    variants_out["clean"] = coerce_variant(
+        variants_in.get("clean") if variants_in else None,
+        fallback=top_clean or top_status or "FAIL",
+    )
+
+    # Sanitiza chaves e completa campos faltantes
+    for name in list(variants_out.keys()):
+        v = {k: variants_out[name][k] for k in ALLOWED_VARIANT_KEYS}
+        if "status" not in v:
+            v["status"] = "FAIL"
+        if "notes" not in v:
+            v["notes"] = ""
+        if "timestamp_utc" not in v:
+            v["timestamp_utc"] = now_ts_utc()
+        variants_out[name] = v
+
+    for reqv in REQUIRED_VARIANTS:
+        if reqv not in variants_out:
+            variants_out[reqv] = {
+                "status": "FAIL",
+                "notes": "",
+                "timestamp_utc": now_ts_utc(),
+            }
+
+    return {"variants": variants_out}
 
 
-def apply_all(data):
+def apply_all(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(data, dict):
         return data
     stages = data.get("stages")
     if isinstance(stages, dict):
-        new_stages = {}
-        for key, value in stages.items():
-            new_stages[key] = norm_stage(value)
-        data["stages"] = new_stages
+        normalized: Dict[str, Any] = {}
+        for k, v in stages.items():
+            normalized[k] = normalize_stage(v)
+        data["stages"] = normalized
     return data
 
 
-def resolve_targets(cli_arg):
+def overall_status(data: Dict[str, Any]) -> str:
+    stages = data.get("stages", {})
+    for v in stages.values():
+        try:
+            st = v["variants"]["primary"]["status"]
+        except Exception:
+            return "FAIL"
+        if st != "PASS":
+            return "FAIL"
+    return "PASS"
+
+
+def resolve_targets(cli_arg: Optional[str]) -> List[Path]:
+    candidates: List[Path] = []
     if cli_arg:
-        pth = Path(cli_arg)
-        return [pth] if pth.is_file() else []
-
-    candidates = [
-        Path("out/boss_final/report.local.json"),
-        Path("out/boss_final/report.json"),
-        Path("out/summary/report.json"),
-        Path("out/report.json"),
-        Path("boss-final-report.json"),
-    ]
-
-    for pth in Path(".").rglob("report.json"):
-        sp = str(pth.resolve())
-        if "/_temp/boss-aggregate/" in sp or sp.endswith("/boss-aggregate/report.json"):
-            candidates.append(pth)
-
+        candidates.append(Path(cli_arg))
+    candidates.extend(
+        [
+            Path("out/boss_final/report.local.json"),
+            Path("out/boss_final/report.json"),
+            Path("out/summary/report.json"),
+            Path("out/report.json"),
+        ]
+    )
+    # procurar agregador temporário
+    try:
+        for p in Path(".").rglob("report.json"):
+            sp = str(p)
+            if "/_temp/boss-aggregate/" in sp or sp.endswith(
+                "/boss-aggregate/report.json"
+            ):
+                candidates.append(p)
+    except Exception:
+        pass
     seen = set()
-    result = []
+    out: List[Path] = []
     for c in candidates:
         try:
             rp = c.resolve()
+            if rp in seen:
+                continue
+            if c.is_file():
+                seen.add(rp)
+                out.append(c)
         except Exception:
-            continue
-        if rp in seen:
-            continue
-        if c.is_file():
-            seen.add(rp)
-            result.append(c)
-    return result
+            pass
+    return out
 
 
-def main():
+def write_guard_status(dir_path: Path, status: str) -> None:
+    try:
+        dir_path.mkdir(parents=True, exist_ok=True)
+        out = dir_path / "guard_status.txt"
+        out.write_text(status + "\n", encoding="utf-8")
+        print(f"[enforce] guard_status: {out} -> {status}")
+    except Exception as exc:
+        print(
+            f"[enforce] falha ao escrever guard_status em {dir_path}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def main() -> None:
     arg = sys.argv[1] if len(sys.argv) > 1 else None
     targets = resolve_targets(arg)
     if not targets:
         print("[enforce] nenhum report.json encontrado", file=sys.stderr)
         sys.exit(0)
 
-    for tgt in targets:
+    report_dir_env = os.environ.get("REPORT_DIR")
+    report_dir_env_path = Path(report_dir_env) if report_dir_env else None
+
+    for t in targets:
         try:
-            raw = tgt.read_text(encoding="utf-8", errors="ignore")
-            data = json.loads(raw)
+            data = json.loads(t.read_text(encoding="utf-8", errors="ignore"))
         except Exception as exc:
-            print(f"[enforce] JSON inválido em {tgt}: {exc}", file=sys.stderr)
+            print(f"[enforce] JSON inválido em {t}: {exc}", file=sys.stderr)
             continue
 
         fixed = apply_all(data)
-        tgt.write_text(
-            json.dumps(fixed, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+        t.write_text(
+            json.dumps(fixed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
-        print(f"[enforce] normalizado: {tgt}")
+
+        status = overall_status(fixed)
+
+        # sempre escrever ao lado do report.json alvo
+        write_guard_status(t.parent, status)
+
+        # e também no REPORT_DIR, se existir, para satisfazer o step do agregador
+        if report_dir_env_path and report_dir_env_path.resolve() != t.parent.resolve():
+            write_guard_status(report_dir_env_path, status)
+
+        print(f"[enforce] normalizado: {t}")
 
     print("[enforce] DONE")
 
