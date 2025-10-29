@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 STATUS_MAP = {
@@ -20,8 +21,13 @@ STATUS_MAP = {
     "skipped": "SKIP",
     "Skip": "SKIP",
 }
-ALLOWED_VARIANT_KEYS = {"status", "notes"}
+ALLOWED_VARIANT_KEYS = {"status", "notes", "timestamp_utc"}
 REQUIRED_VARIANTS = ("primary", "clean")
+
+
+def now_ts_utc() -> str:
+    # ISO 8601 sem micros, com Z, para satisfazer schema format:"date-time"
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def nstatus(value):
@@ -37,6 +43,13 @@ def as_notes(value):
     return value if isinstance(value, str) else ""
 
 
+def as_timestamp(value):
+    if isinstance(value, str) and value.strip():
+        # aceita um valor já presente; schema validará o formato
+        return value.strip()
+    return now_ts_utc()
+
+
 def norm_variant(variant_dict, fallback_status):
     result = {}
     if isinstance(variant_dict, dict):
@@ -48,17 +61,19 @@ def norm_variant(variant_dict, fallback_status):
     else:
         result["status"] = fallback_status or "FAIL"
     result["notes"] = as_notes(result.get("notes"))
+    result["timestamp_utc"] = as_timestamp(result.get("timestamp_utc"))
     return result
 
 
 def stage_from_scalar(scalar):
     status = nstatus(scalar) or "FAIL"
+    ts = now_ts_utc()
     return {
         "status": status,
         "notes": "",
         "variants": {
-            "primary": {"status": status, "notes": ""},
-            "clean": {"status": status, "notes": ""},
+            "primary": {"status": status, "notes": "", "timestamp_utc": ts},
+            "clean": {"status": status, "notes": "", "timestamp_utc": ts},
         },
     }
 
@@ -94,9 +109,14 @@ def norm_stage(stage_val):
                 out_variants[required] = {
                     "status": "PASS" if truthy else (st_top or "FAIL"),
                     "notes": "",
+                    "timestamp_utc": now_ts_utc(),
                 }
             else:
-                out_variants[required] = {"status": (st_top or "FAIL"), "notes": ""}
+                out_variants[required] = {
+                    "status": (st_top or "FAIL"),
+                    "notes": "",
+                    "timestamp_utc": now_ts_utc(),
+                }
 
     st_final = nstatus(out_variants["primary"].get("status")) or "FAIL"
 
@@ -105,6 +125,7 @@ def norm_stage(stage_val):
         coerced = {
             "status": nstatus(vd.get("status")) or "FAIL",
             "notes": as_notes(vd.get("notes")),
+            "timestamp_utc": as_timestamp(vd.get("timestamp_utc")),
         }
         cleaned_variants[name] = coerced
 
