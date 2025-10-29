@@ -11,6 +11,24 @@ CANDIDATES = [
 ]
 
 DROP_KEYS = {"name", "clean", "exit_code"}
+ALLOWED = {"PASSED", "FAILED", "SKIPPED"}
+
+
+def norm_status(s: str) -> str:
+    t = (s or "").strip().lower()
+    if t in {"pass", "passed", "ok", "success", "successful", "green", "aprovado"}:
+        return "PASSED"
+    if t in {"fail", "failed", "error", "err", "broken", "red", "reprovado"}:
+        return "FAILED"
+    if t in {"skip", "skipped", "ignored", "noop", "na", "n/a"}:
+        return "SKIPPED"
+    u = (s or "").strip().upper()
+    if u == "PASS":
+        return "PASSED"
+    if u in ALLOWED:
+        return u
+    # Fallback seguro: se for algo inesperado, marque como FAILED
+    return "FAILED"
 
 
 def load_target() -> Path | None:
@@ -31,20 +49,26 @@ def main() -> None:
 
     data = json.loads(p.read_text(encoding="utf-8", errors="ignore"))
     stages = data.get("stages")
-
     if not isinstance(stages, dict):
         print("[enforce] objeto stages ausente ou inválido — ignorando")
         sys.exit(0)
 
     changed = False
     for k, v in list(stages.items()):
-        if not isinstance(v, dict):
-            # Se for string como "PASSED"/"FAILED", converte para objeto mínimo válido
-            stages[k] = {"status": str(v), "variants": {}, "notes": ""}
+        if isinstance(v, str):
+            stages[k] = {"status": norm_status(v), "variants": {}, "notes": ""}
             changed = True
             continue
 
-        # Garantir campos exigidos
+        if not isinstance(v, dict):
+            stages[k] = {"status": "FAILED", "variants": {}, "notes": ""}
+            changed = True
+            continue
+
+        # normaliza status
+        v["status"] = norm_status(v.get("status", ""))
+
+        # garante campos exigidos
         if "variants" not in v or not isinstance(v.get("variants"), dict):
             v["variants"] = {}
             changed = True
@@ -52,7 +76,7 @@ def main() -> None:
             v["notes"] = ""
             changed = True
 
-        # Remover chaves não permitidas pelo schema
+        # remove chaves rejeitadas pelo schema
         for dk in list(DROP_KEYS):
             if dk in v:
                 del v[dk]
