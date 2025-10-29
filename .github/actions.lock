@@ -21,6 +21,11 @@ actions:
     source: sha
     checked_at: "2025-10-28T04:35:57Z"
   -
+    key: actions/download-artifact@v4
+    commit: d3f86a106a0bac45b974a628896c90dbdf5c8093
+    source: tag
+    checked_at: "2025-10-28T04:35:57Z"
+  -
     key: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
     commit: 42375524e23c412d93fb67b49958b491fce71c38
     source: sha
@@ -36,9 +41,19 @@ actions:
     source: sha
     checked_at: "2025-10-28T04:35:57Z"
   -
+    key: actions/upload-artifact@v4
+    commit: ea165f8d65b6e75b540449e92b4886f43607fa02
+    source: tag
+    checked_at: "2025-10-28T04:35:57Z"
+  -
     key: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
     commit: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
     source: sha
+    checked_at: "2025-10-28T04:35:57Z"
+  -
+    key: docker/login-action@v3
+    commit: f4ef339be1f7c0066db2ed1d1c637d705d7d76e8
+    source: tag
     checked_at: "2025-10-28T04:35:57Z"
   -
     key: returntocorp/semgrep-action@d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0

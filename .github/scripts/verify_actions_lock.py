@@ -5,7 +5,11 @@ import re
 import sys
 from typing import Dict
 
-import yaml
+try:  # Prefer PyYAML, fallback to bundled parser when unavailable
+    import yaml  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - fallback path for minimal envs
+    sys.path.append(str(pathlib.Path(__file__).resolve().parents[2]))
+    import yaml_fallback as yaml  # type: ignore
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WF_DIR = ROOT / ".github" / "workflows"

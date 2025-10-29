@@ -18,8 +18,8 @@ MANDATORY = ("schema", "schema_version", "timestamp_utc", "status")
 
 
 @lru_cache(maxsize=1)
-def expected_schema_id() -> str:
-    """Return the canonical schema identifier enforced by the JSON Schema."""
+def _load_schema_definition() -> dict[str, Any]:
+    """Load the Boss Final JSON Schema definition from known locations."""
 
     candidates = (
         pathlib.Path("jsonschema/boss_final.report.schema.json"),
@@ -29,18 +29,26 @@ def expected_schema_id() -> str:
         if not path.exists():
             continue
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        schema_node = data.get("properties", {}).get("schema", {})
-        const_value = schema_node.get("const")
-        if isinstance(const_value, str) and const_value.strip():
-            return const_value.strip()
-        enum_values = schema_node.get("enum")
-        if isinstance(enum_values, list):
-            for item in enum_values:
-                if isinstance(item, str) and item.strip():
-                    return item.strip()
+    return {}
+
+
+@lru_cache(maxsize=1)
+def expected_schema_id() -> str:
+    """Return the canonical schema identifier enforced by the JSON Schema."""
+
+    data = _load_schema_definition()
+    schema_node = data.get("properties", {}).get("schema", {})
+    const_value = schema_node.get("const")
+    if isinstance(const_value, str) and const_value.strip():
+        return const_value.strip()
+    enum_values = schema_node.get("enum")
+    if isinstance(enum_values, list):
+        for item in enum_values:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
     return "boss_final.report@v1"
 
 
@@ -109,8 +117,22 @@ def _infer_version(data: MutableMapping[str, Any]) -> int:
 
 
 def expected_schema_version() -> int:
-    """Expose the default schema version derived from the schema identifier."""
+    """Return the canonical schema version declared by the JSON Schema."""
 
+    data = _load_schema_definition()
+    version_node = data.get("properties", {}).get("schema_version", {})
+    const_value = version_node.get("const")
+    if isinstance(const_value, int):
+        return const_value
+    if isinstance(const_value, str) and const_value.isdigit():
+        return int(const_value)
+    enum_values = version_node.get("enum")
+    if isinstance(enum_values, list):
+        for item in enum_values:
+            if isinstance(item, int):
+                return item
+            if isinstance(item, str) and item.isdigit():
+                return int(item)
     return _schema_version_default()
 
 
