@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json
-import sys
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -66,6 +66,7 @@ def coerce_variant(obj: Any, fallback: Optional[str] = None) -> Dict[str, Any]:
 
 
 def normalize_stage(value: Any) -> Dict[str, Any]:
+    # Coleta hints top-level (se existirem)
     top_status: Optional[str] = None
     top_clean: Optional[str] = None
     variants_in: Optional[Dict[str, Any]] = None
@@ -79,6 +80,7 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
         if isinstance(var, dict):
             variants_in = var
 
+    # Monta variants normalizados
     variants_out: Dict[str, Dict[str, Any]] = {}
     variants_out["primary"] = coerce_variant(
         variants_in.get("primary") if variants_in else None,
@@ -89,9 +91,13 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
         fallback=top_clean or top_status or "FAIL",
     )
 
-    # Sanitiza chaves e completa campos faltantes
+    # Sanitiza campos em cada variant
     for name in list(variants_out.keys()):
-        v = {k: variants_out[name][k] for k in ALLOWED_VARIANT_KEYS}
+        v = {
+            k: variants_out[name][k]
+            for k in ALLOWED_VARIANT_KEYS
+            if k in variants_out[name]
+        }
         if "status" not in v:
             v["status"] = "FAIL"
         if "notes" not in v:
@@ -100,6 +106,7 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
             v["timestamp_utc"] = now_ts_utc()
         variants_out[name] = v
 
+    # Garante as variantes requeridas
     for reqv in REQUIRED_VARIANTS:
         if reqv not in variants_out:
             variants_out[reqv] = {
@@ -108,7 +115,11 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
                 "timestamp_utc": now_ts_utc(),
             }
 
-    return {"variants": variants_out}
+    # **Novo**: status top-level exigido pelo schema local do agregador
+    stage_status = nstatus(top_status) or variants_out["primary"]["status"]
+
+    # Só expõe as chaves esperadas pelo schema: status + variants
+    return {"status": stage_status, "variants": variants_out}
 
 
 def apply_all(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -147,7 +158,7 @@ def resolve_targets(cli_arg: Optional[str]) -> List[Path]:
             Path("out/report.json"),
         ]
     )
-    # procurar agregador temporário
+    # Também pegue o report do agregador no diretório temporário
     try:
         for p in Path(".").rglob("report.json"):
             sp = str(p)
@@ -209,10 +220,10 @@ def main() -> None:
 
         status = overall_status(fixed)
 
-        # sempre escrever ao lado do report.json alvo
+        # Sempre escrever ao lado do report.json
         write_guard_status(t.parent, status)
 
-        # e também no REPORT_DIR, se existir, para satisfazer o step do agregador
+        # E também no REPORT_DIR (agregador), se definido
         if report_dir_env_path and report_dir_env_path.resolve() != t.parent.resolve():
             write_guard_status(report_dir_env_path, status)
 
