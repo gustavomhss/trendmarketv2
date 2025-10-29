@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Sanity — no tag-based actions
         run: bash scripts/ci/check_no_tags_left.sh
       - name: Verify action pins and existence
@@ -23,7 +23,7 @@ jobs:
           python .github/scripts/verify_pins.py --report out/guard/s4/actions_pins_report.json
       - name: Upload pins report
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: sanity-actions-pins
           path: out/guard/s4/actions_pins_report.json
