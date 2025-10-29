@@ -23,7 +23,6 @@ STATUS_MAP: Dict[str, str] = {
     "skipped": "SKIP",
     "Skip": "SKIP",
 }
-
 ALLOWED_VARIANT_KEYS: Set[str] = {"status", "notes", "timestamp_utc"}
 REQUIRED_VARIANTS: Tuple[str, str] = ("primary", "clean")
 
@@ -35,10 +34,19 @@ def now_ts_utc() -> str:
 def nstatus(value: Any) -> Optional[str]:
     if value is None:
         return None
+    if isinstance(value, bool):
+        return "PASS" if value else "FAIL"
     text = str(value).strip()
     if not text:
         return None
-    return STATUS_MAP.get(text, text.upper())
+    up = text.upper()
+    # Booleans/sinônimos comuns
+    if up in {"TRUE", "T", "YES", "Y", "OK", "SUCCESS"}:
+        return "PASS"
+    if up in {"FALSE", "F", "NO", "N", "KO", "ERROR", "ERR"}:
+        return "FAIL"
+    # Mapa canônico (tenta original e uppercase)
+    return STATUS_MAP.get(text, STATUS_MAP.get(up, up))
 
 
 def as_notes(value: Any) -> str:
@@ -67,13 +75,15 @@ def coerce_variant(obj: Any, fallback: Optional[str] = None) -> Dict[str, Any]:
 
 
 def normalize_stage(value: Any) -> Dict[str, Any]:
-    # Hints top-level, se existirem
     top_status: Optional[str] = None
     top_clean: Optional[str] = None
     top_notes: Optional[str] = None
     variants_in: Optional[Dict[str, Any]] = None
 
-    if isinstance(value, str):
+    if isinstance(value, bool):
+        top_status = "PASS" if value else "FAIL"
+        top_notes = ""
+    elif isinstance(value, str):
         top_status = nstatus(value) or "FAIL"
         top_notes = ""
     elif isinstance(value, dict):
@@ -84,7 +94,6 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
         if isinstance(var, dict):
             variants_in = var
 
-    # Construir variants normalizados
     variants_out: Dict[str, Dict[str, Any]] = {}
     variants_out["primary"] = coerce_variant(
         variants_in.get("primary") if variants_in else None,
@@ -95,7 +104,6 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
         fallback=top_clean or top_status or "FAIL",
     )
 
-    # Sanitizar campos permitidos e garantir timestamp
     for name, obj in list(variants_out.items()):
         v = {k: obj[k] for k in ALLOWED_VARIANT_KEYS if k in obj}
         if "status" not in v:
@@ -106,7 +114,6 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
             v["timestamp_utc"] = now_ts_utc()
         variants_out[name] = v
 
-    # Garantir variantes obrigatórias
     for req in REQUIRED_VARIANTS:
         if req not in variants_out:
             variants_out[req] = {
@@ -115,11 +122,9 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
                 "timestamp_utc": now_ts_utc(),
             }
 
-    # status e notes top-level exigidos pelo validador local
     stage_status = nstatus(top_status) or variants_out["primary"]["status"]
     stage_notes = as_notes(top_notes)
 
-    # Somente chaves esperadas
     return {"status": stage_status, "notes": stage_notes, "variants": variants_out}
 
 
@@ -159,7 +164,6 @@ def resolve_targets(cli_arg: Optional[str]) -> List[Path]:
             Path("out/report.json"),
         ]
     )
-    # Também considerar o relatório do agregador (diretório temporário)
     try:
         for p in Path(".").rglob("report.json"):
             sp = str(p)
@@ -221,11 +225,7 @@ def main() -> None:
         )
 
         status = overall_status(fixed)
-
-        # Sempre escrever ao lado do report.json
         write_guard_status(t.parent, status)
-
-        # E também no REPORT_DIR (agregador), se definido
         if report_dir_env_path and report_dir_env_path.resolve() != t.parent.resolve():
             write_guard_status(report_dir_env_path, status)
 
