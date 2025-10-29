@@ -3,12 +3,12 @@ import json, sys
 from pathlib import Path
 
 CANDIDATES = [
+    Path('out/boss_final/report.local.json'),
     Path('out/boss_final/report.json'),
-    Path('out/report.json'),
     Path('out/summary/report.json'),
+    Path('out/report.json'),
 ]
 
-# Permite override via env
 p = Path((sys.argv[1] if len(sys.argv) > 1 else '') or '')
 if not p.is_file():
     p = next((c for c in CANDIDATES if c.is_file()), None)
@@ -20,9 +20,9 @@ data = json.loads(p.read_text(encoding='utf-8', errors='ignore'))
 stages = data.get('stages')
 if isinstance(stages, dict):
     changed = False
-    for name, s in stages.items():
-        if isinstance(s, dict) and ('notes' not in s or s.get('notes') is None):
-            s['notes'] = ''
+    for k, v in stages.items():
+        if isinstance(v, dict) and ('notes' not in v or v.get('notes') is None):
+            v['notes'] = ''
             changed = True
     if changed:
         p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
