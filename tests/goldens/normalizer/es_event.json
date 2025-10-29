@@ -1,0 +1,27 @@
+{
+  "description": "ES dengue alert",
+  "input": {
+    "title": "  Alerta de Salud: Casos de dengue aumentan  ",
+    "lang": "es",
+    "category": "Salud Pública",
+    "source": "Ministerio de Salud",
+    "observed_at": "2025-10-28T18:30:00-03:00",
+    "payload": {
+      "casos": 1200,
+      "pais": "Peru"
+    }
+  },
+  "expected": {
+    "category": "salud-publica",
+    "equivalenceHash": "0c86f9c3cfb599497cea788ebe39a2cf750dd3dbe95214a0ffb20a334dd715e6",
+    "id": "cb5fca69b1fd593948d9f0356706fe80e982076009575e3f001f6c2f2f201033",
+    "lang": "es",
+    "observed_at": "2025-10-28T21:30:00Z",
+    "payload": {
+      "casos": 1200,
+      "pais": "Peru"
+    },
+    "source": "ministerio-de-salud",
+    "title": "alerta de salud: casos de dengue aumentan"
+  }
+}
