@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import json
-import sys
+import json, sys
 from pathlib import Path
 
 CANDIDATES = [
@@ -22,15 +21,17 @@ stages = data.get("stages")
 if isinstance(stages, dict):
     changed = False
     for k, v in stages.items():
-        if isinstance(v, dict) and ("notes" not in v or v.get("notes") is None):
+        if not isinstance(v, dict):
+            continue
+        if ("notes" not in v) or (v.get("notes") is None):
             v["notes"] = ""
             changed = True
+        if ("variants" not in v) or (not isinstance(v.get("variants"), dict)):
+            v["variants"] = {}
+            changed = True
     if changed:
-        p.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        print(f"[enforce] notas normalizadas em {p}")
+        p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"[enforce] normalizado notes/variants em {p}")
     else:
         print("[enforce] nada a alterar")
 else:
