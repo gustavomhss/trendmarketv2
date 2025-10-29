@@ -4,9 +4,9 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-STATUS_MAP = {
+STATUS_MAP: Dict[str, str] = {
     "PASS": "PASS",
     "PASSED": "PASS",
     "pass": "PASS",
@@ -23,8 +23,9 @@ STATUS_MAP = {
     "skipped": "SKIP",
     "Skip": "SKIP",
 }
-ALLOWED_VARIANT_KEYS = {"status", "notes", "timestamp_utc"}
-REQUIRED_VARIANTS = ("primary", "clean")
+
+ALLOWED_VARIANT_KEYS: Set[str] = {"status", "notes", "timestamp_utc"}
+REQUIRED_VARIANTS: Tuple[str, str] = ("primary", "clean")
 
 
 def now_ts_utc() -> str:
@@ -66,21 +67,24 @@ def coerce_variant(obj: Any, fallback: Optional[str] = None) -> Dict[str, Any]:
 
 
 def normalize_stage(value: Any) -> Dict[str, Any]:
-    # Coleta hints top-level (se existirem)
+    # Hints top-level, se existirem
     top_status: Optional[str] = None
     top_clean: Optional[str] = None
+    top_notes: Optional[str] = None
     variants_in: Optional[Dict[str, Any]] = None
 
     if isinstance(value, str):
         top_status = nstatus(value) or "FAIL"
+        top_notes = ""
     elif isinstance(value, dict):
         top_status = nstatus(value.get("status"))
         top_clean = nstatus(value.get("clean"))
+        top_notes = as_notes(value.get("notes"))
         var = value.get("variants")
         if isinstance(var, dict):
             variants_in = var
 
-    # Monta variants normalizados
+    # Construir variants normalizados
     variants_out: Dict[str, Dict[str, Any]] = {}
     variants_out["primary"] = coerce_variant(
         variants_in.get("primary") if variants_in else None,
@@ -91,13 +95,9 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
         fallback=top_clean or top_status or "FAIL",
     )
 
-    # Sanitiza campos em cada variant
-    for name in list(variants_out.keys()):
-        v = {
-            k: variants_out[name][k]
-            for k in ALLOWED_VARIANT_KEYS
-            if k in variants_out[name]
-        }
+    # Sanitizar campos permitidos e garantir timestamp
+    for name, obj in list(variants_out.items()):
+        v = {k: obj[k] for k in ALLOWED_VARIANT_KEYS if k in obj}
         if "status" not in v:
             v["status"] = "FAIL"
         if "notes" not in v:
@@ -106,20 +106,21 @@ def normalize_stage(value: Any) -> Dict[str, Any]:
             v["timestamp_utc"] = now_ts_utc()
         variants_out[name] = v
 
-    # Garante as variantes requeridas
-    for reqv in REQUIRED_VARIANTS:
-        if reqv not in variants_out:
-            variants_out[reqv] = {
+    # Garantir variantes obrigatórias
+    for req in REQUIRED_VARIANTS:
+        if req not in variants_out:
+            variants_out[req] = {
                 "status": "FAIL",
                 "notes": "",
                 "timestamp_utc": now_ts_utc(),
             }
 
-    # **Novo**: status top-level exigido pelo schema local do agregador
+    # status e notes top-level exigidos pelo validador local
     stage_status = nstatus(top_status) or variants_out["primary"]["status"]
+    stage_notes = as_notes(top_notes)
 
-    # Só expõe as chaves esperadas pelo schema: status + variants
-    return {"status": stage_status, "variants": variants_out}
+    # Somente chaves esperadas
+    return {"status": stage_status, "notes": stage_notes, "variants": variants_out}
 
 
 def apply_all(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -127,10 +128,10 @@ def apply_all(data: Dict[str, Any]) -> Dict[str, Any]:
         return data
     stages = data.get("stages")
     if isinstance(stages, dict):
-        normalized: Dict[str, Any] = {}
+        out: Dict[str, Any] = {}
         for k, v in stages.items():
-            normalized[k] = normalize_stage(v)
-        data["stages"] = normalized
+            out[k] = normalize_stage(v)
+        data["stages"] = out
     return data
 
 
@@ -158,7 +159,7 @@ def resolve_targets(cli_arg: Optional[str]) -> List[Path]:
             Path("out/report.json"),
         ]
     )
-    # Também pegue o report do agregador no diretório temporário
+    # Também considerar o relatório do agregador (diretório temporário)
     try:
         for p in Path(".").rglob("report.json"):
             sp = str(p)
@@ -168,7 +169,8 @@ def resolve_targets(cli_arg: Optional[str]) -> List[Path]:
                 candidates.append(p)
     except Exception:
         pass
-    seen = set()
+
+    seen: Set[Path] = set()
     out: List[Path] = []
     for c in candidates:
         try:
