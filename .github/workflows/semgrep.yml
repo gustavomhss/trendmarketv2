@@ -1,4 +1,4 @@
-name: Semgrep (container)
+name: Semgrep (CLI)
 on:
   pull_request:
     branches: [ main ]
@@ -11,8 +11,34 @@ jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - uses: returntocorp/semgrep-action@d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0  # pinned (was v1)
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
-          config: p/ci
-          generateSarif: true
+          python-version: "3.11"
+          check-latest: true
+      - name: Install Semgrep CLI
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install semgrep==1.67.0
+      - name: Run Semgrep
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/guard/s4
+          if [ -n "${SEMGREP_APP_TOKEN:-}" ]; then
+            semgrep ci --config p/ci --sarif --output out/guard/s4/semgrep.sarif
+          else
+            semgrep scan --config p/ci --severity ERROR --error --sarif --output out/guard/s4/semgrep.sarif
+          fi
+      - name: Upload Semgrep results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        with:
+          name: semgrep-sarif
+          path: out/guard/s4/semgrep.sarif
+          if-no-files-found: warn
+          retention-days: 7

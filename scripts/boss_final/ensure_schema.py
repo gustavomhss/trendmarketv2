@@ -37,26 +37,20 @@ def _load_schema_definition() -> tuple[dict[str, Any], pathlib.Path]:
             errors.append(f"{path} (missing)")
             continue
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-    return {}
-            data = json.loads(path.read_text(encoding="utf-8"))
+            return json.loads(path.read_text(encoding="utf-8")), path
         except json.JSONDecodeError as exc:
             errors.append(f"{path} (invalid JSON: {exc})")
             continue
-        return data, path
-    joined = "; ".join(errors) if errors else "no candidates"  # pragma: no cover - defensive
-    raise FileNotFoundError(
-        "Boss Final schema not found; checked: " + joined
-    )
+    joined = (
+        "; ".join(errors) if errors else "no candidates"
+    )  # pragma: no cover - defensive
+    raise FileNotFoundError("Boss Final schema not found; checked: " + joined)
 
 
 @lru_cache(maxsize=1)
 def expected_schema_id() -> str:
     """Return the canonical schema identifier enforced by the JSON Schema."""
 
-    data = _load_schema_definition()
     try:
         data, _ = _load_schema_definition()
     except FileNotFoundError:
@@ -72,6 +66,81 @@ def expected_schema_id() -> str:
             if isinstance(item, str) and item.strip():
                 return item.strip()
     return "boss_final.report@v1"
+
+
+def _schema_version_default() -> int:
+    """Expose the default schema version derived from the schema identifier."""
+
+    raw = os.environ.get("BOSS_SCHEMA_VERSION")
+    if raw:
+        try:
+            return int(raw.strip())
+        except (TypeError, ValueError):
+            return 1
+
+    match = re.search(r"@v?(\d+)$", expected_schema_id())
+    if match:
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):  # pragma: no cover - defensive fallback
+            return 1
+    return 1
+
+
+def _infer_version(data: MutableMapping[str, Any]) -> int:
+    version = None
+
+    schema_value = data.get("schema")
+    if isinstance(schema_value, str):
+        match = re.search(r"@v?(\d+)$", schema_value)
+        if match:
+            try:
+                version = int(match.group(1))
+            except Exception:  # pragma: no cover - defensive
+                version = None
+
+    if version is None:
+        try:
+            version = int(str(data.get("schema_version")))
+        except Exception:  # pragma: no cover - defensive
+            version = None
+
+    return version or _schema_version_default()
+
+
+@lru_cache(maxsize=1)
+def expected_schema_version() -> int:
+    """Return the canonical schema version declared by the JSON Schema."""
+
+    try:
+        data, _ = _load_schema_definition()
+    except FileNotFoundError:
+        return _schema_version_default()
+
+    schema_version_node = data.get("properties", {}).get("schema_version", {})
+    const_value = schema_version_node.get("const")
+    if isinstance(const_value, int):
+        return const_value
+    if isinstance(const_value, str):
+        try:
+            return int(const_value.strip())
+        except ValueError:
+            pass
+
+    enum_values = schema_version_node.get("enum")
+    if isinstance(enum_values, list):
+        for item in enum_values:
+            if isinstance(item, int):
+                return item
+            if isinstance(item, str) and item.isdigit():
+                return int(item)
+            if isinstance(item, str):
+                try:
+                    return int(item.strip())
+                except ValueError:
+                    continue
+
+    return _schema_version_default()
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -102,83 +171,6 @@ def _find_candidate() -> pathlib.Path:
             "[ensure-schema] relatório não encontrado: out/boss_final/report.local.json"
         )
     return candidates[0]
-
-
-def _schema_version_default() -> int:
-    raw = os.environ.get("BOSS_SCHEMA_VERSION")
-    if raw:
-        try:
-            return int(raw.strip())
-        except (TypeError, ValueError):
-            return 1
-    match = re.search(r"@v?(\d+)$", expected_schema_id())
-    if match:
-        try:
-            return int(match.group(1))
-        except (TypeError, ValueError):  # pragma: no cover - defensive fallback
-            return 1
-    return 1
-
-
-def _infer_version(data: MutableMapping[str, Any]) -> int:
-    version = None
-    schema_value = data.get("schema")
-    if isinstance(schema_value, str):
-        match = re.search(r"@v?(\d+)$", schema_value)
-        if match:
-            try:
-                version = int(match.group(1))
-            except Exception:  # pragma: no cover - defensive
-                version = None
-    if version is None:
-        try:
-            version = int(str(data.get("schema_version")))
-        except Exception:  # pragma: no cover - defensive
-            version = None
-    return version or _schema_version_default()
-
-
-def expected_schema_version() -> int:
-    """Return the canonical schema version declared by the JSON Schema."""
-
-    data = _load_schema_definition()
-    version_node = data.get("properties", {}).get("schema_version", {})
-    const_value = version_node.get("const")
-    if isinstance(const_value, int):
-        return const_value
-    if isinstance(const_value, str) and const_value.isdigit():
-        return int(const_value)
-    enum_values = version_node.get("enum")
-    """Expose the default schema version derived from the schema identifier."""
-    try:
-        data, _ = _load_schema_definition()
-    except FileNotFoundError:
-        return _schema_version_default()
-
-    schema_version_node = data.get("properties", {}).get("schema_version", {})
-    const_value = schema_version_node.get("const")
-    if isinstance(const_value, int):
-        return const_value
-    if isinstance(const_value, str):
-        try:
-            return int(const_value.strip())
-        except ValueError:
-            pass
-
-    enum_values = schema_version_node.get("enum")
-    if isinstance(enum_values, list):
-        for item in enum_values:
-            if isinstance(item, int):
-                return item
-            if isinstance(item, str) and item.isdigit():
-                return int(item)
-            if isinstance(item, str):
-                try:
-                    return int(item.strip())
-                except ValueError:
-                    continue
-
-    return _schema_version_default()
 
 
 def _now_utc_z() -> str:

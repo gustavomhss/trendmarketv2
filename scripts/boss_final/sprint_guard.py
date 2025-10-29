@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import traceback
+import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ OUTPUT_ROOT = BASE_DIR / "out" / "q1_boss_final" / "stages"
 GUARD_OUTPUT_DIR = BASE_DIR / "out" / "guard"
 JUNIT_OUTPUT_DIR = BASE_DIR / "out" / "junit"
 SCORECARD_DIR = BASE_DIR / "out" / "s6_scorecards"
+BOSS_OUTPUT_DIR = BASE_DIR / "out" / "boss"
 ERROR_PREFIX = "BOSS-E"
 STAGES = ("s1", "s2", "s3", "s4", "s5", "s6")
 
@@ -482,10 +484,15 @@ def _truthy_env(name: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _guard_stage_dir(stage: str) -> Path:
+    directory = GUARD_OUTPUT_DIR / stage
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def run_ruff_format_guard(context: StageContext) -> None:
     command = ["ruff", "format", "--check", "--diff", "."]
-    guard_dir = BASE_DIR / "out" / "guard" / "s1"
-    guard_dir.mkdir(parents=True, exist_ok=True)
+    guard_dir = _guard_stage_dir("s1")
     diff_path = guard_dir / "ruff_format_diff.txt"
     offenders_path = guard_dir / "ruff_offenders.txt"
     start = time.perf_counter()
@@ -745,6 +752,7 @@ def write_stage_outputs(
     bundle_sha = hashlib.sha256(canonical_dumps(result).encode("utf-8")).hexdigest()
     (directory / "bundle.sha256").write_text(bundle_sha + "\n", encoding="utf-8")
     update_stage_summary(context.stage)
+    _update_guard_summary_json(context, result)
     return result
 
 
@@ -760,6 +768,83 @@ def _write_guard_summary(stage: str, variant: str, lines: Sequence[str]) -> Path
     stage_path.write_text(text, encoding="utf-8")
     (GUARD_OUTPUT_DIR / "summary.txt").write_text(text, encoding="utf-8")
     return stage_path
+
+
+def _guard_summary_json_path(stage: str) -> Path:
+    return _guard_stage_dir(stage) / "summary.json"
+
+
+def _update_guard_summary_json(
+    context: StageContext, result: Dict[str, object]
+) -> None:
+    try:
+        path = _guard_summary_json_path(context.stage)
+        if path.exists():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                payload = {}
+        else:
+            payload = {}
+
+        variants = payload.setdefault("variants", {})
+        variants[context.variant] = {
+            "status": result.get("status"),
+            "notes": result.get("notes"),
+            "timestamp_utc": result.get("timestamp_utc"),
+            "checks": result.get("checks", []),
+        }
+        payload["stage"] = context.stage
+        payload["updated_at"] = isoformat_utc()
+        path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:  # pragma: no cover - defensive logging
+        LOG.warning(
+            "Failed to update guard summary JSON for %s: %s", context.stage, exc
+        )
+
+
+def _collect_stage_bundle_files(context: StageContext) -> List[Path]:
+    candidates: List[Path] = []
+    for base in (context.stage_dir(), _guard_stage_dir(context.stage)):
+        if base.exists():
+            candidates.extend(path for path in base.rglob("*") if path.is_file())
+    summary_txt = _guard_summary_path(context.stage, context.variant)
+    if summary_txt.exists():
+        candidates.append(summary_txt)
+    summary_json = _guard_summary_json_path(context.stage)
+    if summary_json.exists():
+        candidates.append(summary_json)
+    unique = sorted({path.resolve() for path in candidates if path.exists()})
+    return unique
+
+
+def _publish_stage_bundle(context: StageContext) -> Path | None:
+    if context.variant != "primary":
+        return None
+    files = _collect_stage_bundle_files(context)
+    if not files:
+        return None
+    BOSS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    bundle_path = BOSS_OUTPUT_DIR / f"boss-stage-{context.stage}.zip"
+    try:
+        with zipfile.ZipFile(
+            bundle_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
+            for file_path in files:
+                try:
+                    archive.write(
+                        file_path, arcname=str(file_path.relative_to(BASE_DIR))
+                    )
+                except ValueError:
+                    # file outside repo root; fallback to filename only
+                    archive.write(file_path, arcname=file_path.name)
+    except OSError as exc:  # pragma: no cover - defensive logging
+        LOG.error("Failed to write stage bundle for %s: %s", context.stage, exc)
+        return None
+    return bundle_path
 
 
 def _build_summary_lines(context: StageContext, status: str, notes: str) -> List[str]:
@@ -801,6 +886,7 @@ def run_stage(stage: str, variant: str) -> Dict[str, object]:
     result = write_stage_outputs(context, status, notes)
     summary_lines = _build_summary_lines(context, status, notes)
     _write_guard_summary(stage, variant, summary_lines)
+    _publish_stage_bundle(context)
     print("\n".join(summary_lines))
     if status != "PASS":
         raise SystemExit(1)
