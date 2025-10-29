@@ -22,17 +22,19 @@ stages = data.get("stages")
 if isinstance(stages, dict):
     changed = False
     for k, v in stages.items():
-        if not isinstance(v, dict):
-            continue
-        if ("notes" not in v) or (v.get("notes") is None):
+        if isinstance(v, dict) and ("notes" not in v or v.get("notes") is None):
             v["notes"] = ""
             changed = True
-        if ("variants" not in v) or (not isinstance(v.get("variants"), dict)):
+        if isinstance(v, dict) and ("variants" not in v or v.get("variants") is None):
+            # garante campo exigido pelo schema para todos os stages
             v["variants"] = {}
             changed = True
     if changed:
-        p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f"[enforce] normalizado notes/variants em {p}")
+        p.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(f"[enforce] defaults aplicados em {p}")
     else:
         print("[enforce] nada a alterar")
 else:
