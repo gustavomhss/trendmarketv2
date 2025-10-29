@@ -1,0 +1,96 @@
+name: validate-s7
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/data/event_v1.json'
+      - 'services/oracle/normalizer/**'
+      - 'scripts/crypto/**'
+      - 'docs/ADR/**'
+      - 'models/tla/append_only/**'
+      - 'tests/test_normalizer.py'
+      - 'tests/test_signature.py'
+      - 'tests/goldens/normalizer/**'
+      - '.github/workflows/validate-s7.yml'
+      - 'scripts/ci/validate_s7.py'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest pynacl cryptography psutil
+      - name: Ruff lint
+        run: ruff check .
+      - name: Pytest
+        run: pytest tests/test_normalizer.py tests/test_signature.py
+      - name: Generate canonical batch
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          from services.oracle.normalizer.normalizer import build_event
+          from services.oracle.normalizer.merkle_append_only import write_batch
+
+          raw_events = [
+              {
+                  "title": "Evento Workflow 1",
+                  "lang": "pt",
+                  "category": "mercado",
+                  "source": "operador",
+                  "observed_at": datetime.now(timezone.utc)
+                  .replace(microsecond=0)
+                  .isoformat()
+                  .replace("+00:00", "Z"),
+                  "payload": {"valor": 1},
+              },
+              {
+                  "title": "Evento Workflow 2",
+                  "lang": "es",
+                  "category": "salud",
+                  "source": "ministerio",
+                  "observed_at": datetime.now(timezone.utc)
+                  .replace(microsecond=0)
+                  .isoformat()
+                  .replace("+00:00", "Z"),
+                  "payload": {"valor": 2},
+              },
+          ]
+          now = datetime.now(timezone.utc)
+          normalised = [dict(build_event(evt, now=now)) for evt in raw_events]
+          write_batch(normalised, batch_ts=now)
+PY
+      - name: Sign batch
+        env:
+          ORACLE_ED25519_SEED: YjVJzNqMrMo6vdEAHj0AVMSn7UvBcQDzXagHgN5KVPg=
+        run: python scripts/crypto/sign_batch.py
+      - name: Verify signature
+        run: python scripts/crypto/verify_signature.py
+      - name: Validate sprint gates
+        run: python scripts/ci/validate_s7.py
+      - name: Upload validation artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: s7-validation-artifacts
+          path: |
+            out/reports/validation/
+            out/evidence/S7_event_model/
+      - name: Oracle review runner
+        uses: ./.github/workflows/_s4-orr.yml
+        with:
+          run_tla: true
+        secrets: inherit

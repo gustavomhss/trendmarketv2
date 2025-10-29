@@ -1,0 +1,13 @@
+{
+  "batch_ts": "2025-10-29T19:31:36Z",
+  "count": 2,
+  "merkle_root": "743b598120cc25ac19d5849b2397d6ec86ada9c0e0a20ae91988d2ecb3b8fb53",
+  "leaves": [
+    "1d7675bce151809d326cae5d0b8e5be312b5b1b393e7d3418ad1b0877f38b502",
+    "6f164fb3c07fabfc2062679775c3677f516d61a365224f9b4ec823a63b32f631"
+  ],
+  "leaf_ids": [
+    "cfc4238b8bc481adb06550e809d2212e8d3318276c3dd75b947c7dd9fee7db5d",
+    "d488ef1ff4a2d09acc9f3d0aa51723eabc5eb0155a6d37069995518b21a27c92"
+  ]
+}
