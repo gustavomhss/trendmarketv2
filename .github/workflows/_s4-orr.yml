@@ -263,7 +263,7 @@ jobs:
 
       - name: GHCR login (opcional)
         if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true' }}
-        uses: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8  # pinned (was v3)
+        uses: docker/login-action@e995cd7a8f6f9b877a4c1a27820f3e397985f9f2  # pinned (was v3)
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "metadata": {
-    "sha": "3577ad7aee8b6f8f935c8389c0e37a5210d1a609",
-    "date": "2025-10-27T20:15:36Z",
+    "sha": "90625b8ea681669ff21ad8aca36d6a221f7c9350",
+    "date": "2025-10-29T00:48:44Z",
     "author": "CI Bot <ci@trendmarketv2.local>",
     "rationale": "auto-sync action pins for workflow consistency"
   },
@@ -11,7 +11,7 @@
       "repo": "actions/checkout",
       "ref": "11bd71901bbe5b1630ceea73d27597364c9af683",
       "sha": "11bd71901bbe5b1630ceea73d27597364c9af683",
-      "date": "2025-10-27T18:30:28Z",
+      "date": "2025-10-29T00:48:44Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/checkout/commit/11bd71901bbe5b1630ceea73d27597364c9af683"
@@ -20,7 +20,7 @@
       "repo": "actions/download-artifact",
       "ref": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
       "sha": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-      "date": "2025-10-27T18:30:28Z",
+      "date": "2025-10-29T00:48:44Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/download-artifact/commit/d3f86a106a0bac45b974a628896c90dbdf5c8093"
@@ -29,16 +29,7 @@
       "repo": "actions/setup-python",
       "ref": "42375524e23c412d93fb67b49958b491fce71c38",
       "sha": "42375524e23c412d93fb67b49958b491fce71c38",
-      "date": "2025-10-27T18:30:28Z",
-      "author": "CI Bot <ci@trendmarketv2.local>",
-      "rationale": "auto-sync action pins for workflow consistency",
-      "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
-    },
-    {
-      "repo": "actions/setup-python",
-      "ref": "v5",
-      "sha": "42375524e23c412d93fb67b49958b491fce71c38",
-      "date": "2025-10-27T18:30:28Z",
+      "date": "2025-10-29T00:48:44Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/setup-python/commit/42375524e23c412d93fb67b49958b491fce71c38"
@@ -47,37 +38,19 @@
       "repo": "actions/upload-artifact",
       "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
       "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02",
-      "date": "2025-10-27T18:30:28Z",
+      "date": "2025-10-29T00:48:44Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
       "url": "https://github.com/actions/upload-artifact/commit/ea165f8d65b6e75b540449e92b4886f43607fa02"
     },
     {
       "repo": "docker/login-action",
-      "ref": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
-      "sha": "f4ef339be1f7c0066db2ed1d1c637d705d7d76e8",
-      "date": "2025-10-27T18:30:28Z",
+      "ref": "e995cd7a8f6f9b877a4c1a27820f3e397985f9f2",
+      "sha": "e995cd7a8f6f9b877a4c1a27820f3e397985f9f2",
+      "date": "2025-10-29T00:48:44Z",
       "author": "CI Bot <ci@trendmarketv2.local>",
       "rationale": "auto-sync action pins for workflow consistency",
-      "url": "https://github.com/docker/login-action/commit/f4ef339be1f7c0066db2ed1d1c637d705d7d76e8"
-    },
-    {
-      "repo": "returntocorp/semgrep-action",
-      "ref": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
-      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
-      "date": "2025-10-27T18:30:28Z",
-      "author": "CI Bot <ci@trendmarketv2.local>",
-      "rationale": "auto-sync action pins for workflow consistency",
-      "url": "https://github.com/returntocorp/semgrep-action/commit/d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
-    },
-    {
-      "repo": "returntocorp/semgrep-action",
-      "ref": "v1",
-      "sha": "d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0",
-      "date": "2025-10-27T18:30:28Z",
-      "author": "CI Bot <ci@trendmarketv2.local>",
-      "rationale": "auto-sync action pins for workflow consistency",
-      "url": "https://github.com/returntocorp/semgrep-action/commit/d2118d8864c8ad5ac2ffb5f062e30aea0a43d0f0"
+      "url": "https://github.com/docker/login-action/commit/e995cd7a8f6f9b877a4c1a27820f3e397985f9f2"
     }
   ]
 }

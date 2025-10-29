@@ -187,6 +187,18 @@ jobs:
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
+          python - <<'PY'
+from pathlib import Path
+import json
+
+from scripts.boss_final.ensure_schema import expected_schema_id
+
+report_path = Path("$REPORT_DIR") / "report.json"
+data = json.loads(report_path.read_text(encoding="utf-8"))
+expected = expected_schema_id()
+actual = data.get("schema")
+print(f"[boss-final] expected schema={expected} | current={actual}")
+PY
           python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
 
       - name: Validate report schema (local)

@@ -18,4 +18,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          python .github/scripts/verify_pins.py
+          python .github/scripts/verify_pins.py --report out/guard/s4/actions_pins_report.json
+      - name: Upload pins report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
+        with:
+          name: sanity-actions-pins
+          path: out/guard/s4/actions_pins_report.json
+          if-no-files-found: error
+          retention-days: 7

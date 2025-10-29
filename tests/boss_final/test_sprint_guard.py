@@ -17,8 +17,16 @@ def _freeze_time(
 def test_run_stage_writes_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    output_root = tmp_path / "stages"
+    base_dir = tmp_path
+    output_root = base_dir / "stages"
+    guard_root = base_dir / "guard"
+    boss_root = base_dir / "boss"
+    monkeypatch.setattr(sprint_guard, "BASE_DIR", base_dir)
     monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
+    monkeypatch.setattr(sprint_guard, "GUARD_OUTPUT_DIR", guard_root)
+    monkeypatch.setattr(sprint_guard, "BOSS_OUTPUT_DIR", boss_root)
+    monkeypatch.setattr(sprint_guard, "JUNIT_OUTPUT_DIR", base_dir / "junit")
+    monkeypatch.setattr(sprint_guard, "SCORECARD_DIR", base_dir / "scorecards")
     _freeze_time(monkeypatch, "2024-01-02T12:00:00Z")
 
     def handler(context: sprint_guard.StageContext) -> None:
@@ -46,13 +54,28 @@ def test_run_stage_writes_outputs(
         (output_root / "s1" / "guard_status.txt").read_text(encoding="utf-8").strip()
     )
     assert guard_status == "PASS"
+    guard_summary = json.loads(
+        (guard_root / "s1" / "summary.json").read_text(encoding="utf-8")
+    )
+    assert guard_summary["variants"]["primary"]["status"] == "PASS"
+    bundle_path = boss_root / "boss-stage-s1.zip"
+    assert bundle_path.exists()
+    assert bundle_path.stat().st_size > 0
 
 
 def test_run_stage_failure_sets_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    output_root = tmp_path / "stages"
+    base_dir = tmp_path
+    output_root = base_dir / "stages"
+    guard_root = base_dir / "guard"
+    boss_root = base_dir / "boss"
+    monkeypatch.setattr(sprint_guard, "BASE_DIR", base_dir)
     monkeypatch.setattr(sprint_guard, "OUTPUT_ROOT", output_root)
+    monkeypatch.setattr(sprint_guard, "GUARD_OUTPUT_DIR", guard_root)
+    monkeypatch.setattr(sprint_guard, "BOSS_OUTPUT_DIR", boss_root)
+    monkeypatch.setattr(sprint_guard, "JUNIT_OUTPUT_DIR", base_dir / "junit")
+    monkeypatch.setattr(sprint_guard, "SCORECARD_DIR", base_dir / "scorecards")
     _freeze_time(monkeypatch)
 
     def handler(_: sprint_guard.StageContext) -> None:
@@ -73,6 +96,13 @@ def test_run_stage_failure_sets_fail(
         (output_root / "s1" / "summary.json").read_text(encoding="utf-8")
     )
     assert summary["status"] == "FAIL"
+    guard_summary = json.loads(
+        (guard_root / "s1" / "summary.json").read_text(encoding="utf-8")
+    )
+    assert guard_summary["variants"]["primary"]["status"] == "FAIL"
+    bundle_path = boss_root / "boss-stage-s1.zip"
+    assert bundle_path.exists()
+    assert bundle_path.stat().st_size > 0
 
 
 def test_validate_dashboard_structure_pass(monkeypatch: pytest.MonkeyPatch) -> None:
