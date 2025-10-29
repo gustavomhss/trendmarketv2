@@ -147,6 +147,31 @@ def expected_schema_version() -> int:
     return _schema_version_default()
 
 
+def _normalize_stages(raw: Any) -> dict[str, Any]:
+    """Coerce arbitrary stage collections into a mapping."""
+
+    if raw is None:
+        return {}
+    if isinstance(raw, MutableMapping):
+        return dict(raw)
+    if isinstance(raw, list):
+        normalized: dict[str, Any] = {}
+        for item in raw:
+            if not isinstance(item, MutableMapping):
+                continue
+            key = None
+            for candidate in ("id", "stage", "name"):
+                value = item.get(candidate)
+                if isinstance(value, str) and value.strip():
+                    key = value.strip()
+                    break
+            if not key:
+                key = f"stage_{len(normalized) + 1}"
+            normalized[key] = item
+        return normalized
+    return {}
+
+
 def _sha256(path: pathlib.Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as handle:
@@ -212,6 +237,8 @@ def ensure_schema_metadata(data: MutableMapping[str, Any]) -> dict[str, Any]:
             os.environ.get("BOSS_LOCAL_STATUS", "PASS").strip().upper() or "PASS"
         )
         normalized["status"] = default_status
+
+    normalized["stages"] = _normalize_stages(normalized.get("stages"))
 
     bundle_info = normalized.get("bundle")
     boss_out_dir = pathlib.Path(os.environ.get("BOSS_OUT_DIR", "out/boss"))
