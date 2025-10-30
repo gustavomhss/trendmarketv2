@@ -41,7 +41,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff pytest pynacl cryptography psutil pyyaml
 
-     - name: Actionlint
+      - name: Actionlint
         uses: reviewdog/action-actionlint@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
