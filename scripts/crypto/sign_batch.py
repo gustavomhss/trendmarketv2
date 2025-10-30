@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import os, sys, base64, json, re
+import base64
+import json
+import os
+import re
+import sys
 from pathlib import Path
-from typing import Optional, Union, Dict
+from typing import Dict, Optional, Union
 from nacl import signing
 
 PathLike = Union[str, Path]
