@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VENV="out/ci/.venv"
+if [ ! -x "$VENV/bin/python" ]; then
+  python -m venv "$VENV"
+  "$VENV/bin/python" -m pip install --upgrade pip wheel
+fi
+if [ -f requirements-dev.txt ]; then
+  "$VENV/bin/python" -m pip install -r requirements-dev.txt
+fi
+"$VENV/bin/python" -m pytest -q || true

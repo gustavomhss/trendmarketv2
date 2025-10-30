@@ -6,7 +6,8 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
+from typing import Union
 from nacl import signing
 
 PathLike = Union[str, Path]
