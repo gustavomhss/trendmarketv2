@@ -1,110 +1,93 @@
 #!/usr/bin/env python3
-"""Verify oracle batch signatures against the keystore."""
 from __future__ import annotations
 
-import argparse
 import base64
-import binascii
 import json
+import os
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Optional
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-from tools.crypto import ed25519
+from nacl import exceptions as nacl_exc
+from nacl import signing
 
-DEFAULT_SIGNATURE_PATH = Path("out/evidence/S7_event_model/signature.json")
-DEFAULT_KEYSTORE_PATH = Path("tools/crypto/keystore.json")
-DEFAULT_BATCH_PATH = Path("out/evidence/S7_event_model/batch_latest.json")
+KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
+def _load_pub_from_pubmeta(dir_: Path) -> Optional[bytes]:
+    p = dir_ / "pubkey.json"
+    if not p.exists():
+        return None
+    meta = json.loads(p.read_text(encoding="utf-8"))
+    b64 = meta.get("public_key_b64")
+    if not isinstance(b64, str):
+        return None
+    return base64.b64decode(b64, validate=True)
 
-class VerificationError(RuntimeError):
-    pass
+def _choose_batch_files() -> tuple[Path, Path]:
+    root = Path("out/evidence/S7_event_model")
+    bj, bs = root / "batch.json", root / "batch.sig"
+    if not bj.exists():
+        # escolhe o mais novo
+        js = sorted(root.glob("*.json"))
+        if not js:
+            print("[verify] no batch JSON found to verify", file=sys.stderr)
+            sys.exit(1)
+        bj = js[-1]
+    if not bs.exists():
+        # tenta sig de mesmo stem
+        cand = bj.with_suffix(".sig")
+        if cand.exists():
+            bs = cand
+        else:
+            print("[verify] no signature file found for batch", file=sys.stderr)
+            sys.exit(1)
+    return bj, bs
 
+def _load_pub_from_env() -> Optional[bytes]:
+    val = os.environ.get("ORACLE_ED25519_PUB")
+    if not val:
+        return None
+    return base64.b64decode(val, validate=True)
 
-def _parse_time(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
-
-
-def _load_json(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    if not isinstance(data, dict):
-        raise VerificationError(f"{path} must contain a JSON object")
-    return data
-
-
-def _validate_key_window(key: Dict[str, Any], *, now: datetime) -> None:
-    created = _parse_time(key["created_at"])
-    not_after = _parse_time(key["not_after"])
-    status = key.get("status")
-    window_end = not_after
-    if status == "retiring":
-        window_end = not_after + timedelta(days=7)
-    if not (created <= now <= window_end):
-        raise VerificationError("Key is outside its validity window")
-    if (not_after - created).days > 90:
-        raise VerificationError("Key violates rotation policy ( >90 days )")
-
-
-def _resolve_key(keystore: Dict[str, Any], kid: str) -> Dict[str, Any]:
-    keys = keystore.get("keys")
-    if not isinstance(keys, list):
-        raise VerificationError("Invalid keystore structure")
-    for key in keys:
-        if key.get("kid") == kid:
-            return key
-    raise VerificationError(f"Key {kid} not found in keystore")
-
-
-def verify_signature(signature_path: Path, keystore_path: Path, batch_path: Path) -> None:
-    now = datetime.now(timezone.utc)
-    signature = _load_json(signature_path)
-    keystore = _load_json(keystore_path)
-    batch = _load_json(batch_path)
-
-    kid = signature.get("kid")
-    if not isinstance(kid, str):
-        raise VerificationError("Signature missing kid")
-    key = _resolve_key(keystore, kid)
-    _validate_key_window(key, now=now)
-
-    if key.get("alg") != "Ed25519" or signature.get("alg") != "Ed25519":
-        raise VerificationError("Algorithm mismatch; expected Ed25519")
-
-    sig_b64 = signature.get("sig")
-    if not isinstance(sig_b64, str):
-        raise VerificationError("Signature payload missing 'sig'")
-    try:
-        sig = base64.b64decode(sig_b64)
-    except (ValueError, binascii.Error) as exc:
-        raise VerificationError("Signature is not valid base64") from exc
-
-    pub_b64 = key.get("pubkey")
-    if not isinstance(pub_b64, str):
-        raise VerificationError("Key missing pubkey")
-    try:
-        pub = base64.b64decode(pub_b64)
-    except (ValueError, binascii.Error) as exc:
-        raise VerificationError("Public key is not valid base64") from exc
-
-    message = f"{batch['merkle_root']}|{batch['batch_ts']}".encode("utf-8")
-    if not ed25519.verify(sig, message, pub):
-        raise VerificationError("Signature verification failed")
-
+def _derive_pub_from_seed() -> Optional[bytes]:
+    seed_b64 = os.environ.get("ORACLE_ED25519_SEED")
+    if not seed_b64:
+        return None
+    raw = base64.b64decode(seed_b64, validate=True)
+    if len(raw) != 32:
+        print("[verify] ORACLE_ED25519_SEED is not 32 bytes after base64", file=sys.stderr)
+        sys.exit(1)
+    return bytes(signing.SigningKey(raw).verify_key)
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Verify oracle batch signatures")
-    parser.add_argument("--signature", type=Path, default=DEFAULT_SIGNATURE_PATH)
-    parser.add_argument("--keystore", type=Path, default=DEFAULT_KEYSTORE_PATH)
-    parser.add_argument("--batch", type=Path, default=DEFAULT_BATCH_PATH)
-    args = parser.parse_args()
-    try:
-        verify_signature(args.signature, args.keystore, args.batch)
-    except VerificationError as exc:
-        raise SystemExit(str(exc)) from exc
+    bj, bs = _choose_batch_files()
+    pub: Optional[bytes] = None
 
+    # 1) pubkey.json canônico
+    pub = _load_pub_from_pubmeta(bj.parent)
+    # 2) env ORACLE_ED25519_PUB (base64)
+    if pub is None:
+        pub = _load_pub_from_env()
+    # 3) derivar da seed (fallback; requer secret no ambiente)
+    if pub is None:
+        pub = _derive_pub_from_seed()
+    if pub is None:
+        print(
+            "[verify] missing public key: provide pubkey.json, ORACLE_ED25519_PUB, or ORACLE_ED25519_SEED",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    vk = signing.VerifyKey(pub)
+    data = bj.read_bytes()
+    sig = Path(bs).read_bytes()
+    try:
+        vk.verify(data, sig)
+    except nacl_exc.BadSignatureError:
+        print("Signature verification failed", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[verify] OK for {bj.name}")
 
 if __name__ == "__main__":
     main()

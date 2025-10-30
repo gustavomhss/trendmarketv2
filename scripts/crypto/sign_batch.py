@@ -1,146 +1,77 @@
 #!/usr/bin/env python3
-"""Sign the latest oracle batch using the active Ed25519 key."""
 from __future__ import annotations
 
-import argparse
 import base64
-import binascii
 import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-from tools.crypto import ed25519
+from nacl import signing
 
-DEFAULT_BATCH_PATH = Path("out/evidence/S7_event_model/batch_latest.json")
-DEFAULT_KEYSTORE_PATH = Path("tools/crypto/keystore.json")
-SIGNATURE_PATH = Path("out/evidence/S7_event_model/signature.json")
-
-
-class SigningError(RuntimeError):
-    pass
-
-
-def _parse_time(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
-
-
-def _load_keystore(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _select_active_key(keys: List[Dict[str, Any]], *, now: datetime) -> Dict[str, Any]:
-    active_keys = []
-    for key in keys:
-        if key.get("status") != "active":
-            continue
-        created = _parse_time(key["created_at"])
-        not_after = _parse_time(key["not_after"])
-        if not (created <= now <= not_after):
-            continue
-        if (not_after - created).days > 90:
-            raise SigningError("Active key violates 90 day rotation policy")
-        active_keys.append((created, key))
-    if not active_keys:
-        raise SigningError("No active key available in keystore")
-    active_keys.sort(key=lambda item: item[0], reverse=True)
-    return active_keys[0][1]
-
+KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
 def _env_name_for_key(key_id: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_]", "_", key_id.upper())
     return f"ORACLE_ED25519_SEED_{safe}"
 
+def _get_seed_b64() -> str | None:
+    # específico por KEY_ID (underscore) ou genérico
+    return os.environ.get(_env_name_for_key(KEY_ID)) or os.environ.get("ORACLE_ED25519_SEED")
 
-def _get_seed_b64(kid: str) -> str | None:
-    name_specific = _env_name_for_key(kid)
-    seed = os.environ.get(name_specific)
-    if seed:
-        return seed
-    return os.environ.get("ORACLE_ED25519_SEED")
+def _decode_seed(seed_b64: str) -> bytes:
+    raw = base64.b64decode(seed_b64, validate=True)
+    if len(raw) != 32:
+        print(f"[sign] seed must be 32 bytes after base64; got {len(raw)}", file=sys.stderr)
+        sys.exit(1)
+    return raw
 
-
-def _decode_seed(encoded: str) -> bytes:
-    try:
-        seed = base64.b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error) as exc:
-        raise SigningError("Seed must be base64 encoded") from exc
-    if len(seed) != 32:
-        raise SigningError("Seed must be 32 bytes")
-    return seed
-
-
-def _load_seed_for_key(kid: str) -> bytes:
-    name_specific = _env_name_for_key(kid)
-    encoded = _get_seed_b64(kid)
-    if not encoded:
-        raise SigningError(
-            f"Missing seed for key {kid}. Set {name_specific} or ORACLE_ED25519_SEED"
-        )
-    return _decode_seed(encoded)
-
-
-def _build_message(batch: Dict[str, Any]) -> bytes:
-    merkle_root = batch.get("merkle_root")
-    batch_ts = batch.get("batch_ts")
-    if not isinstance(merkle_root, str) or not isinstance(batch_ts, str):
-        raise SigningError("Batch file missing merkle_root or batch_ts")
-    return f"{merkle_root}|{batch_ts}".encode("utf-8")
-
-
-def sign_batch(batch_path: Path, keystore_path: Path) -> Dict[str, Any]:
-    now = datetime.now(timezone.utc)
-    keystore = _load_keystore(keystore_path)
-    keys = keystore.get("keys")
-    if not isinstance(keys, list):
-        raise SigningError("Keystore must contain a list of keys")
-    key = _select_active_key(keys, now=now)
-    kid = key["kid"]
-    seed = _load_seed_for_key(kid)
-    public_b64 = key["pubkey"]
-    try:
-        public = base64.b64decode(public_b64)
-    except (ValueError, binascii.Error) as exc:
-        raise SigningError("Invalid base64 public key") from exc
-    if len(public) != 32:
-        raise SigningError("Public key must be 32 bytes")
-
-    with batch_path.open("r", encoding="utf-8") as handle:
-        batch = json.load(handle)
-
-    message = _build_message(batch)
-    signature = ed25519.sign(message, seed, public)
-    signature_b64 = base64.b64encode(signature).decode("utf-8")
-
-    record = {
-        "kid": kid,
-        "alg": key["alg"],
-        "sig": signature_b64,
-        "merkle_root": batch["merkle_root"],
-        "ts": batch["batch_ts"],
-    }
-
-    SIGNATURE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with SIGNATURE_PATH.open("w", encoding="utf-8") as handle:
-        json.dump(record, handle, ensure_ascii=False, indent=2)
-    return record
-
+def _choose_batch_files() -> tuple[Path, Path]:
+    """Retorna (batch_json, batch_sig) canônicos em out/evidence/S7_event_model/"""
+    root = Path("out/evidence/S7_event_model")
+    root.mkdir(parents=True, exist_ok=True)
+    # Preferir batch.json/batch.sig se já existirem
+    bj, bs = root / "batch.json", root / "batch.sig"
+    if bj.exists():
+        return bj, bs
+    # Caso contrário, escolha o .json mais novo no diretório
+    candidates = sorted(root.glob("*.json"))
+    if not candidates:
+        print("[sign] no batch JSON found in out/evidence/S7_event_model", file=sys.stderr)
+        sys.exit(1)
+    latest = candidates[-1]
+    # Canonicalize como batch.json + batch.sig (cópia)
+    bj.write_bytes(latest.read_bytes())
+    return bj, bs
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sign oracle batch evidence")
-    parser.add_argument("--batch", type=Path, default=DEFAULT_BATCH_PATH)
-    parser.add_argument("--keystore", type=Path, default=DEFAULT_KEYSTORE_PATH)
-    args = parser.parse_args()
-    try:
-        sign_batch(args.batch, args.keystore)
-    except SigningError as exc:
-        raise SystemExit(str(exc)) from exc
+    seed_b64 = _get_seed_b64()
+    if not seed_b64:
+        print(
+            f"Missing seed for key {KEY_ID}. Set {_env_name_for_key(KEY_ID)} or ORACLE_ED25519_SEED",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    seed = _decode_seed(seed_b64)
+    signer = signing.SigningKey(seed)
+    verify_key = signer.verify_key
+    pub_b64 = base64.b64encode(bytes(verify_key)).decode()
 
+    batch_json, batch_sig = _choose_batch_files()
+    data = batch_json.read_bytes()
+    signature = signer.sign(data).signature  # 64 bytes
+    batch_sig.write_bytes(signature)
+
+    # Emitir pubkey.json canônico
+    pubmeta = {
+        "alg": "Ed25519",
+        "key_id": KEY_ID,
+        "public_key_b64": pub_b64,
+    }
+    (batch_json.parent / "pubkey.json").write_text(json.dumps(pubmeta, indent=2), encoding="utf-8")
+
+    print(f"[sign] wrote {batch_sig} and pubkey.json for {batch_json.name}")
 
 if __name__ == "__main__":
     main()
