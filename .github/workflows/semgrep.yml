@@ -12,6 +12,14 @@ on:
         description: "Optional git ref to run against"
         required: false
         type: string
+      fail_on_findings:
+        description: "Fail run when Semgrep reports findings"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      SEMGREP_APP_TOKEN:
+        required: false
     secrets:
       SEMGREP_APP_TOKEN:
         required: false
@@ -28,6 +36,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event_name == 'workflow_call' && (inputs.ref != '' && inputs.ref || github.sha) || github.sha }}
           # Se chamado via `uses:`, honrar o ref recebido; senão usar o commit atual
           ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
 
@@ -44,6 +53,7 @@ jobs:
           python -m pip install semgrep==1.67.0
 
       - name: Run Semgrep
+        continue-on-error: ${{ github.event_name == 'workflow_call' && !inputs.fail_on_findings }}
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
         run: |

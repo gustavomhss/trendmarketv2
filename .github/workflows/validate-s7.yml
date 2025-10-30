@@ -74,4 +74,5 @@ jobs:
     needs: validate
     with:
       run_tla: true
+      ref: ${{ github.sha }}
     secrets: inherit
