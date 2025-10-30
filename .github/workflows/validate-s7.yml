@@ -14,6 +14,7 @@ on:
       - .github/workflows/validate-s7.yml
       - scripts/ci/validate_s7.py
       - scripts/ci/generate_canonical_batch.py
+      - scripts/ci/audit_reusable_workflows.py
   workflow_dispatch: {}
 
 jobs:
@@ -38,6 +39,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install ruff pytest pynacl cryptography psutil pyyaml
+
+      - name: Actionlint
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_$(uname -s)_$(uname -m).tar.gz" \
+            | tar -xz actionlint
+          ./actionlint -color
           pip install ruff pytest pynacl cryptography psutil
 
       - name: Ruff lint
@@ -59,6 +68,9 @@ jobs:
 
       - name: Validate sprint gates
         run: python scripts/ci/validate_s7.py
+
+      - name: Audit reusable workflows
+        run: python scripts/ci/audit_reusable_workflows.py
 
       - name: Upload validation artifacts
         uses: actions/upload-artifact@v4

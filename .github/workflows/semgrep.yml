@@ -20,14 +20,14 @@ on:
     secrets:
       SEMGREP_APP_TOKEN:
         required: false
+
+permissions:
+  contents: read
     secrets:
       SEMGREP_APP_TOKEN:
         required: false
 
-permissions:
-  contents: read
-  # Se você quiser publicar SARIF no Code Scanning, adicione:
-  # security-events: write
+
 
 jobs:
   semgrep:
