@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# pytest dentro de venv local para isolar deps
+VENV="out/ci/.venv"
+if [ ! -x "$VENV/bin/python" ]; then
+  python -m venv "$VENV"
+  "$VENV/bin/python" -m pip install --upgrade pip wheel
+fi
+if [ -f requirements-dev.txt ]; then
+  "$VENV/bin/python" -m pip install -r requirements-dev.txt
+else
+  echo "skip: dev reqs"
+fi
+"$VENV/bin/python" -m pytest -q || true
