@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import os, sys, json, base64
+import base64
+import json
+import os
+import sys
 from pathlib import Path
 from typing import Optional, Union
 from nacl import signing, exceptions as nacl_exc
