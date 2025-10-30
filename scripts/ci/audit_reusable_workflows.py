@@ -27,6 +27,13 @@ class WorkflowContract:
     secrets: Dict[str, Mapping[str, Any]]
 
 
+@dataclass(frozen=True)
+class WorkflowInputs:
+    path: Path
+    has_workflow_call: bool
+    inputs: Dict[str, Mapping[str, Any]]
+
+
 def _load_yaml(path: Path) -> Mapping[str, Any]:
     data = yaml.safe_load(path.read_text())
     if not isinstance(data, Mapping):
@@ -35,6 +42,7 @@ def _load_yaml(path: Path) -> Mapping[str, Any]:
 
 
 def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
+def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
     on_section = cfg.get("on", {})
     workflow_call: Optional[Mapping[str, Any]] = None
     if isinstance(on_section, Mapping):
@@ -56,6 +64,7 @@ def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
                 for name, meta in raw_secrets.items()
             }
     return WorkflowContract(path=path, has_workflow_call=has_call, inputs=inputs, secrets=secrets)
+    return WorkflowInputs(path=path, has_workflow_call=has_call, inputs=inputs)
 
 
 def _iter_local_calls(cfg: Mapping[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -106,6 +115,10 @@ def main() -> None:
     for path in workflows:
         cfg = _load_yaml(path)
         inputs_index[_normalise_key(path)] = _workflow_contract(path, cfg)
+    inputs_index: Dict[str, WorkflowInputs] = {}
+    for path in workflows:
+        cfg = _load_yaml(path)
+        inputs_index[_normalise_key(path)] = _workflow_inputs(path, cfg)
 
     report: Dict[str, Any] = {
         "workflows": [],
