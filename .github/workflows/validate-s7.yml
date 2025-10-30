@@ -21,6 +21,8 @@ jobs:
   validate:
     name: S7 validation
     runs-on: ubuntu-22.04
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     permissions:
       contents: read
       actions: read
@@ -57,7 +59,7 @@ jobs:
         run: pytest -q tests/test_normalizer.py tests/test_signature.py
 
       - name: Generate canonical batch
-        run: python scripts/ci/generate_canonical_batch.py
+        run: python -m scripts.ci.generate_canonical_batch
 
       - name: Sign batch
         env:
