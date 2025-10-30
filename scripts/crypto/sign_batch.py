@@ -1,77 +1,87 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
-import base64
-import json
-import os
-import re
-import sys
+import os, sys, base64, json, re
 from pathlib import Path
-
+from typing import Optional, Union, Dict
 from nacl import signing
 
+PathLike = Union[str, Path]
 KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
 def _env_name_for_key(key_id: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_]", "_", key_id.upper())
     return f"ORACLE_ED25519_SEED_{safe}"
 
-def _get_seed_b64() -> str | None:
-    # específico por KEY_ID (underscore) ou genérico
-    return os.environ.get(_env_name_for_key(KEY_ID)) or os.environ.get("ORACLE_ED25519_SEED")
+def _seed_b64_from_env(key_id: Optional[str] = None) -> Optional[str]:
+    kid = key_id or KEY_ID
+    return os.environ.get(_env_name_for_key(kid)) or os.environ.get("ORACLE_ED25519_SEED")
 
 def _decode_seed(seed_b64: str) -> bytes:
     raw = base64.b64decode(seed_b64, validate=True)
     if len(raw) != 32:
-        print(f"[sign] seed must be 32 bytes after base64; got {len(raw)}", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError(f"seed must be 32 bytes after base64; got {len(raw)}")
     return raw
 
-def _choose_batch_files() -> tuple[Path, Path]:
-    """Retorna (batch_json, batch_sig) canônicos em out/evidence/S7_event_model/"""
-    root = Path("out/evidence/S7_event_model")
-    root.mkdir(parents=True, exist_ok=True)
-    # Preferir batch.json/batch.sig se já existirem
-    bj, bs = root / "batch.json", root / "batch.sig"
-    if bj.exists():
-        return bj, bs
-    # Caso contrário, escolha o .json mais novo no diretório
-    candidates = sorted(root.glob("*.json"))
-    if not candidates:
-        print("[sign] no batch JSON found in out/evidence/S7_event_model", file=sys.stderr)
-        sys.exit(1)
-    latest = candidates[-1]
-    # Canonicalize como batch.json + batch.sig (cópia)
-    bj.write_bytes(latest.read_bytes())
-    return bj, bs
+def _ensure_dir(p: Path) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
 
-def main() -> None:
-    seed_b64 = _get_seed_b64()
+def _default_batch_dir() -> Path:
+    return Path("out/evidence/S7_event_model")
+
+def _choose_batch_json(batch_json: Optional[PathLike] = None) -> Path:
+    if batch_json is not None:
+        return Path(batch_json)
+    d = _default_batch_dir()
+    bj = d / "batch.json"
+    if bj.exists():
+        return bj
+    cand = sorted(d.glob("*.json"))
+    if not cand:
+        raise FileNotFoundError("no batch JSON found in out/evidence/S7_event_model")
+    return cand[-1]
+
+def sign_batch(
+    batch_json: Optional[PathLike] = None,
+    out_sig: Optional[PathLike] = None,
+    seed_b64: Optional[str] = None,
+    key_id: Optional[str] = None,
+) -> Dict[str, str]:
+    """
+    Assina o batch JSON e emite:
+      - assinatura (batch.sig por padrão)
+      - pubkey.json (chave pública em base64)
+    Retorna dict com caminhos e public_key_b64.
+    """
+    kid = key_id or KEY_ID
+    seed_b64 = seed_b64 or _seed_b64_from_env(kid)
     if not seed_b64:
-        print(
-            f"Missing seed for key {KEY_ID}. Set {_env_name_for_key(KEY_ID)} or ORACLE_ED25519_SEED",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        raise RuntimeError(f"Missing seed for key {kid}. Set {_env_name_for_key(kid)} or ORACLE_ED25519_SEED")
+
     seed = _decode_seed(seed_b64)
     signer = signing.SigningKey(seed)
     verify_key = signer.verify_key
     pub_b64 = base64.b64encode(bytes(verify_key)).decode()
 
-    batch_json, batch_sig = _choose_batch_files()
-    data = batch_json.read_bytes()
+    bj = _choose_batch_json(batch_json)
+    sig_path = Path(out_sig) if out_sig is not None else (bj.parent / "batch.sig")
+    _ensure_dir(sig_path)
+
+    data = bj.read_bytes()
     signature = signer.sign(data).signature  # 64 bytes
-    batch_sig.write_bytes(signature)
+    sig_path.write_bytes(signature)
 
-    # Emitir pubkey.json canônico
-    pubmeta = {
-        "alg": "Ed25519",
-        "key_id": KEY_ID,
-        "public_key_b64": pub_b64,
-    }
-    (batch_json.parent / "pubkey.json").write_text(json.dumps(pubmeta, indent=2), encoding="utf-8")
+    pubmeta = {"alg": "Ed25519", "key_id": kid, "public_key_b64": pub_b64}
+    (bj.parent / "pubkey.json").write_text(json.dumps(pubmeta, indent=2), encoding="utf-8")
 
-    print(f"[sign] wrote {batch_sig} and pubkey.json for {batch_json.name}")
+    return {"batch": str(bj), "sig": str(sig_path), "public_key_b64": pub_b64, "key_id": kid}
+
+def main() -> None:
+    try:
+        res = sign_batch()
+    except Exception as e:  # noqa: BLE001
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
+    print(f"[sign] wrote {res['sig']} and pubkey.json for {Path(res['batch']).name}")
 
 if __name__ == "__main__":
     main()
