@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trendmarketv2/contracts/data/event_v1.json",
+  "title": "TrendMarket Oracle Event v1",
+  "description": "Canonical append-only event contract for TrendMarket oracle ingestion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "lang",
+    "category",
+    "source",
+    "observed_at",
+    "equivalenceHash",
+    "payload"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "SHA-256 hex digest of the canonical event (without the id field).",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human readable title (normalized, max 180 chars).",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "lang": {
+      "type": "string",
+      "enum": ["pt", "es", "en"],
+      "description": "Content language (pt, es or en)."
+    },
+    "category": {
+      "type": "string",
+      "description": "Normalized category token in kebab-case.",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "source": {
+      "type": "string",
+      "description": "Normalized source token in kebab-case.",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the event was observed. Must not be more than 5 minutes ahead of the current time."
+    },
+    "equivalenceHash": {
+      "type": "string",
+      "description": "SHA-256 hex digest of the equivalence tuple (title, category).",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event payload (arbitrary JSON object without private keys).",
+      "additionalProperties": true,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^(?!_).*$",
+        "description": "Payload keys must not start with an underscore."
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "all_ok": true,
+  "checks": [
+    {
+      "name": "artefacts_present",
+      "status": "ok",
+      "detail": "All required artefacts present"
+    },
+    {
+      "name": "merkle_consistency",
+      "status": "ok",
+      "detail": "Merkle root matches leaves"
+    },
+    {
+      "name": "proof_alignment",
+      "status": "ok",
+      "detail": "Append-only proof aligned"
+    },
+    {
+      "name": "signature_verification",
+      "status": "ok",
+      "detail": "Signature verified"
+    },
+    {
+      "name": "keystore_window",
+      "status": "ok",
+      "detail": "Active key s7-active-20251001 valid"
+    },
+    {
+      "name": "normalizer_microbench",
+      "status": "ok",
+      "detail": "p95=0.061ms"
+    }
+  ]
+}
