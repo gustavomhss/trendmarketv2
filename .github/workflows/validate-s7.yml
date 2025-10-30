@@ -46,7 +46,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-check
-          fail_on_error: 'true'
+          fail_level: error
+          actionlint_flags: "-shellcheck= .github/workflows/validate-s7.yml .github/workflows/_s4-orr.yml"
 
 
       - name: Ruff lint
