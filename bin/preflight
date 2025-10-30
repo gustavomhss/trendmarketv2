@@ -15,3 +15,29 @@ else
   echo "skip: dev reqs"
 fi
 "$VENV/bin/python" -m pytest -q || true
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+# yamllint: lint só alvos da S7 (se existirem)
+if command -v yamllint >/dev/null 2>&1; then
+  if [ -f tools/yaml/targets.txt ]; then
+    # carrega alvos ignorando linhas vazias e comentários
+    mapfile -t TARGETS < <(grep -v '^\s*#' tools/yaml/targets.txt | sed '/^\s*$/d')
+    if [ "${#TARGETS[@]}" -gt 0 ]; then
+      yamllint -c .yamllint "${TARGETS[@]}"
+    else
+      echo "skip: yamllint (no targets)"
+    fi
+  else
+    echo "skip: yamllint (no targets.txt)"
+  fi
+else
+  echo "skip: yamllint"
+fi
+mkdir -p out/ci out/evidence out/scorecards
+python -V
+if [ -f scripts/render_ci.py ]; then python scripts/render_ci.py; else echo "skip: render"; fi
+if [ -f scripts/validate_ci.py ]; then python scripts/validate_ci.py; else echo "skip: validate"; fi
+if command -v yamllint >/dev/null 2>&1; then yamllint .; else echo "skip: yamllint"; fi
+pytest -q || true
+if command -v gitleaks >/dev/null 2>&1; then gitleaks detect --source . --no-banner --report-format json --report-path out/evidence/T2_security/gitleaks_report.json; else echo "skip: gitleaks"; fi
