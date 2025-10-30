@@ -11,16 +11,22 @@ from nacl import signing, exceptions as nacl_exc
 PathLike = Union[str, Path]
 KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
+class VerificationError(Exception):
+    """Erro de verificação de assinatura (chave ausente ou assinatura inválida)."""
+
 def _default_batch_dir() -> Path:
     return Path("out/evidence/S7_event_model")
 
-def _choose_batch_json_and_sig(bj: Optional[PathLike] = None, bs: Optional[PathLike] = None) -> tuple[Path, Path]:
+def _choose_batch_json_and_sig(
+    bj: Optional[PathLike] = None,
+    bs: Optional[PathLike] = None,
+) -> tuple[Path, Path]:
     root = _default_batch_dir()
     bj_path = Path(bj) if bj is not None else (root / "batch.json")
     if not bj_path.exists():
         candidates = sorted(root.glob("*.json"))
         if not candidates:
-            raise FileNotFoundError("no batch JSON found to verify")
+            raise VerificationError("no batch JSON found to verify")
         bj_path = candidates[-1]
     bs_path = Path(bs) if bs is not None else (root / "batch.sig")
     if not bs_path.exists():
@@ -28,7 +34,7 @@ def _choose_batch_json_and_sig(bj: Optional[PathLike] = None, bs: Optional[PathL
         if cand.exists():
             bs_path = cand
         else:
-            raise FileNotFoundError("no signature file found for batch")
+            raise VerificationError("no signature file found for batch")
     return bj_path, bs_path
 
 def _load_pub_from_pubmeta(dir_: Path) -> Optional[bytes]:
@@ -53,7 +59,7 @@ def _pub_from_seed() -> Optional[bytes]:
         return None
     raw = base64.b64decode(seed_b64, validate=True)
     if len(raw) != 32:
-        raise ValueError("ORACLE_ED25519_SEED is not 32 bytes after base64")
+        raise VerificationError("ORACLE_ED25519_SEED is not 32 bytes after base64")
     return bytes(signing.SigningKey(raw).verify_key)
 
 def verify_signature(
@@ -73,21 +79,23 @@ def verify_signature(
     if pub is None:
         pub = _pub_from_seed()
     if pub is None:
-        raise RuntimeError("missing public key: provide pubkey.json, ORACLE_ED25519_PUB, or ORACLE_ED25519_SEED")
+        raise VerificationError("missing public key: provide pubkey.json, ORACLE_ED25519_PUB, or ORACLE_ED25519_SEED")
 
     vk = signing.VerifyKey(pub)
     data = Path(bj).read_bytes()
     sig = Path(bs).read_bytes()
     try:
         vk.verify(data, sig)
-    except nacl_exc.BadSignatureError:
-        return False
+    except nacl_exc.BadSignatureError as e:
+        raise VerificationError("bad signature") from e
     return True
 
 def main() -> None:
-    ok = False
     try:
         ok = verify_signature()
+    except VerificationError as e:
+        print(str(e) or "Signature verification failed", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:  # noqa: BLE001
         print(str(e), file=sys.stderr)
         sys.exit(1)
