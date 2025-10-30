@@ -47,6 +47,7 @@ jobs:
           curl -sSfL "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_$(uname -s)_$(uname -m).tar.gz" \
             | tar -xz actionlint
           ./actionlint -color
+          pip install ruff pytest pynacl cryptography psutil
 
       - name: Ruff lint
         run: ruff check .
@@ -78,6 +79,7 @@ jobs:
           path: |
             out/reports/validation/
             out/evidence/S7_event_model/
+
   call-orr:
     name: ORR gates (_s4-orr)
     uses: ./.github/workflows/_s4-orr.yml

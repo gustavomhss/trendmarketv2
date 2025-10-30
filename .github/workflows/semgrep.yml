@@ -23,15 +23,22 @@ on:
 
 permissions:
   contents: read
+    secrets:
+      SEMGREP_APP_TOKEN:
+        required: false
+
+
 
 jobs:
   semgrep:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event_name == 'workflow_call' && inputs.ref != '' && inputs.ref || github.sha }}
+          ref: ${{ github.event_name == 'workflow_call' && (inputs.ref != '' && inputs.ref || github.sha) || github.sha }}
+          # Se chamado via `uses:`, honrar o ref recebido; senão usar o commit atual
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
@@ -66,3 +73,5 @@ jobs:
           path: out/guard/s4/semgrep.sarif
           if-no-files-found: warn
           retention-days: 7
+
+    
