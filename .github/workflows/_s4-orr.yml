@@ -100,7 +100,7 @@ jobs:
             echo "[apply] mudanças detectadas"
             exit 10
           fi
-          exit ${code:-0}
+          exit "${code:-0}"
 
       - name: Validar actions.lock
         run: |
@@ -471,6 +471,7 @@ jobs:
             ./scripts/s4_bundle.sh
           else
             echo "[bundle] bundle já disponível"
+          fi
           if [ -x scripts/orr_s5_run.sh ]; then
             echo "[bundle] Executando scripts/orr_s5_run.sh"
             ./scripts/orr_s5_run.sh
