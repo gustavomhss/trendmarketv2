@@ -16,6 +16,15 @@ except ModuleNotFoundError as exc:  # pragma: no cover - dependency gate
 
 WORKFLOW_DIR = Path(".github/workflows")
 REPORT_PATH = Path("out/reports/validation/ci_refactor_report.json")
+RESERVED_SECRET_NAMES = {"GITHUB_TOKEN"}
+
+
+@dataclass(frozen=True)
+class WorkflowContract:
+    path: Path
+    has_workflow_call: bool
+    inputs: Dict[str, Mapping[str, Any]]
+    secrets: Dict[str, Mapping[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -32,6 +41,7 @@ def _load_yaml(path: Path) -> Mapping[str, Any]:
     return data
 
 
+def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
 def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
     on_section = cfg.get("on", {})
     workflow_call: Optional[Mapping[str, Any]] = None
@@ -39,6 +49,7 @@ def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
         workflow_call = on_section.get("workflow_call")
     has_call = isinstance(workflow_call, Mapping)
     inputs: Dict[str, Mapping[str, Any]] = {}
+    secrets: Dict[str, Mapping[str, Any]] = {}
     if has_call and isinstance(workflow_call, Mapping):
         raw_inputs = workflow_call.get("inputs", {})
         if isinstance(raw_inputs, Mapping):
@@ -46,6 +57,13 @@ def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
                 str(name): meta if isinstance(meta, Mapping) else {}
                 for name, meta in raw_inputs.items()
             }
+        raw_secrets = workflow_call.get("secrets", {})
+        if isinstance(raw_secrets, Mapping):
+            secrets = {
+                str(name): meta if isinstance(meta, Mapping) else {}
+                for name, meta in raw_secrets.items()
+            }
+    return WorkflowContract(path=path, has_workflow_call=has_call, inputs=inputs, secrets=secrets)
     return WorkflowInputs(path=path, has_workflow_call=has_call, inputs=inputs)
 
 
@@ -93,6 +111,10 @@ def _normalise_key(path: Path) -> str:
 
 def main() -> None:
     workflows = _list_workflow_files()
+    inputs_index: Dict[str, WorkflowContract] = {}
+    for path in workflows:
+        cfg = _load_yaml(path)
+        inputs_index[_normalise_key(path)] = _workflow_contract(path, cfg)
     inputs_index: Dict[str, WorkflowInputs] = {}
     for path in workflows:
         cfg = _load_yaml(path)
@@ -104,6 +126,7 @@ def main() -> None:
         "summary": {
             "workflow_total": len(workflows),
             "workflow_without_call": 0,
+            "workflow_with_reserved_secrets": 0,
             "call_total": 0,
             "call_with_unknown_inputs": 0,
             "call_missing_required_inputs": 0,
@@ -113,6 +136,9 @@ def main() -> None:
 
     for wf in workflows:
         info = inputs_index[_normalise_key(wf)]
+        reserved = sorted(name for name in info.secrets if name in RESERVED_SECRET_NAMES)
+        if reserved:
+            report["summary"]["workflow_with_reserved_secrets"] += 1
         report["workflows"].append(
             {
                 "path": info.path.as_posix(),
@@ -126,6 +152,15 @@ def main() -> None:
                     }
                     for name, meta in sorted(info.inputs.items())
                 ],
+                "secrets": [
+                    {
+                        "name": name,
+                        "required": bool(meta.get("required", False)),
+                        "reserved": name in RESERVED_SECRET_NAMES,
+                    }
+                    for name, meta in sorted(info.secrets.items())
+                ],
+                "reserved_secrets": reserved,
             }
         )
         if not info.has_workflow_call:
