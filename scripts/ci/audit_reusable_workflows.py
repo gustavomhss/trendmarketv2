@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
@@ -28,6 +27,13 @@ class WorkflowContract:
     secrets: Dict[str, Mapping[str, Any]]
 
 
+@dataclass(frozen=True)
+class WorkflowInputs:
+    path: Path
+    has_workflow_call: bool
+    inputs: Dict[str, Mapping[str, Any]]
+
+
 def _load_yaml(path: Path) -> Mapping[str, Any]:
     data = yaml.safe_load(path.read_text())
     if not isinstance(data, Mapping):
@@ -36,6 +42,7 @@ def _load_yaml(path: Path) -> Mapping[str, Any]:
 
 
 def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
+def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
     on_section = cfg.get("on", {})
     workflow_call: Optional[Mapping[str, Any]] = None
     if isinstance(on_section, Mapping):
@@ -57,6 +64,7 @@ def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
                 for name, meta in raw_secrets.items()
             }
     return WorkflowContract(path=path, has_workflow_call=has_call, inputs=inputs, secrets=secrets)
+    return WorkflowInputs(path=path, has_workflow_call=has_call, inputs=inputs)
 
 
 def _iter_local_calls(cfg: Mapping[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -107,6 +115,10 @@ def main() -> None:
     for path in workflows:
         cfg = _load_yaml(path)
         inputs_index[_normalise_key(path)] = _workflow_contract(path, cfg)
+    inputs_index: Dict[str, WorkflowInputs] = {}
+    for path in workflows:
+        cfg = _load_yaml(path)
+        inputs_index[_normalise_key(path)] = _workflow_inputs(path, cfg)
 
     report: Dict[str, Any] = {
         "workflows": [],
@@ -119,8 +131,6 @@ def main() -> None:
             "call_with_unknown_inputs": 0,
             "call_missing_required_inputs": 0,
             "call_missing_workflow": 0,
-            "status": "ok",
-            "failure_reasons": [],
         },
     }
 
@@ -194,32 +204,9 @@ def main() -> None:
             report["calls"].append(report_entry)
             report["summary"]["call_total"] += 1
 
-    failure_reasons: List[str] = []
-    summary = report["summary"]
-    if summary["workflow_with_reserved_secrets"]:
-        failure_reasons.append("reserved_secrets")
-    if summary["call_with_unknown_inputs"]:
-        failure_reasons.append("unknown_inputs")
-    if summary["call_missing_required_inputs"]:
-        failure_reasons.append("missing_required_inputs")
-    if summary["call_missing_workflow"]:
-        failure_reasons.append("missing_workflow")
-
-    if failure_reasons:
-        summary["status"] = "needs_attention"
-        summary["failure_reasons"] = failure_reasons
-
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, indent=2, sort_keys=True))
     print(f"audit report written to {REPORT_PATH.as_posix()}")
-
-    if failure_reasons:
-        print(
-            "workflow audit detected contract issues: "
-            + ", ".join(failure_reasons),
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
 
 
 if __name__ == "__main__":

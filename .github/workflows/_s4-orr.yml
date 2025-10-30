@@ -48,6 +48,8 @@ on:
         type: boolean
         default: false
     secrets:
+      GITHUB_TOKEN:
+        required: false
       GCP_SA_JSON:
         required: false
       DBT_BQ_PROJECT:
