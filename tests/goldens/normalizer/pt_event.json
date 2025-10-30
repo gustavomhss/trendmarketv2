@@ -1,0 +1,27 @@
+{
+  "description": "PT economic alert",
+  "input": {
+    "title": "   Alerta Econômico: Inflação sobe 0,5% ",
+    "lang": "PT",
+    "category": "Economia  ",
+    "source": "IBGE Notícias",
+    "observed_at": "2025-10-29T19:00:00Z",
+    "payload": {
+      "indice": 0.5,
+      "pais": "Brasil"
+    }
+  },
+  "expected": {
+    "category": "economia",
+    "equivalenceHash": "4686ba6eea7a86533f9f2f0b765b57a1664b14c96ad8af4b0324f6e6cebf431b",
+    "id": "0e92941f32042a770a353e62dcbf3f28461cb5f937bf0e87143bf3623fbec764",
+    "lang": "pt",
+    "observed_at": "2025-10-29T19:00:00Z",
+    "payload": {
+      "indice": 0.5,
+      "pais": "Brasil"
+    },
+    "source": "ibge-noticias",
+    "title": "alerta economico: inflacao sobe 0,5%"
+  }
+}
