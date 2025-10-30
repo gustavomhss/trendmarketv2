@@ -7,6 +7,7 @@ import base64
 import binascii
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,19 +52,37 @@ def _select_active_key(keys: List[Dict[str, Any]], *, now: datetime) -> Dict[str
     return active_keys[0][1]
 
 
-def _load_seed_for_key(kid: str) -> bytes:
-    env_name = f"ORACLE_ED25519_SEED_{kid.upper()}"
-    fallback = os.getenv("ORACLE_ED25519_SEED")
-    encoded = os.getenv(env_name, fallback)
-    if not encoded:
-        raise SigningError(f"Missing seed for key {kid}. Set {env_name} or ORACLE_ED25519_SEED")
+def _env_name_for_key(key_id: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", key_id.upper())
+    return f"ORACLE_ED25519_SEED_{safe}"
+
+
+def _get_seed_b64(kid: str) -> str | None:
+    name_specific = _env_name_for_key(kid)
+    seed = os.environ.get(name_specific)
+    if seed:
+        return seed
+    return os.environ.get("ORACLE_ED25519_SEED")
+
+
+def _decode_seed(encoded: str) -> bytes:
     try:
-        seed = base64.b64decode(encoded)
+        seed = base64.b64decode(encoded, validate=True)
     except (ValueError, binascii.Error) as exc:
         raise SigningError("Seed must be base64 encoded") from exc
     if len(seed) != 32:
         raise SigningError("Seed must be 32 bytes")
     return seed
+
+
+def _load_seed_for_key(kid: str) -> bytes:
+    name_specific = _env_name_for_key(kid)
+    encoded = _get_seed_b64(kid)
+    if not encoded:
+        raise SigningError(
+            f"Missing seed for key {kid}. Set {name_specific} or ORACLE_ED25519_SEED"
+        )
+    return _decode_seed(encoded)
 
 
 def _build_message(batch: Dict[str, Any]) -> bytes:
