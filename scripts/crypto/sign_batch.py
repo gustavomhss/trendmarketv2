@@ -11,6 +11,7 @@ from nacl import signing
 
 PathLike = Union[str, Path]
 KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
+SIGNATURE_PATH: "Path" = Path("out/evidence/S7_event_model/signature.json")
 
 def _env_name_for_key(key_id: str) -> str:
     safe = re.sub(r"[^A-Za-z0-9_]", "_", key_id.upper())
