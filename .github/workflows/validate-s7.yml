@@ -44,7 +44,17 @@ jobs:
       - name: Actionlint
         run: |
           set -euo pipefail
-          curl -sSfL "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_$(uname -s)_$(uname -m).tar.gz" \
+          case "$(uname -s)" in
+            Linux) os="linux" ;;
+            Darwin) os="darwin" ;;
+            *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+          esac
+          case "$(uname -m)" in
+            x86_64) arch="amd64" ;;
+            arm64|aarch64) arch="arm64" ;;
+            *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl -sSfL "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_${os}_${arch}.tar.gz" \
             | tar -xz actionlint
           ./actionlint -color
           pip install ruff pytest pynacl cryptography psutil
