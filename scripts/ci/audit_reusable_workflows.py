@@ -204,9 +204,37 @@ def main() -> None:
             report["calls"].append(report_entry)
             report["summary"]["call_total"] += 1
 
+    failure_reasons: List[str] = []
+    summary = report["summary"]
+    if summary["workflow_with_reserved_secrets"]:
+        reserved_names = ", ".join(sorted(summary["reserved_secret_names"]))
+        failure_reasons.append(
+            "reserved_secrets" + (f" ({reserved_names})" if reserved_names else "")
+        )
+    if summary["call_with_unknown_inputs"]:
+        failure_reasons.append("unknown_inputs")
+    if summary["call_missing_required_inputs"]:
+        failure_reasons.append("missing_required_inputs")
+    if summary["call_missing_workflow"]:
+        failure_reasons.append("missing_workflow")
+
+    if failure_reasons:
+        summary["status"] = "needs_attention"
+        summary["failure_reasons"] = failure_reasons
+
+    summary["reserved_secret_names"] = sorted(set(summary["reserved_secret_names"]))
+
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(json.dumps(report, indent=2, sort_keys=True))
     print(f"audit report written to {REPORT_PATH.as_posix()}")
+
+    if failure_reasons:
+        print(
+            "workflow audit detected contract issues: "
+            + ", ".join(failure_reasons),
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
