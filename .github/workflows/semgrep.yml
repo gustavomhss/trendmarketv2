@@ -1,29 +1,52 @@
 name: Semgrep (CLI)
+
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
   workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      ref:
+        description: "Optional git ref to run against"
+        required: false
+        type: string
+      fail_on_findings:
+        description: "Fail run when Semgrep reports findings"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      SEMGREP_APP_TOKEN:
+        required: false
+
 permissions:
   contents: read
+
 jobs:
   semgrep:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event_name == 'workflow_call' && inputs.ref != '' && inputs.ref || github.sha }}
+
       - name: Setup Python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11"
           check-latest: true
+
       - name: Install Semgrep CLI
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install semgrep==1.67.0
+
       - name: Run Semgrep
+        continue-on-error: ${{ github.event_name == 'workflow_call' && !inputs.fail_on_findings }}
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
         run: |
@@ -34,6 +57,7 @@ jobs:
           else
             semgrep scan --config p/ci --severity ERROR --error --sarif --output out/guard/s4/semgrep.sarif
           fi
+
       - name: Upload Semgrep results
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4

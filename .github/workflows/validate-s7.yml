@@ -1,0 +1,88 @@
+name: validate-s7
+
+on:
+  pull_request:
+    paths:
+      - contracts/data/event_v1.json
+      - services/oracle/normalizer/**
+      - scripts/crypto/**
+      - docs/ADR/**
+      - models/tla/append_only/**
+      - tests/test_normalizer.py
+      - tests/test_signature.py
+      - tests/goldens/normalizer/**
+      - .github/workflows/validate-s7.yml
+      - scripts/ci/validate_s7.py
+      - scripts/ci/generate_canonical_batch.py
+      - scripts/ci/audit_reusable_workflows.py
+  workflow_dispatch: {}
+
+jobs:
+  validate:
+    name: S7 validation
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest pynacl cryptography psutil pyyaml
+
+      - name: Actionlint
+        run: |
+          set -euo pipefail
+          curl -sSfL "https://github.com/rhysd/actionlint/releases/latest/download/actionlint_$(uname -s)_$(uname -m).tar.gz" \
+            | tar -xz actionlint
+          ./actionlint -color
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Pytest
+        run: pytest -q tests/test_normalizer.py tests/test_signature.py
+
+      - name: Generate canonical batch
+        run: python scripts/ci/generate_canonical_batch.py
+
+      - name: Sign batch
+        env:
+          ORACLE_ED25519_SEED: ${{ secrets.ORACLE_ED25519_SEED }}
+        run: python scripts/crypto/sign_batch.py
+
+      - name: Verify signature
+        run: python scripts/crypto/verify_signature.py
+
+      - name: Validate sprint gates
+        run: python scripts/ci/validate_s7.py
+
+      - name: Audit reusable workflows
+        run: python scripts/ci/audit_reusable_workflows.py
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: s7-validation-artifacts
+          path: |
+            out/reports/validation/
+            out/evidence/S7_event_model/
+  call-orr:
+    name: ORR gates (_s4-orr)
+    uses: ./.github/workflows/_s4-orr.yml
+    needs: validate
+    with:
+      run_tla: true
+      ref: ${{ github.sha }}
+    secrets: inherit

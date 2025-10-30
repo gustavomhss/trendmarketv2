@@ -1,0 +1,7 @@
+{
+  "kid": "s7-active-20251001",
+  "alg": "Ed25519",
+  "sig": "bTL8nO6+VRaY0Mh0UlX9JJ1bbU290jGZEVUd0998yjJubgYIWqxgvcQigdbSFTS5A03d0cnz6nZvPhZe6NLvDA==",
+  "merkle_root": "743b598120cc25ac19d5849b2397d6ec86ada9c0e0a20ae91988d2ecb3b8fb53",
+  "ts": "2025-10-29T19:31:36Z"
+}
