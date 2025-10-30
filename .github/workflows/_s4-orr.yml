@@ -3,17 +3,22 @@ name: _s4-orr
 on:
   workflow_call:
     inputs:
-      ref:
-        description: Optional ref to run against
-        required: false
-        type: string
-      run_microbench:
-        description: Enable microbench gate
+      run_tla:
+        description: "Enable TLA verification"
         required: false
         type: boolean
         default: false
-      run_tla:
-        description: Enable TLA verification
+      ref:
+        description: "Optional ref to run against"
+        required: false
+        type: string
+      fail_on_findings:
+        description: "Fail pipeline on guard findings"
+        required: false
+        type: boolean
+        default: true
+      run_microbench:
+        description: Enable microbench gate
         required: false
         type: boolean
         default: false
@@ -42,12 +47,9 @@ on:
         required: false
         type: boolean
         default: false
-      security_fail_on_findings:
-        description: "Falhar se houver findings de segurança"
-        required: false
-        type: boolean
-        default: false
     secrets:
+      GITHUB_TOKEN:
+        required: false
       GCP_SA_JSON:
         required: false
       DBT_BQ_PROJECT:
@@ -66,8 +68,6 @@ concurrency:
 permissions:
   contents: read
   actions: write
-  id-token: write
-  security-events: write
 
 jobs:
   semgrep_scan:
@@ -75,7 +75,7 @@ jobs:
     uses: ./.github/workflows/semgrep.yml
     with:
       ref: ${{ inputs.ref || github.sha }}
-      fail_on_findings: ${{ inputs.security_fail_on_findings }}
+      fail_on_findings: ${{ inputs.fail_on_findings }}
     secrets: inherit
 
   orr:
@@ -160,7 +160,7 @@ jobs:
       - name: Security | Gitleaks detect
         if: ${{ inputs.run_security }}
         shell: bash
-        continue-on-error: ${{ !inputs.security_fail_on_findings }}
+        continue-on-error: ${{ !inputs.fail_on_findings }}
         run: |
           set -euo pipefail
           mkdir -p out/security
@@ -177,7 +177,7 @@ jobs:
       - name: Security | Trivy fs (if available)
         if: ${{ inputs.run_security }}
         shell: bash
-        continue-on-error: ${{ !inputs.security_fail_on_findings }}
+        continue-on-error: ${{ !inputs.fail_on_findings }}
         run: |
           set -euo pipefail
           mkdir -p out/security
