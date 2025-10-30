@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
@@ -28,6 +27,13 @@ class WorkflowContract:
     secrets: Dict[str, Mapping[str, Any]]
 
 
+@dataclass(frozen=True)
+class WorkflowInputs:
+    path: Path
+    has_workflow_call: bool
+    inputs: Dict[str, Mapping[str, Any]]
+
+
 def _load_yaml(path: Path) -> Mapping[str, Any]:
     data = yaml.safe_load(path.read_text())
     if not isinstance(data, Mapping):
@@ -36,6 +42,7 @@ def _load_yaml(path: Path) -> Mapping[str, Any]:
 
 
 def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
+def _workflow_inputs(path: Path, cfg: Mapping[str, Any]) -> WorkflowInputs:
     on_section = cfg.get("on", {})
     workflow_call: Optional[Mapping[str, Any]] = None
     if isinstance(on_section, Mapping):
@@ -57,6 +64,7 @@ def _workflow_contract(path: Path, cfg: Mapping[str, Any]) -> WorkflowContract:
                 for name, meta in raw_secrets.items()
             }
     return WorkflowContract(path=path, has_workflow_call=has_call, inputs=inputs, secrets=secrets)
+    return WorkflowInputs(path=path, has_workflow_call=has_call, inputs=inputs)
 
 
 def _iter_local_calls(cfg: Mapping[str, Any]) -> Iterable[Dict[str, Any]]:
@@ -107,6 +115,10 @@ def main() -> None:
     for path in workflows:
         cfg = _load_yaml(path)
         inputs_index[_normalise_key(path)] = _workflow_contract(path, cfg)
+    inputs_index: Dict[str, WorkflowInputs] = {}
+    for path in workflows:
+        cfg = _load_yaml(path)
+        inputs_index[_normalise_key(path)] = _workflow_inputs(path, cfg)
 
     report: Dict[str, Any] = {
         "workflows": [],
@@ -115,13 +127,10 @@ def main() -> None:
             "workflow_total": len(workflows),
             "workflow_without_call": 0,
             "workflow_with_reserved_secrets": 0,
-            "reserved_secret_names": [],
             "call_total": 0,
             "call_with_unknown_inputs": 0,
             "call_missing_required_inputs": 0,
             "call_missing_workflow": 0,
-            "status": "ok",
-            "failure_reasons": [],
         },
     }
 
@@ -130,9 +139,6 @@ def main() -> None:
         reserved = sorted(name for name in info.secrets if name in RESERVED_SECRET_NAMES)
         if reserved:
             report["summary"]["workflow_with_reserved_secrets"] += 1
-            report["summary"]["reserved_secret_names"].extend(
-                f"{info.path.as_posix()}::{name}" for name in reserved
-            )
         report["workflows"].append(
             {
                 "path": info.path.as_posix(),

@@ -48,7 +48,8 @@ on:
         type: boolean
         default: false
     secrets:
-      # NOTE: GITHUB_TOKEN is reserved by GitHub Actions and must not be declared here.
+      GITHUB_TOKEN:
+        required: false
       GCP_SA_JSON:
         required: false
       DBT_BQ_PROJECT:
