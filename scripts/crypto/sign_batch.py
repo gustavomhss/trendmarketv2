@@ -2,6 +2,8 @@ from __future__ import annotations
 import os, json, base64, hashlib
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import Dict, Optional
+from typing import Union
 from nacl import signing
 
 PathLike = Union[str, Path]
