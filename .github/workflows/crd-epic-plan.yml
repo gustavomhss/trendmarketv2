@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: CRD Epic Plan stub
+        shell: bash
         run: |
-          echo "[stub] crd-epic-plan.yml — placeholder seguro."
-          echo "TODO: repor pipeline real."
+          echo "[stub] crd-epic-plan.yml — safe stub"
+          echo "TODO: bring back real pipeline"

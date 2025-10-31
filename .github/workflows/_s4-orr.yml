@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: S4 ORR stub
+        shell: bash
         run: |
-          echo "[stub] _s4-orr.yml — restaurado como stub seguro."
-          echo "TODO: substituir por workflow real quando pronto."
+          echo "[stub] _s4-orr.yml — safe stub"
+          echo "TODO: replace with real pipeline"

@@ -7,4 +7,8 @@ jobs:
   noop:
     runs-on: ubuntu-22.04
     steps:
-      - run: echo "[stub] _mbp-s2-orr.yml — TODO: restaurar conteúdo real."
+      - name: MBP S2 ORR stub
+        shell: bash
+        run: |
+          echo "[stub] _mbp-s2-orr.yml — safe stub"
+          echo "TODO: restore real content"
