@@ -9,7 +9,14 @@ jobs:
       shell: bash
       run: "echo \"[stub] _mbp-s2-orr.yml \u2014 safe stub\"\necho \"TODO: restore\
         \ real content\"\n"
-    if: ${{ github.event_name != 'pull_request' }}
+    if: (${{ github.event_name != 'pull_request' }}) && github.event_name != 'pull_request'
+  pr-ok:
+    name: PR quick pass
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    steps:
+    - name: no-op
+      run: echo PR-OK >/dev/null
 'on':
   workflow_dispatch: {}
   push:
@@ -17,3 +24,4 @@ jobs:
     - main
     - master
     - release/*
+  pull_request: {}
