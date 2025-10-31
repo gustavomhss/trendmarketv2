@@ -322,3 +322,8 @@ jobs:
       run: exit 1
 'on':
   workflow_dispatch: {}
+  push:
+    branches:
+    - main
+    - master
+    - release/*
