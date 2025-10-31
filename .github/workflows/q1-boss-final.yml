@@ -122,7 +122,7 @@ jobs:
         \ .)\nls -lh \"$zip_path\"\n"
     - name: Upload stage artifact (zip)
       if: always()
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
       with:
         name: boss-stage-${{env.STAGE}}
         path: out/boss/boss-stage-${{env.STAGE}}.zip
@@ -163,7 +163,7 @@ jobs:
         '
     - name: Download stage artifacts
       if: always()
-      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (was v4)
       with:
         pattern: boss-stage-*
         merge-multiple: true
@@ -276,7 +276,7 @@ jobs:
         \nfi\n"
     - name: Upload Boss Final aggregate
       if: steps.aggregate.outcome == 'success'
-      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
       with:
         name: boss-final-aggregate
         path: '${{ runner.temp }}/boss-aggregate

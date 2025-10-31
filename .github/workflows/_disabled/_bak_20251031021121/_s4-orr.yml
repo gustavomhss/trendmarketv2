@@ -197,7 +197,7 @@ jobs:
 
       - name: Security | Upload findings
         if: ${{always() && inputs.run_security}}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: security-findings
           path: out/security/**
@@ -261,7 +261,7 @@ jobs:
 
       - name: GHCR login (opcional)
         if: ${{inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true'}}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # pinned (was v3)
+        uses: docker/login-action@f4ef339be1f7c0066db2ed1d1c637d705d7d76e8  # pinned (was v3)
         with:
           registry: ghcr.io
           username: ${{github.actor}}
@@ -345,7 +345,7 @@ jobs:
           exit "$RC"
 
       - name: Upload TLA report
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         if: ${{always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true'}}
         with:
           name: tla-report
@@ -482,7 +482,7 @@ jobs:
 
       - name: Upload dbt docs
         if: ${{always()}}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: s4-dbt-docs
           path: analytics/dbt/target
@@ -490,7 +490,7 @@ jobs:
 
       - name: Upload bundle
         if: ${{always() && !inputs.run_tla}}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: s5-bundle
           path: |
@@ -503,7 +503,7 @@ jobs:
 
       - name: Upload auditoria pip
         if: ${{always() && !inputs.run_tla}}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: pip-audit
           path: out/pip-audit
@@ -511,7 +511,7 @@ jobs:
 
       - name: Upload s5-orr evidence
         if: ${{always()}}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: s5-orr-evidence
           path: |
