@@ -320,3 +320,5 @@ jobs:
     - name: Fail when any stage guard failed
       if: ${{always() && needs.stage.result == 'failure'}}
       run: exit 1
+'on':
+  workflow_dispatch: {}

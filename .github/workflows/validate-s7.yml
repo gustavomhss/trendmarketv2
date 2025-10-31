@@ -85,4 +85,4 @@ jobs:
     secrets: inherit
     if: ${{ github.event_name != 'pull_request' }}
 'on':
-  pull_request: {}
+  workflow_dispatch: {}

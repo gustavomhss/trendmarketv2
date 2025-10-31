@@ -68,3 +68,5 @@ jobs:
           \  `\U0001F517 Evidence index: ${indexLink}`\n].join('\\n');\ngithub.rest.issues.createComment({\
           \ ...context.repo, issue_number: context.issue.number, body: comment });\n"
     if: ${{ github.event_name != 'pull_request' }}
+'on':
+  workflow_dispatch: {}

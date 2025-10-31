@@ -10,3 +10,5 @@ jobs:
       run: "echo \"[stub] _mbp-s2-orr.yml \u2014 safe stub\"\necho \"TODO: restore\
         \ real content\"\n"
     if: ${{ github.event_name != 'pull_request' }}
+'on':
+  workflow_dispatch: {}

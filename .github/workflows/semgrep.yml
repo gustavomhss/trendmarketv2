@@ -61,3 +61,5 @@ jobs:
         if-no-files-found: warn
         retention-days: 7
     if: ${{ github.event_name != 'pull_request' }}
+'on':
+  workflow_dispatch: {}
