@@ -2,12 +2,11 @@ from __future__ import annotations
 import json, base64, hashlib, sys
 from pathlib import Path
 
-# usa 'nacl' vendorizado (./nacl) e cai para o PyNaCl, se existir
 try:
     from nacl import signing, exceptions as n_ex
-except Exception:
+except Exception:  # pragma: no cover
     try:
-        from nacl import signing, exceptions as n_ex
+        from nacl import signing, exceptions as n_ex  # type: ignore
     except Exception as e:
         sys.stderr.write(f"[verify] NaCl indisponível (vendored/pip): {e}\n")
         raise
@@ -15,55 +14,109 @@ except Exception:
 class VerificationError(Exception):
     """Falha de verificação criptográfica ou de integridade."""
 
-def _sha256_hex(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+def _parse_time(ts):
+    if not isinstance(ts, str):
+        return None
+    t = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(t)
+    except Exception:
+        return None
 
-def _canon_manifest(manifest: list[dict]) -> bytes:
-    # mesma canonicalização do sign_batch: "<sha256>  <relpath>\n" em ordem lexicográfica
-    lines = [f"{m['sha256']}  {m['path']}\n" for m in sorted(manifest, key=lambda m: m["path"])]
-    return "".join(lines).encode("utf-8")
+def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> None:
+    if not keystore_path:
+        return
+    kp = Path(keystore_path)
+    if not kp.exists():
+        return
+    try:
+        ks = json.loads(kp.read_text())
+    except Exception as e:
+        raise VerificationError(f"invalid keystore json: {e}")
 
-def verify_signature(signature_path: str | Path) -> bool:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    top_pub = ks.get("pubkey_b64") or ks.get("pubkey")
+    if isinstance(top_pub, str) and top_pub:
+        if top_pub != pubkey_b64:
+            raise VerificationError("pubkey mismatch against keystore (top-level)")
+        nb = _parse_time(ks.get("not_before"))
+        exp = _parse_time(ks.get("expires_at") or ks.get("expire_at") or ks.get("not_after"))
+        if nb and now < nb:
+            raise VerificationError("key not valid yet (not_before)")
+        if exp and now >= exp:
+            raise VerificationError("key expired (expires_at/not_after)")
+        allowed = ks.get("allowed_pubkeys")
+        if isinstance(allowed, list) and allowed and pubkey_b64 not in allowed:
+            raise VerificationError("pubkey not whitelisted in keystore")
+        status = ks.get("status")
+        if isinstance(status, str) and status.lower() not in ("active","valid","enabled",""):
+            raise VerificationError("key status not active")
+        return
+
+    keys = ks.get("keys")
+    if isinstance(keys, list):
+        def _kpub(k): return (k.get("pubkey_b64") or k.get("pubkey")) if isinstance(k, dict) else None
+        matches = [k for k in keys if _kpub(k) == pubkey_b64]
+        if not matches:
+            raise VerificationError("pubkey not found in keystore keys[]")
+        k = matches[0]
+        nb = _parse_time(k.get("not_before"))
+        exp = _parse_time(k.get("expires_at") or k.get("expire_at") or k.get("not_after"))
+        if nb and now < nb:
+            raise VerificationError("key not valid yet (not_before)")
+        if exp and now >= exp:
+            raise VerificationError("key expired (expires_at/not_after)")
+        status = k.get("status")
+        if isinstance(status, str) and status.lower() not in ("active","valid","enabled",""):
+            raise VerificationError("key status not active")
+        return
+
+    return
+
+def verify_signature(signature_path: str | Path, keystore_path: str | Path | None, batch_path: str | Path) -> bool:
     sp = Path(signature_path)
+    bp = Path(batch_path)
     if not sp.is_file():
         raise VerificationError(f"signature file not found: {sp}")
+    if not bp.is_file():
+        raise VerificationError(f"batch file not found: {bp}")
 
     try:
         data = json.loads(sp.read_text())
     except Exception as e:
         raise VerificationError(f"invalid signature json: {e}")
 
-    if data.get("algo") != "ed25519":
-        raise VerificationError(f"unsupported algo: {data.get('algo')}")
+    try:
+        sig = base64.b64decode(data["sig"], validate=True)
+    except KeyError:
+        raise VerificationError("missing 'sig' field")
+    except Exception as e:
+        raise VerificationError(f"invalid 'sig' (b64): {e}")
+
+    pubkey_b64 = data.get("pubkey_b64") or data.get("pubkey")
+    if not isinstance(pubkey_b64, str) or not pubkey_b64:
+        raise VerificationError("missing 'pubkey_b64' in signature")
+
+    if keystore_path:
+        _enforce_keystore_policy(Path(keystore_path), pubkey_b64)
 
     try:
-        pub_b = base64.b64decode(data["pubkey_b64"], validate=True)
-        sig_b = base64.b64decode(data["signature_b64"], validate=True)
+        vk = signing.VerifyKey(base64.b64decode(pubkey_b64, validate=True))
     except Exception as e:
-        raise VerificationError(f"invalid b64 fields: {e}")
+        raise VerificationError(f"invalid pubkey_b64: {e}")
 
-    manifest = data.get("manifest") or []
-    if not isinstance(manifest, list) or not manifest:
-        raise VerificationError("empty or invalid manifest")
-
-    # valida existência e hash dos arquivos
-    for m in manifest:
-        p = Path(m["path"])
-        if not p.is_file():
-            raise VerificationError(f"missing file: {p}")
-        if _sha256_hex(p) != m["sha256"]:
-            raise VerificationError(f"sha256 mismatch: {p}")
-
-    msg = _canon_manifest(manifest)
+    msg = bp.read_bytes()
     try:
-        vk = signing.VerifyKey(pub_b)
-        vk.verify(msg, sig_b)
+        vk.verify(msg, sig)
     except Exception as e:
-        # PyNaCl usa BadSignatureError; vendored também; tratamos genericamente
         raise VerificationError(f"bad signature: {e}")
+
+    if "sha256" in data:
+        sha = hashlib.sha256(msg).hexdigest()
+        if data["sha256"] != sha:
+            raise VerificationError("digest mismatch (sha256)")
 
     return True
