@@ -6,7 +6,8 @@ gates:
     run:
       - bash -lc "python3 scripts/sprint_guard.py check-pins"
     assert_patterns:
-      - "PINS:OK"
+      -
+        "PINS: OK"
     purpose: Check pinned actions
     ltl: G(pinned(actions))
     evidence:
@@ -14,4 +15,4 @@ gates:
         path: out/evidence/T2_pins/report.json
         must_exist: true
 
-# retrigger 2025-10-31T20:53:43Z
+# retrigger 2025-10-31T20:55:31Z
