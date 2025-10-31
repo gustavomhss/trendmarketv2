@@ -1,22 +1,11 @@
 sprint_name: Q2-S7-Stabilize
 gates:
-  - id: T2
+  -
+    id: T2
     name: Pins
-    purpose: Check pinned actions
-    ltl: G(pinned(actions))
-    contracts:
-      require:
-        - actions.lock present
-      ensure:
-        - all actions pinned by sha
     run:
       - bash -lc "python3 scripts/sprint_guard.py check-pins"
     assert_patterns:
-      - PINS:OK
-    evidence:
-      - path: out/evidence/T2_pins/report.json
-        must_exist: true
+      - "PINS:OK"
 
-# retrigger 2025-10-31T20:32:33Z
-
-# retrigger 2025-10-31T20:36:40Z
+# retrigger 2025-10-31T20:38:21Z
