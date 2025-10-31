@@ -66,12 +66,12 @@ actions:
     source: tag
     checked_at: "2025-10-28T04:35:57Z"
   -
-    key: reviewdog/action-actionlint@b7d45b0944b77dae1f21a196ee83fed3673d299c
-    commit: b7d45b0944b77dae1f21a196ee83fed3673d299c
+    key: reviewdog/action-actionlint@8619b6c9cf364a7e06e5c7dedc85f07bcb35c50a
+    commit: 8619b6c9cf364a7e06e5c7dedc85f07bcb35c50a
     source: sha
     checked_at: "2025-10-28T04:35:57Z"
   -
     key: reviewdog/action-actionlint@v1
-    commit: b7d45b0944b77dae1f21a196ee83fed3673d299c
+    commit: 8619b6c9cf364a7e06e5c7dedc85f07bcb35c50a
     source: tag
     checked_at: "2025-10-28T04:35:57Z"

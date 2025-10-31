@@ -29,12 +29,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
 
       - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
         with:
           python-version: "3.11"
           check-latest: true
@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload Semgrep results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: semgrep-sarif
           path: out/guard/s4/semgrep.sarif
