@@ -62,7 +62,7 @@ jobs:
         \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
         \ >&2\n  exit 2\nfi\n"
     - name: Checkout
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
     - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
       with:
         python-version: '3.11'
@@ -149,7 +149,7 @@ jobs:
         \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
         \ >&2\n  exit 2\nfi\n"
     - name: Checkout
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
     - name: Setup Python + venv + deps
       uses: ./.github/actions/setup-python-venv
     - name: Prepare artifact workspace
@@ -163,7 +163,7 @@ jobs:
         '
     - name: Download stage artifacts
       if: always()
-      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (was v4)
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # pinned (was v4)
       with:
         pattern: boss-stage-*
         merge-multiple: true
