@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, base64, hashlib, sys
+import json, base64, hashlib, sys, datetime
 from pathlib import Path
 
 try:
@@ -19,10 +19,14 @@ def _parse_time(ts):
         return None
     t = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
     try:
-        from datetime import datetime
-        return datetime.fromisoformat(t)
+        return datetime.datetime.fromisoformat(t)
     except Exception:
         return None
+
+def _coalesce_exp(meta: dict) -> datetime.datetime | None:
+    candidates = [_parse_time(meta.get(k)) for k in ("not_after", "expires_at", "expire_at")]
+    exps = [x for x in candidates if x is not None]
+    return min(exps) if exps else None
 
 def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> None:
     if not keystore_path:
@@ -35,19 +39,18 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
     except Exception as e:
         raise VerificationError(f"invalid keystore json: {e}")
 
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
 
     top_pub = ks.get("pubkey_b64") or ks.get("pubkey")
     if isinstance(top_pub, str) and top_pub:
         if top_pub != pubkey_b64:
             raise VerificationError("pubkey mismatch against keystore (top-level)")
-        nb = _parse_time(ks.get("not_before"))
-        exp = _parse_time(ks.get("expires_at") or ks.get("expire_at") or ks.get("not_after"))
+        nb  = _parse_time(ks.get("not_before"))
+        exp = _coalesce_exp(ks)
         if nb and now < nb:
             raise VerificationError("key not valid yet (not_before)")
         if exp and now >= exp:
-            raise VerificationError("key expired (expires_at/not_after)")
+            raise VerificationError("key expired (not_after/expires_at)")
         allowed = ks.get("allowed_pubkeys")
         if isinstance(allowed, list) and allowed and pubkey_b64 not in allowed:
             raise VerificationError("pubkey not whitelisted in keystore")
@@ -63,17 +66,16 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
         if not matches:
             raise VerificationError("pubkey not found in keystore keys[]")
         k = matches[0]
-        nb = _parse_time(k.get("not_before"))
-        exp = _parse_time(k.get("expires_at") or k.get("expire_at") or k.get("not_after"))
+        nb  = _parse_time(k.get("not_before"))
+        exp = _coalesce_exp(k)
         if nb and now < nb:
             raise VerificationError("key not valid yet (not_before)")
         if exp and now >= exp:
-            raise VerificationError("key expired (expires_at/not_after)")
+            raise VerificationError("key expired (not_after/expires_at)")
         status = k.get("status")
         if isinstance(status, str) and status.lower() not in ("active","valid","enabled",""):
             raise VerificationError("key status not active")
         return
-
     return
 
 def verify_signature(signature_path: str | Path, keystore_path: str | Path | None, batch_path: str | Path) -> bool:

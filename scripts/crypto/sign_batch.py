@@ -28,10 +28,15 @@ def _parse_time(ts):
         return None
     t = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
     try:
-        from datetime import datetime
-        return datetime.fromisoformat(t)
+        return datetime.datetime.fromisoformat(t)
     except Exception:
         return None
+
+def _coalesce_exp(meta: dict) -> datetime.datetime | None:
+    # Use o MAIS RESTRITIVO entre not_after, expires_at, expire_at
+    candidates = [_parse_time(meta.get(k)) for k in ("not_after", "expires_at", "expire_at")]
+    exps = [x for x in candidates if x is not None]
+    return min(exps) if exps else None
 
 def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> None:
     if not keystore_path:
@@ -39,26 +44,24 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
     kp = Path(keystore_path)
     if not kp.exists():
         return
-    raw = kp.read_text()
     try:
-        ks = json.loads(raw)
+        ks = json.loads(kp.read_text())
     except Exception as e:
         raise SystemExit(f"[sign] invalid keystore json: {e}")
 
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
 
-    # Esquema A (top-level)
+    # Esquema A (top-level único)
     top_pub = ks.get("pubkey_b64") or ks.get("pubkey")
     if isinstance(top_pub, str) and top_pub:
         if top_pub != pubkey_b64:
             raise SystemExit("[sign] pubkey mismatch against keystore (top-level)")
-        nb = _parse_time(ks.get("not_before"))
-        exp = _parse_time(ks.get("expires_at") or ks.get("expire_at") or ks.get("not_after"))
+        nb  = _parse_time(ks.get("not_before"))
+        exp = _coalesce_exp(ks)
         if nb and now < nb:
             raise SystemExit("[sign] key not valid yet (not_before)")
         if exp and now >= exp:
-            raise SystemExit("[sign] key expired (expires_at/not_after)")
+            raise SystemExit("[sign] key expired (not_after/expires_at)")
         allowed = ks.get("allowed_pubkeys")
         if isinstance(allowed, list) and allowed and pubkey_b64 not in allowed:
             raise SystemExit("[sign] pubkey not whitelisted in keystore")
@@ -67,7 +70,7 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
             raise SystemExit("[sign] key status not active")
         return
 
-    # Esquema B (keys[])
+    # Esquema B (lista keys[])
     keys = ks.get("keys")
     if isinstance(keys, list):
         def _kpub(k): return (k.get("pubkey_b64") or k.get("pubkey")) if isinstance(k, dict) else None
@@ -75,18 +78,16 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
         if not matches:
             raise SystemExit("[sign] pubkey not found in keystore keys[]")
         k = matches[0]
-        nb = _parse_time(k.get("not_before"))
-        exp = _parse_time(k.get("expires_at") or k.get("expire_at") or k.get("not_after"))
+        nb  = _parse_time(k.get("not_before"))
+        exp = _coalesce_exp(k)
         if nb and now < nb:
             raise SystemExit("[sign] key not valid yet (not_before)")
         if exp and now >= exp:
-            raise SystemExit("[sign] key expired (expires_at/not_after)")
+            raise SystemExit("[sign] key expired (not_after/expires_at)")
         status = k.get("status")
         if isinstance(status, str) and status.lower() not in ("active","valid","enabled",""):
             raise SystemExit("[sign] key status not active")
         return
-
-    # formato desconhecido -> leniente
     return
 
 def sign_batch(batch_path: PathLike, keystore_path: PathLike | None = None) -> Path:
@@ -110,14 +111,14 @@ def sign_batch(batch_path: PathLike, keystore_path: PathLike | None = None) -> P
     bp = Path(batch_path)
     msg = bp.read_bytes()
 
-    sig = sk.sign(msg).signature  # assinatura só (64 bytes)
+    sig = sk.sign(msg).signature
     doc = {
         "alg": "ed25519",
-        "created_at": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "created_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "path": str(bp),
         "sha256": hashlib.sha256(msg).hexdigest(),
         "pubkey_b64": pubkey_b64,
-        "sig": _b64(sig)
+        "sig": _b64(sig),
     }
     _ensure_dir(SIGNATURE_PATH.parent)
     SIGNATURE_PATH.write_text(json.dumps(doc, ensure_ascii=False, indent=2))
