@@ -29,12 +29,12 @@ jobs:
       checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: '3.11'
 
@@ -44,7 +44,7 @@ jobs:
           pip install ruff pytest pynacl cryptography psutil pyyaml
 
       - name: Actionlint
-        uses: reviewdog/action-actionlint@v1
+        uses: reviewdog/action-actionlint@8619b6c9cf364a7e06e5c7dedc85f07bcb35c50a  # pinned (was v1)
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-check
@@ -87,7 +87,7 @@ jobs:
         run: python scripts/ci/audit_reusable_workflows.py
 
       - name: Upload validation artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (was v4)
         with:
           name: s7-validation-artifacts
           path: |

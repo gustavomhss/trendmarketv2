@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="$ROOT_DIR/out/ci/.venv"
+PYTHON_BIN="${PYTHON:-python3}"
+PIP_EXTRA_ARGS=("-r" "$ROOT_DIR/requirements-dev.txt")
+
+ensure_venv() {
+  if [[ ! -d "$VENV_DIR" ]]; then
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
+  fi
+}
+
+install_dependencies() {
+  "$VENV_DIR/bin/python" -m pip install --upgrade pip
+  "$VENV_DIR/bin/python" -m pip install "${PIP_EXTRA_ARGS[@]}"
+}
+
+run_optional_python() {
+  local script_path="$1"
+  if [[ -f "$script_path" ]]; then
+    "$VENV_DIR/bin/python" "$script_path"
+  fi
+}
+
+run_yamllint() {
+  if "$VENV_DIR/bin/python" - <<'PY' >/dev/null 2>&1
+import importlib
+import sys
+sys.exit(0 if importlib.util.find_spec("yamllint") else 1)
+PY
+  then
+    "$VENV_DIR/bin/yamllint" "$ROOT_DIR/.github/workflows"
+  fi
+}
+
+run_pytest() {
+  "$VENV_DIR/bin/python" -m pytest -q
+}
+
+run_gitleaks() {
+  if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks detect --no-git --source "$ROOT_DIR"
+  fi
+}
+
+main() {
+  ensure_venv
+  install_dependencies
+  run_optional_python "$ROOT_DIR/scripts/ci/render_ci.py"
+  run_optional_python "$ROOT_DIR/scripts/ci/validate_ci.py"
+  run_yamllint
+  run_pytest
+  run_gitleaks
+}
+
+main "$@"
