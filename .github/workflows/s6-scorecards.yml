@@ -1,3 +1,4 @@
+# ⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.
 name: stub-valid-yaml
 on: { workflow_dispatch: {} }
 jobs:

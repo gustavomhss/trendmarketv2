@@ -136,6 +136,24 @@ def verify_signature(signature_path: Path, keystore_path: Path, batch_path: Path
     return True
         raise ValueError("key not valid at current time")
 
+
+def main() -> None:
+    try:
+        ok = verify_signature(sys.argv[1], sys.argv[2], sys.argv[3]) if len(sys.argv) == 4 else verify_signature(
+            "out/evidence/S7_event_model/signature.json",
+            "tools/crypto/keystore.json",
+            "out/evidence/S7_event_model/batch_latest.json",
+        )
+    except VerificationError as exc:
+        print(str(exc) or "Signature verification failed", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:  # noqa: BLE001
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    if not ok:
+        print("Signature verification failed", file=sys.stderr)
+        sys.exit(1)
+    print("[verify] OK")
     verify_key = signing.VerifyKey(base64.b64decode(pubkey_b64, validate=True))
     data = Path(batch_path).read_bytes()
     expected = sig.get("batch_sha256")
@@ -146,6 +164,7 @@ def verify_signature(signature_path: Path, keystore_path: Path, batch_path: Path
     except nacl_exc.BadSignatureError:
         raise ValueError("invalid signature")
     return True
+
 
 
 if __name__ == "__main__":
