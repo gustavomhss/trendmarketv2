@@ -1,0 +1,55 @@
+{
+  "sprint_name": "Q2-S7-Stabilize",
+  "gates": [
+    {
+      "id": "G1-PINS",
+      "name": "GitHub Actions pin check",
+      "purpose": "Garantir que actions críticas estejam pinadas por SHA.",
+      "contracts": {
+        "require": [
+          "Refs de checkout/upload/download/setup-python precisam estar fixadas."
+        ],
+        "ensure": [
+          "Relatório de pins atualizado em out/evidence/T2_pins/."
+        ]
+      },
+      "run": [
+        "python3 scripts/pin_actions.py",
+        "python3 scripts/sprint_guard.py check-pins"
+      ],
+      "assert_patterns": [
+        "PINS:OK"
+      ],
+      "evidence": [
+        {
+          "path": "out/evidence/T2_pins/report.json"
+        }
+      ]
+    },
+    {
+      "id": "G2-CRYPTO",
+      "name": "Assinaturas roundtrip",
+      "purpose": "Validar sign/verify end-to-end usando vetores de teste da sprint.",
+      "contracts": {
+        "require": [
+          "Dependências vendored disponíveis sem acesso externo."
+        ],
+        "ensure": [
+          "Bateria pytest sinaliza sucesso para roundtrip."
+        ]
+      },
+      "run": [
+        "pytest -q tests/test_signature.py -k roundtrip"
+      ],
+      "assert_patterns": [
+        "1 passed"
+      ],
+      "evidence": [
+        {
+          "path": "out/evidence/T5_crypto",
+          "must_exist": true
+        }
+      ]
+    }
+  ]
+}

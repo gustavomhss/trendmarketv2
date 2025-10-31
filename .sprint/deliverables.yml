@@ -1,0 +1,58 @@
+{
+  "sprint_name": "Q2-S7-Stabilize",
+  "deliverables": [
+    {
+      "id": "D1",
+      "title": "Sprint Guard instrumentation",
+      "description": "Estruturar trio YAMLs e guardiões para a sprint corrente, garantindo documentação e schemas versionados em .sprint/.",
+      "require": [
+        "Schemas de deliverables/gates/filemap definidos para a sprint."
+      ],
+      "ensure": [
+        "Scripts sprint_guard e render_storyboard utilizam os YAMLs atualizados."
+      ],
+      "invariants": [
+        "Execuções repetidas permanecem idempotentes."
+      ],
+      "evidence": [
+        {
+          "path": ".sprint/deliverables.yml",
+          "description": "Deliverables da sprint"
+        },
+        {
+          "path": ".sprint/schemas/deliverables.schema.yaml",
+          "description": "Schema de validação dos deliverables"
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "title": "Guardrails operacionais",
+      "description": "Pinar GitHub Actions, validar SIGNATURE_PATH e garantir geração de storyboard e scorecard da sprint.",
+      "require": [
+        "Scripts de automação atualizados sob controle de versão."
+      ],
+      "ensure": [
+        "Evidências em out/evidence/* e scorecards produzidos pelo guard."
+      ],
+      "invariants": [
+        "Caminhos de assinatura permanecem fora do código de produção."
+      ],
+      "evidence": [
+        {
+          "path": "scripts/pin_actions.py",
+          "description": "Script de pinagem de Actions"
+        },
+        {
+          "path": "out/scorecards/sprint_guard_scorecard.json",
+          "description": "Scorecard gerado pelo Sprint Guard",
+          "must_exist": false
+        },
+        {
+          "path": "docs/Storyboard.md",
+          "description": "Storyboard renderizado da sprint"
+        }
+      ]
+    }
+  ]
+}
