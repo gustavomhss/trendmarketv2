@@ -65,34 +65,77 @@ def _enforce_keystore_policy(keystore_path: Path | None, pubkey_b64: str) -> Non
     if not kp.exists():
         # keystore opcional nos testes; se não existir, ignore
         return
+    raw = kp.read_text()
     try:
-        ks = json.loads(kp.read_text())
+        ks = json.loads(raw)
     except Exception as e:
         raise SystemExit(f"[sign] invalid keystore json: {e}")
 
-    # Campos suportados (qualquer é opcional):
-    # - "pubkey_b64": string
-    # - "allowed_pubkeys": [string, ...]
-    # - "not_before": ISO8601 / "expires_at": ISO8601
-    now = datetime.datetime.now(datetime.timezone.utc)
+    # Suporta dois esquemas:
+    # (A) Top-level:
+    #   - pubkey_b64 / allowed_pubkeys / not_before / expires_at
+    # (B) Lista de chaves:
+    #   { "keys": [ { pubkey|pubkey_b64, status, not_before, expires_at }, ... ] }
+    def _parse_time(ts):
+        if not isinstance(ts, str):
+            return None
+        t = ts
+        if t.endswith("Z"):
+            t = t[:-1] + "+00:00"
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(t)
+        except Exception:
+            return None
 
-    nb = ks.get("not_before")
-    if isinstance(nb, str):
-        if now < _parse_time(nb):
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    # --- Esquema A (top-level) ---
+    top_pub = ks.get("pubkey_b64") or ks.get("pubkey")
+    if isinstance(top_pub, str) and top_pub:
+        if top_pub != pubkey_b64:
+            raise SystemExit("[sign] pubkey mismatch against keystore (top-level)")
+        nb = _parse_time(ks.get("not_before"))
+        if nb and now < nb:
             raise SystemExit("[sign] key not valid yet (not_before)")
-
-    exp = ks.get("expires_at") or ks.get("expire_at")
-    if isinstance(exp, str):
-        if now >= _parse_time(exp):
+        exp = _parse_time(ks.get("expires_at") or ks.get("expire_at"))
+        if exp and now >= exp:
             raise SystemExit("[sign] key expired (expires_at)")
+        allowed = ks.get("allowed_pubkeys")
+        if isinstance(allowed, list) and allowed and pubkey_b64 not in allowed:
+            raise SystemExit("[sign] pubkey not whitelisted in keystore")
+        status = ks.get("status")
+        if isinstance(status, str) and status.lower() not in ("active","valid","enabled", ""):
+            raise SystemExit("[sign] key status not active")
+        return
 
-    pk = ks.get("pubkey_b64")
-    if isinstance(pk, str) and pk and pk != pubkey_b64:
-        raise SystemExit("[sign] pubkey mismatch against keystore")
+    # --- Esquema B (keys[]) ---
+    keys = ks.get("keys")
+    if isinstance(keys, list):
+        # aceita pubkey ou pubkey_b64
+        def _get_key_pub(k):
+            v = k.get("pubkey_b64") or k.get("pubkey")
+            return v if isinstance(v, str) else None
+        matches = [k for k in keys if _get_key_pub(k) == pubkey_b64]
+        if not matches:
+            # se o arquivo tem lista e não achou a chave, bloqueia
+            raise SystemExit("[sign] pubkey not found in keystore keys[]")
+        k = matches[0]
+        nb = _parse_time(k.get("not_before"))
+        if nb and now < nb:
+            raise SystemExit("[sign] key not valid yet (not_before)")
+        exp = _parse_time(k.get("expires_at") or k.get("expire_at"))
+        if exp and now >= exp:
+            raise SystemExit("[sign] key expired (expires_at)")
+        status = k.get("status")
+        if isinstance(status, str) and status.lower() not in ("active","valid","enabled", ""):
+            raise SystemExit("[sign] key status not active")
+        return
 
-    allowed = ks.get("allowed_pubkeys")
-    if isinstance(allowed, list) and allowed and pubkey_b64 not in allowed:
-        raise SystemExit("[sign] pubkey not whitelisted in keystore")
+    # Se não encaixa em nenhum formato conhecido, é permitido por default (compat leniente)
+    return
+
 
 def _build_manifest(paths: Iterable[PathLike]) -> list[dict]:
     items = []
