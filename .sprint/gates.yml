@@ -2,9 +2,9 @@ sprint_name: Q2-S7-Stabilize
 gates:
   - id: T2
     name: Pins
-    purpose: Check pinned actions
-    ltl: G(pinned(actions))
-    run: bash -lc "python3 scripts/sprint_guard.py check-pins"
-    assert_patterns: PINS:OK
+    run:
+      - bash -lc "python3 scripts/sprint_guard.py check-pins"
+    assert_patterns:
+      - PINS:OK
 
-# retrigger 2025-10-31T20:45:29Z
+# retrigger 2025-10-31T20:47:17Z
