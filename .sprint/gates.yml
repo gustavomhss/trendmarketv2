@@ -1,5 +1,4 @@
 sprint_name: "Q2-S7-Stabilize"
-version: "1.0"
 gates:
   - id: T1
     name: "YAML saudável"
@@ -41,3 +40,5 @@ gates:
       - { path: "out/evidence/T3_crypto/pytest.txt", must_exist: false }
 
 # retrigger 2025-10-31T20:24:51Z
+
+# retrigger 2025-10-31T20:26:20Z
