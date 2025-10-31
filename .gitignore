@@ -1,27 +1,25 @@
-# build/artefatos locais
-/target/
-engine/target/
-!/target/
-!/target/manifest.json
-!/target/run_results.json
-!/target/invocation_id.txt
-/out/
-!/out/
-!/out/dbt/
-!/out/dbt/.gitkeep
-!/out/logs/
-!/out/logs/dbt_offline_runner.log
-!/out/s5-status-bundle.sha256.txt
-!/out/guard/
-!/out/guard/s1/
-!/out/guard/s1/ruff_format_diff.txt
-!/out/guard/s1/ruff_offenders.txt
-!/out/guard/s4/
-!/out/guard/s4/actions_lock_report.json
-!/out/boss/
-!/out/boss/boss-final-report.json
-**/*.zip
-.DS_Store
-.idea/
-.vscode/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.cache/
+*.egg-info/
+dist/
+build/
+
+# Ambiente/IDE
 .venv/
+env/
+.vscode/
+.idea/
+
+# Saídas locais
+out/
+out/**
+
+# Config local (não versionar conteúdo)
+config/*
+!config/.gitkeep
