@@ -23,3 +23,4 @@ out/**
 # Config local (não versionar conteúdo)
 config/*
 !config/.gitkeep
+/out/

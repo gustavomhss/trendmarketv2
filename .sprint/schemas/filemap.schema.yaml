@@ -1,0 +1,23 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Sprint Filemap
+type: object
+required:
+  - files
+properties:
+  files:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required:
+        - path
+        - purpose
+      properties:
+        path:
+          type: string
+        purpose:
+          type: string
+        must_exist:
+          type: boolean
+      additionalProperties: false
+additionalProperties: false

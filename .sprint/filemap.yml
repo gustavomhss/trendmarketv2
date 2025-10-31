@@ -1,0 +1,54 @@
+{
+  "files": [
+    {
+      "path": ".sprint/deliverables.yml",
+      "purpose": "Definição dos deliverables da sprint."
+    },
+    {
+      "path": ".sprint/gates.yml",
+      "purpose": "Gates de verificação automatizados."
+    },
+    {
+      "path": ".sprint/filemap.yml",
+      "purpose": "Inventário das evidências relevantes."
+    },
+    {
+      "path": ".sprint/schemas/deliverables.schema.yaml",
+      "purpose": "Schema de validação dos deliverables."
+    },
+    {
+      "path": ".sprint/schemas/gates.schema.yaml",
+      "purpose": "Schema de validação dos gates."
+    },
+    {
+      "path": ".sprint/schemas/filemap.schema.yaml",
+      "purpose": "Schema de validação do filemap."
+    },
+    {
+      "path": "scripts/pin_actions.py",
+      "purpose": "Automação para pinagem de GitHub Actions."
+    },
+    {
+      "path": "scripts/crypto/sign_batch.py",
+      "purpose": "Atualização do caminho de assinatura e diretório de evidências."
+    },
+    {
+      "path": "yaml/__init__.py",
+      "purpose": "Fallback local para carregamento de YAML sem rede."
+    },
+    {
+      "path": "docs/Storyboard.md",
+      "purpose": "Storyboard consolidado da sprint.",
+      "must_exist": false
+    },
+    {
+      "path": "out/scorecards/sprint_guard_scorecard.json",
+      "purpose": "Scorecard gerado pelo Sprint Guard.",
+      "must_exist": false
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "purpose": "Template padronizado de PR para Sprint Guard."
+    }
+  ]
+}
