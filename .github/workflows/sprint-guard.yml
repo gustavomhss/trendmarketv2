@@ -1,0 +1,38 @@
+name: Sprint Guard
+on:
+  workflow_dispatch: {}
+  push:
+    branches: ["*"]
+    paths:
+      - ".sprint/**"
+      - "scripts/sprint_guard.py"
+      - "scripts/render_storyboard.py"
+      - ".github/workflows/sprint-guard.yml"
+  pull_request:
+    branches: ["*"]
+    paths:
+      - ".sprint/**"
+      - "scripts/sprint_guard.py"
+      - "scripts/render_storyboard.py"
+      - ".github/workflows/sprint-guard.yml"
+jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Prepare Python deps
+        run: |
+          python3 -V
+          python3 -m pip install --upgrade pip
+          python3 -m pip install PyYAML==6.0.2 jsonschema==4.23.0
+      - name: Run sprint guard
+        env:
+          SPRINT_DIR: .sprint
+        run: |
+          mkdir -p out/evidence out/scorecards
+          python3 scripts/sprint_guard.py
+      - name: Render Storyboard
+        env:
+          SPRINT_DIR: .sprint
+        run: python3 scripts/render_storyboard.py

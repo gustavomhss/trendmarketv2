@@ -3,6 +3,10 @@ import os, sys, json, base64, hashlib, datetime
 from pathlib import Path
 from typing import Union
 
+SIGNATURE_DIR = Path("out/evidence/T5_crypto")
+SIGNATURE_DIR.mkdir(parents=True, exist_ok=True)
+SIGNATURE_PATH = SIGNATURE_DIR / "signatures.jsonl"
+
 try:
     from nacl import signing, exceptions as n_ex
 except Exception:  # pragma: no cover
@@ -13,7 +17,6 @@ except Exception:  # pragma: no cover
         raise
 
 PathLike = Union[str, Path]
-SIGNATURE_PATH: Path = Path("out/evidence/S7_event_model/batch.signature.json")
 ENV_PRIMARY  = "ORACLE_ED25519_SEED"
 ENV_FALLBACK = "CE_SIGN_SEED_B64"
 

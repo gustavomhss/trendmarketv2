@@ -1,0 +1,17 @@
+sprint_name: Q2-S7-Stabilize
+gates:
+  -
+    id: T2
+    name: Pins
+    run:
+      - bash -lc "python3 scripts/sprint_guard.py check-pins"
+    assert_patterns:
+      - PINS
+    purpose: Check pinned actions
+    ltl: G(pinned(actions))
+    evidence:
+      -
+        path: out/evidence/T2_pins/report.json
+        must_exist: true
+
+# retrigger 2025-10-31T20:56:40Z
