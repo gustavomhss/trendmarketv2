@@ -3,16 +3,16 @@ gates:
   - id: T1
     name: YAML saudável
     purpose: Sintaxe/estilo YAML antes de qualquer execução.
-    ltl: G(valid_yaml)
+    ltl: 'G(valid_yaml)'
     contracts:
       require:
-        - yamllint instalado ou instalável
+        - 'yamllint instalado ou instalável'
       ensure:
-        - exit code == 0
+        - 'exit code == 0'
     run:
-      - bash -lc "if command -v yamllint >/dev/null 2>&1; then yamllint .; else python3 -m pip install --user yamllint==1.35.1 && ~/.local/bin/yamllint .; fi"
+      - "bash -lc 'if command -v yamllint >/dev/null 2>&1; then yamllint .; else python3 -m pip install --user yamllint==1.35.1 && ~/.local/bin/yamllint .; fi'"
     assert_patterns:
-      - .
+      - '.'
     evidence:
       - path: out/evidence/T1_yaml/yamllint.txt
         must_exist: false
@@ -20,16 +20,16 @@ gates:
   - id: T2
     name: Pins do CI
     purpose: Verificar que ações críticas estão pinadas por SHA.
-    ltl: G(pinned(actions))
+    ltl: 'G(pinned(actions))'
     contracts:
       require:
-        - actions.lock presente
+        - 'actions.lock presente'
       ensure:
-        - todas as referências mapeadas para SHA
+        - 'todas as referencias mapeadas para SHA'
     run:
-      - bash -lc "python3 scripts/sprint_guard.py check-pins"
+      - "bash -lc 'python3 scripts/sprint_guard.py check-pins'"
     assert_patterns:
-      - PINS:OK
+      - 'PINS:OK'
     evidence:
       - path: out/evidence/T2_pins/report.json
         must_exist: true
@@ -37,18 +37,18 @@ gates:
   - id: T3
     name: Assinatura e Verificação
     purpose: Roundtrip de assinatura/verificação.
-    ltl: F(passed(sign_verify))
+    ltl: 'F(passed(sign_verify))'
     contracts:
       require:
-        - pytest disponível
+        - 'pytest disponível'
       ensure:
-        - exit code == 0
+        - 'exit code == 0'
     run:
-      - bash -lc "pytest -q tests/test_signature.py -k roundtrip"
+      - "bash -lc 'pytest -q tests/test_signature.py -k roundtrip'"
     assert_patterns:
-      - PASSED
+      - 'PASSED'
     evidence:
       - path: out/evidence/T3_crypto/pytest.txt
         must_exist: false
 
-# retrigger 2025-10-31T20:27:39Z
+# retrigger 2025-10-31T20:28:48Z
