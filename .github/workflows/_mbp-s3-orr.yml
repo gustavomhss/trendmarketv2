@@ -1,68 +1,70 @@
 name: MBP S3 ORR
-on:
+true:
   pull_request:
-    branches: [main]
+    branches:
+    - main
   workflow_dispatch: {}
 jobs:
   orr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - name: Tooling versions
-        run: |
-          bash --version | head -n1 || true
-          jq --version || true
-          python3 --version || true
-          convert -version || echo "ImageMagick (convert) not installed"
-      - name: Dependências mínimas
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y jq coreutils imagemagick python3-pip make
-          pip install dbt-core==1.8.6
-      - name: Prepare evidence dirs
-        run: |
-          mkdir -p out/s3_gatecheck/evidence
-      - name: S3 Runner
-        run: |
-          bash scripts/s3/run_all_s3.sh
-      - name: Abort on FREEZE (prove rollback path)
-        run: |
-          set -euo pipefail
-          if grep -q "FREEZE=YES" out/s3_gatecheck/evidence/twap_freeze.txt; then
-            echo "TWAP FREEZE=YES — abortando conforme regra de release" >&2
-            exit 1
-          else
-            echo "FREEZE=NO — ok para prosseguir"
-          fi
-      - name: Publicar artefatos
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
-        with:
-          name: s3-evidence
-          path: out/s3_gatecheck/evidence
-      - name: Sumário de artefatos
-        run: |
-          find out/s3_gatecheck/evidence -maxdepth 1 -type f -printf "%f %s bytes\n" | sort
-      - name: Comentário no PR
-        if: ${{github.event_name == 'pull_request'}}
-        uses: ./.github/actions/github-script
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const base = path.join(process.cwd(), 'out/s3_gatecheck/evidence');
-            const safe = f => { const p = path.join(base, f); return fs.existsSync(p) ? fs.readFileSync(p,'utf8').trim() : ''; };
-            const status = safe('spec_check_s3.txt').includes('RESULT=PASS') ? 'PASS' : 'FAIL';
-            const policyHash = safe('policy_hash_s3.txt');
-            const freezeTag = safe('twap_freeze.txt') || 'FREEZE=NO';
-            const hashes = safe('hashes_manifest.txt').split('\n').slice(0,3).join(' | ');
-            const indexLink = `[Evidence Index](out/s3_gatecheck/evidence/analysis/index.html)`;
-            const comment = [
-              'S3 — MVP interno em marcha. Segurança primeiro.',
-              `✅ STATUS: ${status}`,
-              `✅ POLICY_HASH_S3: ${policyHash}`,
-              `✅ TWAP: ${freezeTag}`,
-              `📄 Hashes (3 primeiros): ${hashes}`,
-              `🔗 Evidence index: ${indexLink}`
-            ].join('\n');
-            github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: comment });
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - name: Tooling versions
+      run: 'bash --version | head -n1 || true
+
+        jq --version || true
+
+        python3 --version || true
+
+        convert -version || echo "ImageMagick (convert) not installed"
+
+        '
+    - name: "Depend\xEAncias m\xEDnimas"
+      run: 'set -euo pipefail
+
+        sudo apt-get update
+
+        sudo apt-get install -y jq coreutils imagemagick python3-pip make
+
+        pip install dbt-core==1.8.6
+
+        '
+    - name: Prepare evidence dirs
+      run: 'mkdir -p out/s3_gatecheck/evidence
+
+        '
+    - name: S3 Runner
+      run: 'bash scripts/s3/run_all_s3.sh
+
+        '
+    - name: Abort on FREEZE (prove rollback path)
+      run: "set -euo pipefail\nif grep -q \"FREEZE=YES\" out/s3_gatecheck/evidence/twap_freeze.txt;\
+        \ then\n  echo \"TWAP FREEZE=YES \u2014 abortando conforme regra de release\"\
+        \ >&2\n  exit 1\nelse\n  echo \"FREEZE=NO \u2014 ok para prosseguir\"\nfi\n"
+    - name: Publicar artefatos
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      with:
+        name: s3-evidence
+        path: out/s3_gatecheck/evidence
+    - name: "Sum\xE1rio de artefatos"
+      run: 'find out/s3_gatecheck/evidence -maxdepth 1 -type f -printf "%f %s bytes\n"
+        | sort
+
+        '
+    - name: "Coment\xE1rio no PR"
+      if: ${{github.event_name == 'pull_request'}}
+      uses: ./.github/actions/github-script
+      with:
+        script: "const fs = require('fs');\nconst path = require('path');\nconst base\
+          \ = path.join(process.cwd(), 'out/s3_gatecheck/evidence');\nconst safe =\
+          \ f => { const p = path.join(base, f); return fs.existsSync(p) ? fs.readFileSync(p,'utf8').trim()\
+          \ : ''; };\nconst status = safe('spec_check_s3.txt').includes('RESULT=PASS')\
+          \ ? 'PASS' : 'FAIL';\nconst policyHash = safe('policy_hash_s3.txt');\nconst\
+          \ freezeTag = safe('twap_freeze.txt') || 'FREEZE=NO';\nconst hashes = safe('hashes_manifest.txt').split('\\\
+          n').slice(0,3).join(' | ');\nconst indexLink = `[Evidence Index](out/s3_gatecheck/evidence/analysis/index.html)`;\n\
+          const comment = [\n  'S3 \u2014 MVP interno em marcha. Seguran\xE7a primeiro.',\n\
+          \  `\u2705 STATUS: ${status}`,\n  `\u2705 POLICY_HASH_S3: ${policyHash}`,\n\
+          \  `\u2705 TWAP: ${freezeTag}`,\n  `\U0001F4C4 Hashes (3 primeiros): ${hashes}`,\n\
+          \  `\U0001F517 Evidence index: ${indexLink}`\n].join('\\n');\ngithub.rest.issues.createComment({\
+          \ ...context.repo, issue_number: context.issue.number, body: comment });\n"
+    if: ${{ github.event_name != 'pull_request' }}

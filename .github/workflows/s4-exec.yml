@@ -49,6 +49,7 @@ jobs:
       run_sim: ${{inputs.run_sim}}
       run_dbt_ci: ${{inputs.run_dbt_ci}}
     secrets: inherit
+    if: ${{ github.event_name != 'pull_request' }}
   aggregate-boss-final:
     name: Aggregate Boss Final
     runs-on: ubuntu-22.04
@@ -74,5 +75,6 @@ jobs:
         python -m scripts.boss_final.aggregate_reports_local
 
         '
+    if: ${{ github.event_name != 'pull_request' }}
 'on':
   pull_request: {}

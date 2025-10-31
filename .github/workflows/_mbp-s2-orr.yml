@@ -1,14 +1,12 @@
 name: _mbp-s2-orr (stub)
-
-on:
+true:
   workflow_call: {}
-
 jobs:
   noop:
     runs-on: ubuntu-22.04
     steps:
-      - name: MBP S2 ORR stub
-        shell: bash
-        run: |
-          echo "[stub] _mbp-s2-orr.yml — safe stub"
-          echo "TODO: restore real content"
+    - name: MBP S2 ORR stub
+      shell: bash
+      run: "echo \"[stub] _mbp-s2-orr.yml \u2014 safe stub\"\necho \"TODO: restore\
+        \ real content\"\n"
+    if: ${{ github.event_name != 'pull_request' }}

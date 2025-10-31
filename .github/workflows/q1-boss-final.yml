@@ -2,10 +2,9 @@ permissions:
   actions: read
   contents: read
 name: Q1 Boss Final
-
-on:
+true:
   schedule:
-    - cron: '0 7 * * *'
+  - cron: 0 7 * * *
   workflow_dispatch:
     inputs:
       release_tag:
@@ -14,25 +13,23 @@ on:
         type: string
   pull_request:
     paths:
-      - '.github/workflows/q1-boss-final.yml'
-      - 'scripts/boss_final/**'
-      - 'schemas/q1_boss_report.schema.json'
-      - 'scripts/scorecards/**'
-      - 's6_validation/**'
-      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
-      - 'scripts/scorecards/**'
-      - 'schemas/**'
-      - 's6_validation/**'
-      - 'dashboards/grafana/scorecards_quorum_failover_staleness.json'
-      - 'docs/scorecards/**'
-      - 'Makefile'
-      - 'tests/**'
-      - 'actions.lock'
-
+    - .github/workflows/q1-boss-final.yml
+    - scripts/boss_final/**
+    - schemas/q1_boss_report.schema.json
+    - scripts/scorecards/**
+    - s6_validation/**
+    - dashboards/grafana/scorecards_quorum_failover_staleness.json
+    - scripts/scorecards/**
+    - schemas/**
+    - s6_validation/**
+    - dashboards/grafana/scorecards_quorum_failover_staleness.json
+    - docs/scorecards/**
+    - Makefile
+    - tests/**
+    - actions.lock
 concurrency:
   group: q1-boss-final-${{github.ref}}
   cancel-in-progress: true
-
 env:
   LC_ALL: C.UTF-8
   LANG: C.UTF-8
@@ -40,7 +37,6 @@ env:
   PYTHONUTF8: '1'
   HYPOTHESIS_PROFILE: ci
   HYPOTHESIS_SEED: '12345'
-
 jobs:
   stage:
     name: Stage ${{matrix.stage}}
@@ -49,300 +45,278 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stage: [s1, s2, s3, s4, s5, s6]
+        stage:
+        - s1
+        - s2
+        - s3
+        - s4
+        - s5
+        - s6
     env:
       STAGE: ${{matrix.stage}}
       CLEAN_RUNNER: 'false'
     steps:
-      - name: "Guard: bloquear uses @v*"
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
-            echo "[guard] Encontrado uses @v* — bloqueando" >&2
-            exit 2
-          fi
-      - name: "Checkout"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
-        with:
-          python-version: "3.11"
-          check-latest: true
-      - name: "Setup Python + venv + deps"
-        uses: ./.github/actions/setup-python-venv
+    - name: 'Guard: bloquear uses @v*'
+      shell: bash
+      run: "set -euo pipefail\nif grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+'\
+        \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
+        \ >&2\n  exit 2\nfi\n"
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      with:
+        python-version: '3.11'
+        check-latest: true
+    - name: Setup Python + venv + deps
+      uses: ./.github/actions/setup-python-venv
+    - name: Ensure Ruff version (pin)
+      if: matrix.stage == 's1'
+      shell: bash
+      run: "set -euo pipefail\n. .venv/bin/activate 2>/dev/null || true\nbash .github/scripts/ensure_ruff_version.sh\
+        \ >/dev/null\nREQ=\"0.12.11\"\nCURR=\"$(ruff --version | awk '{print $2}')\"\
+        \necho \"[ruff] current=$CURR required=$REQ\"\nif [ \"$CURR\" != \"$REQ\"\
+        \ ]; then\n  echo \"Unexpected ruff version: $CURR (required $REQ)\" >&2\n\
+        \  exit 1\nfi\n"
+    - name: Prepare stage artifact directory
+      run: 'set -euo pipefail
 
-      - name: Ensure Ruff version (pin)
-        if: matrix.stage == 's1'
-        shell: bash
-        run: |
-          set -euo pipefail
-          . .venv/bin/activate 2>/dev/null || true
-          bash .github/scripts/ensure_ruff_version.sh >/dev/null
-          REQ="0.12.11"
-          CURR="$(ruff --version | awk '{print $2}')"
-          echo "[ruff] current=$CURR required=$REQ"
-          if [ "$CURR" != "$REQ" ]; then
-            echo "Unexpected ruff version: $CURR (required $REQ)" >&2
-            exit 1
-          fi
+        ART_DIR="${{ runner.temp }}/boss-stage-${STAGE}"
 
-      - name: "Prepare stage artifact directory"
-        run: |
-          set -euo pipefail
-          ART_DIR="${{ runner.temp }}/boss-stage-${STAGE}"
-          rm -rf "$ART_DIR"
-          mkdir -p "$ART_DIR"
-          echo "STAGE_ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
-          echo "ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
+        rm -rf "$ART_DIR"
 
-      - name: Normalize uses pins (strip comments)
-        shell: bash
-        run: |
-          set -euo pipefail
-          python .github/scripts/normalize_uses_pins.py
+        mkdir -p "$ART_DIR"
 
-      - name: "Execute sprint guard"
-        timeout-minutes: 5
-        run: bash scripts/boss_final/ci_stage_wrapper.sh
-      - name: "List stage artifact dir (debug)"
-        if: always()
-        run: |
-          set -euo pipefail
-          ls -la "${{ runner.temp }}" || true
-          ls -la "${{ env.ARTIFACT_DIR }}" || true
-      - name: "Compact stage artifact"
-        if: always()
-        env:
-          STAGE: ${{env.STAGE}}
-        shell: bash
-        run: |
-          set -euo pipefail
-          art_dir="${ARTIFACT_DIR:-}"
-          if [ -z "$art_dir" ] || [ ! -d "$art_dir" ]; then
-            echo "Diretório do estágio ausente: $art_dir" >&2
-            exit 1
-          fi
-          mkdir -p out/boss
-          zip_path="out/boss/boss-stage-${STAGE}.zip"
-          rm -f "$zip_path"
-          (cd "$art_dir" && zip -r -q "$OLDPWD/$zip_path" .)
-          ls -lh "$zip_path"
-      - name: "Upload stage artifact (zip)"
-        if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
-        with:
-          name: boss-stage-${{env.STAGE}}
-          path: out/boss/boss-stage-${{env.STAGE}}.zip
-          if-no-files-found: warn
-          retention-days: 7
-          overwrite: true
+        echo "STAGE_ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
+
+        echo "ARTIFACT_DIR=$ART_DIR" >> "$GITHUB_ENV"
+
+        '
+    - name: Normalize uses pins (strip comments)
+      shell: bash
+      run: 'set -euo pipefail
+
+        python .github/scripts/normalize_uses_pins.py
+
+        '
+    - name: Execute sprint guard
+      timeout-minutes: 5
+      run: bash scripts/boss_final/ci_stage_wrapper.sh
+    - name: List stage artifact dir (debug)
+      if: always()
+      run: 'set -euo pipefail
+
+        ls -la "${{ runner.temp }}" || true
+
+        ls -la "${{ env.ARTIFACT_DIR }}" || true
+
+        '
+    - name: Compact stage artifact
+      if: always()
+      env:
+        STAGE: ${{env.STAGE}}
+      shell: bash
+      run: "set -euo pipefail\nart_dir=\"${ARTIFACT_DIR:-}\"\nif [ -z \"$art_dir\"\
+        \ ] || [ ! -d \"$art_dir\" ]; then\n  echo \"Diret\xF3rio do est\xE1gio ausente:\
+        \ $art_dir\" >&2\n  exit 1\nfi\nmkdir -p out/boss\nzip_path=\"out/boss/boss-stage-${STAGE}.zip\"\
+        \nrm -f \"$zip_path\"\n(cd \"$art_dir\" && zip -r -q \"$OLDPWD/$zip_path\"\
+        \ .)\nls -lh \"$zip_path\"\n"
+    - name: Upload stage artifact (zip)
+      if: always()
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      with:
+        name: boss-stage-${{env.STAGE}}
+        path: out/boss/boss-stage-${{env.STAGE}}.zip
+        if-no-files-found: warn
+        retention-days: 7
+        overwrite: true
+    if: ${{ github.event_name != 'pull_request' }}
   aggregate:
     name: Aggregate Boss Final
     needs: stage
     permissions:
       actions: read
       contents: read
-    if: always()
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      RELEASE_TAG: ${{github.event_name == 'workflow_dispatch' && inputs.release_tag || ''}}
+      RELEASE_TAG: ${{github.event_name == 'workflow_dispatch' && inputs.release_tag
+        || ''}}
     steps:
-      - name: "Guard: bloquear uses @v*"
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+' .github/workflows; then
-            echo "[guard] Encontrado uses @v* — bloqueando" >&2
-            exit 2
-          fi
-      - name: "Checkout"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
-      - name: "Setup Python + venv + deps"
-        uses: ./.github/actions/setup-python-venv
+    - name: 'Guard: bloquear uses @v*'
+      shell: bash
+      run: "set -euo pipefail\nif grep -RInE 'uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+'\
+        \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
+        \ >&2\n  exit 2\nfi\n"
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+    - name: Setup Python + venv + deps
+      uses: ./.github/actions/setup-python-venv
+    - name: Prepare artifact workspace
+      if: always()
+      run: 'set -euo pipefail
 
-      - name: "Prepare artifact workspace"
-        if: always()
-        run: |
-          set -euo pipefail
-          mkdir -p "${{ runner.temp }}/boss-arts"
-          mkdir -p "${{ runner.temp }}/boss-aggregate"
+        mkdir -p "${{ runner.temp }}/boss-arts"
 
-      - name: "Download stage artifacts"
-        if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (was v4)
-        with:
-          pattern: boss-stage-*
-          merge-multiple: true
+        mkdir -p "${{ runner.temp }}/boss-aggregate"
 
-      - name: "Prepare out/boss"
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p out/boss
-          shopt -s nullglob
-          for z in boss-stage-*.zip; do
-            mv "$z" out/boss/
-          done
-          ls -lh out/boss || true
+        '
+    - name: Download stage artifacts
+      if: always()
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      with:
+        pattern: boss-stage-*
+        merge-multiple: true
+    - name: Prepare out/boss
+      if: always()
+      shell: bash
+      run: "set -euo pipefail\nmkdir -p out/boss\nshopt -s nullglob\nfor z in boss-stage-*.zip;\
+        \ do\n  mv \"$z\" out/boss/\ndone\nls -lh out/boss || true\n"
+    - name: Aggregate reports (local)
+      if: always()
+      id: aggregate
+      env:
+        ARTS_DIR: ${{runner.temp}}/boss-arts
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+        BOSS_STAGE_DIR: out/boss
+        BOSS_OUT_DIR: out/boss
+      run: 'set -euo pipefail
 
-      - name: "Aggregate reports (local)"
-        if: always()
-        id: aggregate
-        env:
-          ARTS_DIR: ${{runner.temp}}/boss-arts
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-          BOSS_STAGE_DIR: out/boss
-          BOSS_OUT_DIR: out/boss
-        run: |
-          set -euo pipefail
-          mkdir -p "$REPORT_DIR"
-          . .venv/bin/activate 2>/dev/null || true
-          python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
+        mkdir -p "$REPORT_DIR"
 
-      - name: "Ensure `schema` on local aggregate report"
-        if: steps.aggregate.outcome == 'success'
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        shell: bash
-        run: |
-          set -euo pipefail
-          . .venv/bin/activate 2>/dev/null || true
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
+        . .venv/bin/activate 2>/dev/null || true
 
-          from scripts.boss_final.ensure_schema import expected_schema_id
+        python scripts/boss_final/aggregate_reports_local.py | tee "$REPORT_DIR/aggregate.log"
 
-          report_path = Path(os.environ["REPORT_DIR"]) / "report.json"
-          data = json.loads(report_path.read_text(encoding="utf-8"))
-          expected = expected_schema_id()
-          actual = data.get("schema")
-          print(f"[boss-final] expected schema={expected} | current={actual}")
-          PY
-          python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
+        '
+    - name: Ensure `schema` on local aggregate report
+      if: steps.aggregate.outcome == 'success'
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      shell: bash
+      run: 'set -euo pipefail
 
-      - name: "Enforce report defaults (notes)"
-        if: steps.aggregate.outcome == 'success'
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        run: |
-          set -euo pipefail
-          . .venv/bin/activate 2>/dev/null || true
-          python3 scripts/boss_final/enforce_report_defaults.py "$REPORT_DIR/report.json" || true
+        . .venv/bin/activate 2>/dev/null || true
 
-      - name: "Validate report schema (local)"
-        if: steps.aggregate.outcome == 'success'
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        run: |
-          set -euo pipefail
-          . .venv/bin/activate 2>/dev/null || true
-          if [ ! -f "$REPORT_DIR/report.json" ]; then
-            echo "report.json não encontrado" >&2
-            exit 1
-          fi
-          python -m jsonschema --instance "$REPORT_DIR/report.json" --schema schemas/q1_boss_report.schema.json
+        python - <<''PY''
 
-      - name: "Generate local aggregate evidence bundle"
-        if: steps.aggregate.outcome == 'success'
-        id: local_evidence
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p out/boss_final
-          cp "$REPORT_DIR/report.json" "out/boss_final/report.local.json"
-          . .venv/bin/activate 2>/dev/null || true
-          python scripts/boss_final/ensure_schema.py out/boss_final/report.local.json
-          python scripts/boss_final/generate_local_evidence.py out/boss_final/report.local.json
+        import json
 
-      - name: "Append local aggregate summary"
-        if: steps.aggregate.outcome == 'success'
-        shell: bash
-        run: |
-          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-            {
-              echo "### Boss Final — relatório agregado local"
-              echo ""
-              echo "- report_path: $(realpath out/boss_final/report.local.json)"
-              echo "- schema: ${{ steps.local_evidence.outputs.schema }}"
-              echo "- generated_at: ${{ steps.local_evidence.outputs.generated_at }}"
-              echo "- sha256: ${{ steps.local_evidence.outputs.sha256 }}"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+        import os
 
-      - name: "Upload Boss Final aggregate"
-        if: steps.aggregate.outcome == 'success'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
-        with:
-          name: boss-final-aggregate
-          path: |
-            ${{ runner.temp }}/boss-aggregate
-            out/boss_final
-          retention-days: 7
-          overwrite: true
+        from pathlib import Path
 
-      - name: "Evaluate guard status"
-        if: steps.aggregate.outcome == 'success'
-        id: guard
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        run: |
-          if [ ! -f "$REPORT_DIR/guard_status.txt" ]; then
-            echo "guard_status.txt ausente" >&2
-            exit 1
-          fi
-          status=$(cat "$REPORT_DIR/guard_status.txt")
-          echo "guard_status=$status" >> "$GITHUB_OUTPUT"
-          if [ "$status" != "PASS" ]; then
-            exit 1
-          fi
 
-      - name: "Publish Boss Final summary"
-        if: steps.aggregate.outcome == 'success'
-        uses: ./.github/actions/github-script
-        env:
-          REPORT_DIR: ${{runner.temp}}/boss-aggregate
-        with:
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const fallback = '⚠️ Relatório não encontrado. Veja GITHUB_STEP_SUMMARY para detalhes.';
-            const reportDir = process.env.REPORT_DIR || path.join(process.cwd(), 'out', 'q1_boss_final');
-            const commentPath = path.join(reportDir, 'pr_comment.md');
-            let body = fallback;
-            try {
-              if (fs.existsSync(commentPath)) {
-                body = fs.readFileSync(commentPath, 'utf8');
-              }
-            } catch (error) {
-              core.warning(`Falha ao ler pr_comment.md: ${error.message}`);
-            }
-            core.summary.addHeading('Q1 Boss Final');
-            core.summary.addRaw(body);
-            core.summary.addEOL();
-            await core.summary.write();
-            if (context.eventName === 'pull_request') {
-              try {
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body,
-                });
-              } catch (error) {
-                core.warning(`Falha ao comentar no PR: ${error.message}`);
-              }
-            }
+        from scripts.boss_final.ensure_schema import expected_schema_id
 
-      - name: "Enforce aggregate status"
-        if: steps.aggregate.outcome == 'failure'
-        run: exit 1
 
-      - name: "Fail when any stage guard failed"
-        if: ${{always() && needs.stage.result == 'failure'}}
-        run: exit 1
+        report_path = Path(os.environ["REPORT_DIR"]) / "report.json"
+
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+
+        expected = expected_schema_id()
+
+        actual = data.get("schema")
+
+        print(f"[boss-final] expected schema={expected} | current={actual}")
+
+        PY
+
+        python scripts/boss_final/ensure_schema.py "$REPORT_DIR/report.json"
+
+        '
+    - name: Enforce report defaults (notes)
+      if: steps.aggregate.outcome == 'success'
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      run: 'set -euo pipefail
+
+        . .venv/bin/activate 2>/dev/null || true
+
+        python3 scripts/boss_final/enforce_report_defaults.py "$REPORT_DIR/report.json"
+        || true
+
+        '
+    - name: Validate report schema (local)
+      if: steps.aggregate.outcome == 'success'
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      run: "set -euo pipefail\n. .venv/bin/activate 2>/dev/null || true\nif [ ! -f\
+        \ \"$REPORT_DIR/report.json\" ]; then\n  echo \"report.json n\xE3o encontrado\"\
+        \ >&2\n  exit 1\nfi\npython -m jsonschema --instance \"$REPORT_DIR/report.json\"\
+        \ --schema schemas/q1_boss_report.schema.json\n"
+    - name: Generate local aggregate evidence bundle
+      if: steps.aggregate.outcome == 'success'
+      id: local_evidence
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      shell: bash
+      run: 'set -euo pipefail
+
+        mkdir -p out/boss_final
+
+        cp "$REPORT_DIR/report.json" "out/boss_final/report.local.json"
+
+        . .venv/bin/activate 2>/dev/null || true
+
+        python scripts/boss_final/ensure_schema.py out/boss_final/report.local.json
+
+        python scripts/boss_final/generate_local_evidence.py out/boss_final/report.local.json
+
+        '
+    - name: Append local aggregate summary
+      if: steps.aggregate.outcome == 'success'
+      shell: bash
+      run: "if [ -n \"${GITHUB_STEP_SUMMARY:-}\" ]; then\n  {\n    echo \"### Boss\
+        \ Final \u2014 relat\xF3rio agregado local\"\n    echo \"\"\n    echo \"-\
+        \ report_path: $(realpath out/boss_final/report.local.json)\"\n    echo \"\
+        - schema: ${{ steps.local_evidence.outputs.schema }}\"\n    echo \"- generated_at:\
+        \ ${{ steps.local_evidence.outputs.generated_at }}\"\n    echo \"- sha256:\
+        \ ${{ steps.local_evidence.outputs.sha256 }}\"\n  } >> \"$GITHUB_STEP_SUMMARY\"\
+        \nfi\n"
+    - name: Upload Boss Final aggregate
+      if: steps.aggregate.outcome == 'success'
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      with:
+        name: boss-final-aggregate
+        path: '${{ runner.temp }}/boss-aggregate
+
+          out/boss_final
+
+          '
+        retention-days: 7
+        overwrite: true
+    - name: Evaluate guard status
+      if: steps.aggregate.outcome == 'success'
+      id: guard
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      run: "if [ ! -f \"$REPORT_DIR/guard_status.txt\" ]; then\n  echo \"guard_status.txt\
+        \ ausente\" >&2\n  exit 1\nfi\nstatus=$(cat \"$REPORT_DIR/guard_status.txt\"\
+        )\necho \"guard_status=$status\" >> \"$GITHUB_OUTPUT\"\nif [ \"$status\" !=\
+        \ \"PASS\" ]; then\n  exit 1\nfi\n"
+    - name: Publish Boss Final summary
+      if: steps.aggregate.outcome == 'success'
+      uses: ./.github/actions/github-script
+      env:
+        REPORT_DIR: ${{runner.temp}}/boss-aggregate
+      with:
+        script: "const fs = require('fs');\nconst path = require('path');\nconst fallback\
+          \ = '\u26A0\uFE0F Relat\xF3rio n\xE3o encontrado. Veja GITHUB_STEP_SUMMARY\
+          \ para detalhes.';\nconst reportDir = process.env.REPORT_DIR || path.join(process.cwd(),\
+          \ 'out', 'q1_boss_final');\nconst commentPath = path.join(reportDir, 'pr_comment.md');\n\
+          let body = fallback;\ntry {\n  if (fs.existsSync(commentPath)) {\n    body\
+          \ = fs.readFileSync(commentPath, 'utf8');\n  }\n} catch (error) {\n  core.warning(`Falha\
+          \ ao ler pr_comment.md: ${error.message}`);\n}\ncore.summary.addHeading('Q1\
+          \ Boss Final');\ncore.summary.addRaw(body);\ncore.summary.addEOL();\nawait\
+          \ core.summary.write();\nif (context.eventName === 'pull_request') {\n \
+          \ try {\n    await github.rest.issues.createComment({\n      issue_number:\
+          \ context.issue.number,\n      owner: context.repo.owner,\n      repo: context.repo.repo,\n\
+          \      body,\n    });\n  } catch (error) {\n    core.warning(`Falha ao comentar\
+          \ no PR: ${error.message}`);\n  }\n}\n"
+    - name: Enforce aggregate status
+      if: steps.aggregate.outcome == 'failure'
+      run: exit 1
+    - name: Fail when any stage guard failed
+      if: ${{always() && needs.stage.result == 'failure'}}
+      run: exit 1

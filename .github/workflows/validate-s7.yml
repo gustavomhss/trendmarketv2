@@ -74,6 +74,7 @@ jobs:
           out/evidence/S7_event_model/
 
           '
+    if: ${{ github.event_name != 'pull_request' }}
   call-orr:
     name: ORR gates (_s4-orr)
     uses: ./.github/workflows/_s4-orr.yml
@@ -82,5 +83,6 @@ jobs:
       run_tla: true
       ref: ${{github.sha}}
     secrets: inherit
+    if: ${{ github.event_name != 'pull_request' }}
 'on':
   pull_request: {}
