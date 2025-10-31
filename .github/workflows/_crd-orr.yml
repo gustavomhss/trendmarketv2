@@ -1,5 +1,4 @@
 name: CRD Epic — ORR (Reusable)
-
 on:
   workflow_call:
     inputs:
@@ -9,7 +8,6 @@ on:
         default: fast
       environment:
         type: string
-
         required: false
         default: dev
       epic_path:
@@ -26,41 +24,20 @@ on:
         default: .
       scripts_dir:
         type: string
-
-
         required: false
         default: scripts
-
-
 permissions:
   contents: read
   actions: write
-
-
-
-
-
 jobs:
   orr:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
-
-
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-
-
-
-
-
-
-
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
         with:
           fetch-depth: 0
-
       - name: Print inputs
         run: |
           echo "profile=${{ inputs.profile }}"
@@ -69,12 +46,10 @@ jobs:
           echo "agents_md=${{ inputs.agents_md }}"
           echo "project_dir=${{ inputs.project_dir }}"
           echo "scripts_dir=${{ inputs.scripts_dir }}"
-
       - name: Ensure utils (jq/zip/curl)
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq zip curl
-
       - name: Run ORR pipeline
         shell: bash
         run: |
@@ -82,20 +57,10 @@ jobs:
           cd "${{ inputs.project_dir }}"
           mkdir -p out/obs_gatecheck/logs out/obs_gatecheck/evidence
           bash "${{ inputs.scripts_dir }}/orr_all.sh"
-
       - name: Upload ORR bundle
-
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
-          name: obs-bundle-${{ inputs.profile }}-${{ inputs.environment }}
+          name: obs-bundle-${{inputs.profile}}-${{inputs.environment}}
           path: |
             ${{ inputs.project_dir }}/out/obs_gatecheck/**
           if-no-files-found: warn
-
-
-
-
-
-
-
-

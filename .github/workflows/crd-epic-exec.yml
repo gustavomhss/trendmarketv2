@@ -45,18 +45,16 @@ permissions:
   checks: write
 
 concurrency:
-  group: exec-${{ github.ref }}
+  group: exec-${{github.ref}}
   cancel-in-progress: true
 
 jobs:
   exec:
     uses: ./.github/workflows/_crd-orr.yml
     with:
-      profile: ${{ inputs.profile }}
-      environment: ${{ inputs.environment }}
-      epic_path: ${{ inputs.epic_path }}
-      agents_md: ${{ inputs.agents_md }}
-      project_dir: ${{ inputs.project_dir }}
-      scripts_dir: ${{ inputs.scripts_dir }}
-
-
+      profile: ${{inputs.profile}}
+      environment: ${{inputs.environment}}
+      epic_path: ${{inputs.epic_path}}
+      agents_md: ${{inputs.agents_md}}
+      project_dir: ${{inputs.project_dir}}
+      scripts_dir: ${{inputs.scripts_dir}}

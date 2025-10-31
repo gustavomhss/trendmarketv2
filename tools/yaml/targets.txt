@@ -1,0 +1,2 @@
+# YAML targets que a Sprint 7 vai validar
+# Exemplo (quando existir): docs/specs/Q2-S7-blueprint.yml

@@ -1,0 +1,8 @@
+name: PR OK (S7)
+on:
+  pull_request:
+jobs:
+  ok:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo ok
