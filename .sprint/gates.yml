@@ -6,6 +6,6 @@ gates:
     run:
       - bash -lc "python3 scripts/sprint_guard.py check-pins"
     assert_patterns:
-      - -
+      - "PINS:OK"
 
-# retrigger 2025-10-31T20:49:27Z
+# retrigger 2025-10-31T20:51:25Z
