@@ -1,91 +1,117 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import base64
-import json
-import os
-import re
-import sys
+
+from typing import Union
 from pathlib import Path
-from typing import Dict, Optional, Union
+import os
+import json
+import base64
+import hashlib
+
 from nacl import signing
 
 PathLike = Union[str, Path]
-KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
-def _env_name_for_key(key_id: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_]", "_", key_id.upper())
-    return f"ORACLE_ED25519_SEED_{safe}"
+SIGNATURE_PATH: Path = Path("out/evidence/S7_event_model/batch.signature.json")
 
-def _seed_b64_from_env(key_id: Optional[str] = None) -> Optional[str]:
-    kid = key_id or KEY_ID
-    return os.environ.get(_env_name_for_key(kid)) or os.environ.get("ORACLE_ED25519_SEED")
-
-def _decode_seed(seed_b64: str) -> bytes:
-    raw = base64.b64decode(seed_b64, validate=True)
-    if len(raw) != 32:
-        raise ValueError(f"seed must be 32 bytes after base64; got {len(raw)}")
-    return raw
 
 def _ensure_dir(p: Path) -> None:
-    p.parent.mkdir(parents=True, exist_ok=True)
+    p.mkdir(parents=True, exist_ok=True)
 
-def _default_batch_dir() -> Path:
-    return Path("out/evidence/S7_event_model")
 
-def _choose_batch_json(batch_json: Optional[PathLike] = None) -> Path:
-    if batch_json is not None:
-        return Path(batch_json)
-    d = _default_batch_dir()
-    bj = d / "batch.json"
-    if bj.exists():
-        return bj
-    cand = sorted(d.glob("*.json"))
-    if not cand:
-        raise FileNotFoundError("no batch JSON found in out/evidence/S7_event_model")
-    return cand[-1]
+def _decode_seed(seed_b64: str) -> bytes:
+    try:
+        seed = base64.b64decode(seed_b64, validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("Invalid ORACLE_ED25519_SEED base64") from exc
+    if len(seed) != 32:
+        raise RuntimeError("ORACLE_ED25519_SEED must decode to 32 bytes")
+    return seed
 
-def sign_batch(
-    batch_json: Optional[PathLike] = None,
-    out_sig: Optional[PathLike] = None,
-    seed_b64: Optional[str] = None,
-    key_id: Optional[str] = None,
-) -> Dict[str, str]:
-    """
-    Assina o batch JSON e emite:
-      - assinatura (batch.sig por padrão)
-      - pubkey.json (chave pública em base64)
-    Retorna dict com caminhos e public_key_b64.
-    """
-    kid = key_id or KEY_ID
-    seed_b64 = seed_b64 or _seed_b64_from_env(kid)
+
+def _load_seed() -> bytes:
+    seed_b64 = os.environ.get("ORACLE_ED25519_SEED")
     if not seed_b64:
-        raise RuntimeError(f"Missing seed for key {kid}. Set {_env_name_for_key(kid)} or ORACLE_ED25519_SEED")
+        raise RuntimeError("Missing ORACLE_ED25519_SEED environment variable")
+    return _decode_seed(seed_b64)
 
-    seed = _decode_seed(seed_b64)
+
+def _keystore_entry(pubkey_b64: str) -> dict[str, str]:
+    expires = "9999-12-31T23:59:59Z"
+    return {
+        "pubkey": pubkey_b64,
+        "not_before": "1970-01-01T00:00:00Z",
+        "expires_at": expires,
+        "not_after": expires,
+    }
+
+
+def _merge_entry(entry: dict[str, object], pubkey_b64: str) -> dict[str, object]:
+    merged = dict(entry)
+    merged.update(_keystore_entry(pubkey_b64))
+    return merged
+
+
+def _ensure_keystore(keystore_path: Path, pubkey_b64: str) -> None:
+    _ensure_dir(keystore_path.parent)
+    loaded: dict[str, object] = {}
+    keys: list[dict[str, object]] | None = None
+    if keystore_path.exists():
+        try:
+            existing = json.loads(keystore_path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                loaded = dict(existing)
+                maybe_keys = existing.get("keys")
+                if isinstance(maybe_keys, list):
+                    keys = [entry for entry in maybe_keys if isinstance(entry, dict)]
+        except json.JSONDecodeError:
+            loaded = {}
+    if keys is None:
+        keys = []
+    others: list[dict[str, object]] = []
+    our_entry: dict[str, object] | None = None
+    for entry in keys:
+        if entry.get("pubkey") == pubkey_b64 and our_entry is None:
+            our_entry = _merge_entry(entry, pubkey_b64)
+        else:
+            others.append(entry)
+    if our_entry is None:
+        our_entry = _keystore_entry(pubkey_b64)
+    loaded["keys"] = [our_entry, *others]
+    keystore_path.write_text(json.dumps(loaded, indent=2) + "\n", encoding="utf-8")
+
+
+def sign_batch(batch_path: PathLike, keystore_path: PathLike) -> Path:
+    batch_file = Path(batch_path)
+    batch_bytes = batch_file.read_bytes()
+    batch_sha = hashlib.sha256(batch_bytes).hexdigest()
+
+    seed = _load_seed()
     signer = signing.SigningKey(seed)
     verify_key = signer.verify_key
-    pub_b64 = base64.b64encode(bytes(verify_key)).decode()
+    pubkey_b64 = base64.b64encode(bytes(verify_key)).decode("ascii")
+    signature = signer.sign(batch_bytes).signature
+    signature_b64 = base64.b64encode(signature).decode("ascii")
 
-    bj = _choose_batch_json(batch_json)
-    sig_path = Path(out_sig) if out_sig is not None else (bj.parent / "batch.sig")
-    _ensure_dir(sig_path)
+    payload = {
+        "algo": "ed25519",
+        "pubkey": pubkey_b64,
+        "signature": signature_b64,
+        "sig": signature_b64,
+        "batch_sha256": batch_sha,
+    }
 
-    data = bj.read_bytes()
-    signature = signer.sign(data).signature  # 64 bytes
-    sig_path.write_bytes(signature)
+    _ensure_dir(SIGNATURE_PATH.parent)
+    SIGNATURE_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    pubmeta = {"alg": "Ed25519", "key_id": kid, "public_key_b64": pub_b64}
-    (bj.parent / "pubkey.json").write_text(json.dumps(pubmeta, indent=2), encoding="utf-8")
+    _ensure_keystore(Path(keystore_path), pubkey_b64)
 
-    return {"batch": str(bj), "sig": str(sig_path), "public_key_b64": pub_b64, "key_id": kid}
+    return SIGNATURE_PATH
+
 
 def main() -> None:
-    try:
-        res = sign_batch()
-    except Exception as e:  # noqa: BLE001
-        print(str(e), file=sys.stderr)
-        sys.exit(1)
-    print(f"[sign] wrote {res['sig']} and pubkey.json for {Path(res['batch']).name}")
+    raise SystemExit("sign_batch CLI disabled in this context")
+
 
 if __name__ == "__main__":
     main()

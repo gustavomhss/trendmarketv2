@@ -1,108 +1,119 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
+from pathlib import Path
 import base64
 import json
-import os
-import sys
-from pathlib import Path
-from typing import Optional, Union
+import hashlib
+from datetime import datetime, timezone
+from typing import Any
+
 from nacl import signing, exceptions as nacl_exc
 
-PathLike = Union[str, Path]
-KEY_ID = os.environ.get("ORACLE_SIGNING_KEY_ID", "s7-active-20251001")
 
 class VerificationError(Exception):
-    """Erro de verificação de assinatura (chave ausente ou assinatura inválida)."""
+    """Raised when a signature or keystore entry cannot be validated."""
 
-def _default_batch_dir() -> Path:
-    return Path("out/evidence/S7_event_model")
 
-def _choose_batch_json_and_sig(
-    bj: Optional[PathLike] = None,
-    bs: Optional[PathLike] = None,
-) -> tuple[Path, Path]:
-    root = _default_batch_dir()
-    bj_path = Path(bj) if bj is not None else (root / "batch.json")
-    if not bj_path.exists():
-        candidates = sorted(root.glob("*.json"))
-        if not candidates:
-            raise VerificationError("no batch JSON found to verify")
-        bj_path = candidates[-1]
-    bs_path = Path(bs) if bs is not None else (root / "batch.sig")
-    if not bs_path.exists():
-        cand = bj_path.with_suffix(".sig")
-        if cand.exists():
-            bs_path = cand
-        else:
-            raise VerificationError("no signature file found for batch")
-    return bj_path, bs_path
-
-def _load_pub_from_pubmeta(dir_: Path) -> Optional[bytes]:
-    p = dir_ / "pubkey.json"
-    if not p.exists():
-        return None
-    meta = json.loads(p.read_text(encoding="utf-8"))
-    b64 = meta.get("public_key_b64")
-    if not isinstance(b64, str):
-        return None
-    return base64.b64decode(b64, validate=True)
-
-def _pub_from_env() -> Optional[bytes]:
-    val = os.environ.get("ORACLE_ED25519_PUB")
-    if not val:
-        return None
-    return base64.b64decode(val, validate=True)
-
-def _pub_from_seed() -> Optional[bytes]:
-    seed_b64 = os.environ.get("ORACLE_ED25519_SEED")
-    if not seed_b64:
-        return None
-    raw = base64.b64decode(seed_b64, validate=True)
-    if len(raw) != 32:
-        raise VerificationError("ORACLE_ED25519_SEED is not 32 bytes after base64")
-    return bytes(signing.SigningKey(raw).verify_key)
-
-def verify_signature(
-    batch_json: Optional[PathLike] = None,
-    sig_path: Optional[PathLike] = None,
-    pubkey_b64: Optional[str] = None,
-) -> bool:
-    bj, bs = _choose_batch_json_and_sig(batch_json, sig_path)
-
-    pub: Optional[bytes] = None
-    if pubkey_b64:
-        pub = base64.b64decode(pubkey_b64, validate=True)
-    if pub is None:
-        pub = _load_pub_from_pubmeta(bj.parent)
-    if pub is None:
-        pub = _pub_from_env()
-    if pub is None:
-        pub = _pub_from_seed()
-    if pub is None:
-        raise VerificationError("missing public key: provide pubkey.json, ORACLE_ED25519_PUB, or ORACLE_ED25519_SEED")
-
-    vk = signing.VerifyKey(pub)
-    data = Path(bj).read_bytes()
-    sig = Path(bs).read_bytes()
+def _read_json(path: Path) -> Any:
     try:
-        vk.verify(data, sig)
-    except nacl_exc.BadSignatureError as e:
-        raise VerificationError("bad signature") from e
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise VerificationError(f"missing file: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise VerificationError(f"invalid JSON: {path}") from exc
+
+
+def _parse_time(value: str) -> datetime:
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def _decode_b64(value: str, field: str) -> bytes:
+    try:
+        return base64.b64decode(value, validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise VerificationError(f"invalid base64 for {field}") from exc
+
+
+def _keystore_entry(keys: list[Any], pubkey_b64: str) -> dict[str, Any]:
+    for entry in keys:
+        if isinstance(entry, dict) and entry.get("pubkey") == pubkey_b64:
+            return entry
+    raise VerificationError("public key not present in keystore")
+
+
+def _validity_window(entry: dict[str, Any]) -> tuple[datetime, datetime]:
+    not_before_val = entry.get("not_before") or entry.get("valid_from")
+    if not isinstance(not_before_val, str):
+        raise VerificationError("keystore entry missing validity window")
+    not_before_dt = _parse_time(not_before_val)
+
+    expires_candidates = []
+    for key in ("expires_at", "not_after", "valid_until"):
+        value = entry.get(key)
+        if isinstance(value, str):
+            expires_candidates.append(_parse_time(value))
+    if not expires_candidates:
+        raise VerificationError("keystore entry missing validity window")
+    expires_dt = min(expires_candidates)
+    return not_before_dt, expires_dt
+
+
+def verify_signature(signature_path: Path, keystore_path: Path, batch_path: Path) -> bool:
+    signature_data = _read_json(signature_path)
+    if not isinstance(signature_data, dict):
+        raise VerificationError("signature payload must be an object")
+
+    algo = signature_data.get("algo")
+    if algo != "ed25519":
+        raise VerificationError("unsupported signature algorithm")
+
+    pubkey_b64 = signature_data.get("pubkey")
+    signature_b64 = signature_data.get("sig") or signature_data.get("signature")
+    if not isinstance(pubkey_b64, str) or not isinstance(signature_b64, str):
+        raise VerificationError("signature payload missing fields")
+
+    pubkey = _decode_b64(pubkey_b64, "pubkey")
+    signature = _decode_b64(signature_b64, "signature")
+
+    batch_bytes = batch_path.read_bytes()
+    batch_sha = signature_data.get("batch_sha256")
+    if batch_sha is not None:
+        if not isinstance(batch_sha, str):
+            raise VerificationError("batch_sha256 must be a string if present")
+        computed_sha = hashlib.sha256(batch_bytes).hexdigest()
+        if computed_sha != batch_sha:
+            raise VerificationError("batch_sha256 mismatch")
+
+    keystore_data = _read_json(keystore_path)
+    keys = keystore_data.get("keys") if isinstance(keystore_data, dict) else None
+    if not isinstance(keys, list):
+        raise VerificationError("keystore format invalid")
+
+    entry = _keystore_entry(keys, pubkey_b64)
+    not_before_dt, expires_dt = _validity_window(entry)
+
+    now = datetime.now(timezone.utc)
+    if not (not_before_dt <= now <= expires_dt):
+        raise VerificationError("keystore entry outside validity window")
+
+    verify_key = signing.VerifyKey(pubkey)
+    try:
+        verify_key.verify(batch_bytes, signature)
+    except nacl_exc.BadSignatureError as exc:
+        raise VerificationError("invalid signature") from exc
+
     return True
 
+
 def main() -> None:
-    try:
-        ok = verify_signature()
-    except VerificationError as e:
-        print(str(e) or "Signature verification failed", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:  # noqa: BLE001
-        print(str(e), file=sys.stderr)
-        sys.exit(1)
-    if not ok:
-        print("Signature verification failed", file=sys.stderr)
-        sys.exit(1)
-    print("[verify] OK")
+    raise SystemExit("verify_signature CLI disabled in this context")
+
 
 if __name__ == "__main__":
     main()
