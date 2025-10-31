@@ -1,0 +1,10 @@
+name: _mbp-s2-orr (stub)
+
+on:
+  workflow_call: {}
+
+jobs:
+  noop:
+    runs-on: ubuntu-22.04
+    steps:
+      - run: echo "[stub] _mbp-s2-orr.yml — TODO: restaurar conteúdo real."

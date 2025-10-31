@@ -1,0 +1,14 @@
+name: crd-epic-plan (stub)
+
+on:
+  workflow_dispatch: {}
+  workflow_call: {}
+
+jobs:
+  noop:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: CRD Epic Plan stub
+        run: |
+          echo "[stub] crd-epic-plan.yml — placeholder seguro."
+          echo "TODO: repor pipeline real."

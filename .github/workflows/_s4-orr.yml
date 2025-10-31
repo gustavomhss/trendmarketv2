@@ -1,0 +1,37 @@
+name: _s4-orr (stub)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Optional ref to run against
+        required: false
+        type: string
+      run_microbench:
+        description: Enable microbench gate
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: Enable TLA verification
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      GCP_SA_JSON:
+        required: false
+      DBT_BQ_PROJECT:
+        required: false
+      DBT_BQ_DATASET:
+        required: false
+      DBT_BQ_LOCATION:
+        required: false
+
+jobs:
+  noop:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: S4 ORR stub
+        run: |
+          echo "[stub] _s4-orr.yml — restaurado como stub seguro."
+          echo "TODO: substituir por workflow real quando pronto."
