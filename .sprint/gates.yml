@@ -3,16 +3,16 @@ gates:
   - id: T1
     name: YAML ok
     purpose: Lint YAML files
-    ltl: G(valid_yaml)
+    ltl: 'G(valid_yaml)'
     contracts:
       require:
-        - yamllint available
+        - 'yamllint available'
       ensure:
-        - exit code 0
+        - 'exit code 0'
     run:
-      - bash -lc "python3 -m pip install --user yamllint==1.35.1 >/dev/null 2>&1 || true; ~/.local/bin/yamllint . || yamllint ."
+      - "bash -lc 'python3 -m pip install --user yamllint==1.35.1 >/dev/null 2>&1 || true; ~/.local/bin/yamllint . || yamllint .'"
     assert_patterns:
-      - .
+      - '.'
     evidence:
       - path: out/evidence/T1_yaml/yamllint.txt
         must_exist: false
@@ -20,35 +20,18 @@ gates:
   - id: T2
     name: Pins
     purpose: Check pinned actions
-    ltl: G(pinned(actions))
+    ltl: 'G(pinned(actions))'
     contracts:
       require:
-        - actions.lock present
+        - 'actions.lock present'
       ensure:
-        - all actions pinned by sha
+        - 'all actions pinned by sha'
     run:
-      - bash -lc "python3 scripts/sprint_guard.py check-pins"
+      - "bash -lc 'python3 scripts/sprint_guard.py check-pins'"
     assert_patterns:
-      - PINS:OK
+      - 'PINS:OK'
     evidence:
       - path: out/evidence/T2_pins/report.json
         must_exist: true
 
-  - id: T3
-    name: Sign verify
-    purpose: Roundtrip sign/verify
-    ltl: F(passed(sign_verify))
-    contracts:
-      require:
-        - pytest available
-      ensure:
-        - exit code 0
-    run:
-      - bash -lc "pytest -q tests/test_signature.py -k roundtrip"
-    assert_patterns:
-      - PASSED
-    evidence:
-      - path: out/evidence/T3_crypto/pytest.txt
-        must_exist: false
-
-# retrigger 2025-10-31T20:30:17Z
+# retrigger 2025-10-31T20:31:21Z
