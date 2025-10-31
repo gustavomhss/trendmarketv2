@@ -39,3 +39,5 @@ gates:
     assert_patterns: ["PASSED|== 0 failed"]
     evidence:
       - { path: "out/evidence/T3_crypto/pytest.txt", must_exist: false }
+
+# retrigger 2025-10-31T20:24:51Z
