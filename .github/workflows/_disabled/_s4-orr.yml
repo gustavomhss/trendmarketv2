@@ -60,7 +60,7 @@ on:
         required: false
 
 concurrency:
-  group: s4-orr-${{ inputs.ref || github.sha }}
+  group: s4-orr-${{inputs.ref || github.sha}}
   cancel-in-progress: true
 
 permissions:
@@ -69,11 +69,11 @@ permissions:
 
 jobs:
   semgrep_scan:
-    if: ${{ inputs.run_security }}
+    if: ${{inputs.run_security}}
     uses: ./.github/workflows/semgrep.yml
     with:
-      ref: ${{ inputs.ref || github.sha }}
-      fail_on_findings: ${{ inputs.fail_on_findings }}
+      ref: ${{inputs.ref || github.sha}}
+      fail_on_findings: ${{inputs.fail_on_findings}}
     secrets: inherit
 
   orr:
@@ -83,11 +83,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{inputs.ref || github.sha}}
 
       - name: Gerar actions.lock
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{github.token}}
         run: |
           python3 -m pip install --quiet PyYAML
           python3 .github/scripts/gen_actions_lock.py
@@ -108,7 +108,7 @@ jobs:
           python3 .github/scripts/verify_actions_lock.py
 
       - name: Security | Install Gitleaks (tarball)
-        if: ${{ inputs.run_security }}
+        if: ${{inputs.run_security}}
         shell: bash
         run: |
           set -euo pipefail
@@ -127,7 +127,7 @@ jobs:
           gitleaks version | head -n1 | tee out/security/gitleaks-version.txt
 
       - name: Security | Install Trivy (candidate list)
-        if: ${{ inputs.run_security }}
+        if: ${{inputs.run_security}}
         shell: bash
         run: |
           set -euo pipefail
@@ -156,9 +156,9 @@ jobs:
           trivy --version | head -n1 | tee out/security/trivy-version.txt
 
       - name: Security | Gitleaks detect
-        if: ${{ inputs.run_security }}
+        if: ${{inputs.run_security}}
         shell: bash
-        continue-on-error: ${{ !inputs.fail_on_findings }}
+        continue-on-error: ${{!inputs.fail_on_findings}}
         run: |
           set -euo pipefail
           mkdir -p out/security
@@ -173,9 +173,9 @@ jobs:
           exit "$STATUS"
 
       - name: Security | Trivy fs (if available)
-        if: ${{ inputs.run_security }}
+        if: ${{inputs.run_security}}
         shell: bash
-        continue-on-error: ${{ !inputs.fail_on_findings }}
+        continue-on-error: ${{!inputs.fail_on_findings}}
         run: |
           set -euo pipefail
           mkdir -p out/security
@@ -196,7 +196,7 @@ jobs:
           exit "$STATUS"
 
       - name: Security | Upload findings
-        if: ${{ always() && inputs.run_security }}
+        if: ${{always() && inputs.run_security}}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: security-findings
@@ -214,7 +214,7 @@ jobs:
 
       - name: Localizar modelos TLA
         id: tla_scan
-        if: ${{ inputs.run_tla }}
+        if: ${{inputs.run_tla}}
         shell: bash
         run: |
           set -euo pipefail
@@ -232,7 +232,7 @@ jobs:
           fi
 
       - name: TLA ASCII guard (if exists)
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        if: ${{inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true'}}
         shell: bash
         run: |
           set -euo pipefail
@@ -247,10 +247,10 @@ jobs:
 
       - name: Detectar GHCR token
         id: ghcr_tok
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        if: ${{inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true'}}
         shell: bash
         env:
-          GHCR_APALACHE_TOKEN: ${{ secrets.GHCR_APALACHE_TOKEN }}
+          GHCR_APALACHE_TOKEN: ${{secrets.GHCR_APALACHE_TOKEN}}
         run: |
           set -euo pipefail
           if [ -n "${GHCR_APALACHE_TOKEN:-}" ]; then
@@ -260,15 +260,15 @@ jobs:
           fi
 
       - name: GHCR login (opcional)
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true' }}
+        if: ${{inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' && steps.ghcr_tok.outputs.has_token == 'true'}}
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # pinned (was v3)
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_APALACHE_TOKEN }}
+          username: ${{github.actor}}
+          password: ${{secrets.GHCR_APALACHE_TOKEN}}
 
       - name: TLA check (Apalache)
-        if: ${{ inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        if: ${{inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true'}}
         shell: bash
         run: |
           set -euo pipefail
@@ -284,9 +284,9 @@ jobs:
 
           select_tla() {
             local base="$1"
-            [ -d "$base" ] || return 1
+            [-d "$base"] || return 1
             find "$base" -maxdepth 1 -type f -name '*.tla' | sort | head -n1
-          }
+}
 
           SEL=""
           if SEL=$(select_tla docs/spec/tla); then
@@ -294,29 +294,29 @@ jobs:
           else
             SEL=""
           fi
-          if [ -z "$SEL" ]; then
+          if [-z "$SEL"]; then
             SEL=$(find . -maxdepth 1 -type f -name '*.tla' | sort | head -n1 || true)
           fi
 
-          if [ -z "$SEL" ]; then
+          if [-z "$SEL"]; then
             echo "[tla] Nenhum arquivo .tla elegível encontrado" | tee -a "$REPORT"
             exit 1
           fi
 
           SEL_DIR="$(dirname "$SEL")"
           find "$SEL_DIR" -maxdepth 1 -type f -name '*.tla' -exec cp -f {} "$WORK/" \;
-          if [ -d docs/spec/tla ]; then
+          if [-d docs/spec/tla]; then
             find docs/spec/tla -type f -name '*.tla' -exec cp -f {} "$WORK/" \;
           fi
 
           MODULE="$(basename "$SEL")"
           MOUNT_PATH="$PWD/$WORK"
 
-          { 
+          {
             echo "[tla] Using image: ${APAL_IMG}"
             echo "[tla] Selected module: ${MODULE}"
             echo "[tla] Workspace: ${WORK}"
-          } | tee -a "$REPORT"
+} | tee -a "$REPORT"
 
           APAL_UID="$(id -u)"
           APAL_GID="$(id -g)"
@@ -346,14 +346,14 @@ jobs:
 
       - name: Upload TLA report
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
-        if: ${{ always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true' }}
+        if: ${{always() && inputs.run_tla && steps.tla_scan.outputs.have_tla == 'true'}}
         with:
           name: tla-report
           path: out/s4_orr/tla_report.txt
           if-no-files-found: warn
 
       - name: dbt run (DuckDB)
-        if: ${{ !inputs.run_tla && hashFiles('analytics/dbt/dbt_project.yml') != '' }}
+        if: ${{!inputs.run_tla && hashFiles('analytics/dbt/dbt_project.yml') != ''}}
         shell: bash
         run: |
           set -euo pipefail
@@ -383,7 +383,7 @@ jobs:
           dbt run --project-dir "$DBT_DIR" --profiles-dir "$HOME/.dbt" --profile ce_profile
 
       - name: Iniciar SUT (Compose/npm)
-        if: ${{ !inputs.run_tla && inputs.run_sut }}
+        if: ${{!inputs.run_tla && inputs.run_sut}}
         shell: bash
         run: |
           set -euo pipefail
@@ -408,7 +408,7 @@ jobs:
           fi
 
       - name: "S5 Simulation — run deterministic scenarios"
-        if: ${{ inputs.run_sim }}
+        if: ${{inputs.run_sim}}
         shell: bash
         run: |
           set -euo pipefail
@@ -418,7 +418,7 @@ jobs:
           SEED=42 python -m tools.sim_harness --fixtures fixtures --scenario burst --out out/sim/burst.report.json
 
       - name: "S5 DBT (DuckDB) — deps/debug/run/test"
-        if: ${{ inputs.run_dbt_ci || hashFiles('analytics/dbt/dbt_project.yml') != '' }}
+        if: ${{inputs.run_dbt_ci || hashFiles('analytics/dbt/dbt_project.yml') != ''}}
         shell: bash
         run: |
           set -euo pipefail
@@ -461,7 +461,7 @@ jobs:
           make prega
 
       - name: Empacotar evidências (S5)
-        if: ${{ always() && !inputs.run_tla }}
+        if: ${{always() && !inputs.run_tla}}
         shell: bash
         run: |
           set -euo pipefail
@@ -481,7 +481,7 @@ jobs:
           fi
 
       - name: Upload dbt docs
-        if: ${{ always() }}
+        if: ${{always()}}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: s4-dbt-docs
@@ -489,7 +489,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload bundle
-        if: ${{ always() && !inputs.run_tla }}
+        if: ${{always() && !inputs.run_tla}}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: s5-bundle
@@ -502,7 +502,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload auditoria pip
-        if: ${{ always() && !inputs.run_tla }}
+        if: ${{always() && !inputs.run_tla}}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: pip-audit
@@ -510,7 +510,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload s5-orr evidence
-        if: ${{ always() }}
+        if: ${{always()}}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
         with:
           name: s5-orr-evidence

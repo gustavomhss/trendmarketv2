@@ -10,7 +10,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - run: sudo apt-get update && sudo apt-get install -y python3 jq
       - run: |
           set -euo pipefail
@@ -19,7 +19,7 @@ jobs:
           eval ${{ github.event.inputs.cmd }} | tee /tmp/cmd.out
           echo "---"
           echo "Conteúdo de out/s3_gatecheck:"; ls -la out/s3_gatecheck || true
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: s3-run-output
           path: |

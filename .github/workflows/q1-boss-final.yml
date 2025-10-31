@@ -30,7 +30,7 @@ on:
       - 'actions.lock'
 
 concurrency:
-  group: q1-boss-final-${{ github.ref }}
+  group: q1-boss-final-${{github.ref}}
   cancel-in-progress: true
 
 env:
@@ -43,7 +43,7 @@ env:
 
 jobs:
   stage:
-    name: Stage ${{ matrix.stage }}
+    name: Stage ${{matrix.stage}}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -51,7 +51,7 @@ jobs:
       matrix:
         stage: [s1, s2, s3, s4, s5, s6]
     env:
-      STAGE: ${{ matrix.stage }}
+      STAGE: ${{matrix.stage}}
       CLEAN_RUNNER: 'false'
     steps:
       - name: "Guard: bloquear uses @v*"
@@ -63,8 +63,8 @@ jobs:
             exit 2
           fi
       - name: "Checkout"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: "3.11"
           check-latest: true
@@ -113,7 +113,7 @@ jobs:
       - name: "Compact stage artifact"
         if: always()
         env:
-          STAGE: ${{ env.STAGE }}
+          STAGE: ${{env.STAGE}}
         shell: bash
         run: |
           set -euo pipefail
@@ -129,10 +129,10 @@ jobs:
           ls -lh "$zip_path"
       - name: "Upload stage artifact (zip)"
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
-          name: boss-stage-${{ env.STAGE }}
-          path: out/boss/boss-stage-${{ env.STAGE }}.zip
+          name: boss-stage-${{env.STAGE}}
+          path: out/boss/boss-stage-${{env.STAGE}}.zip
           if-no-files-found: warn
           retention-days: 7
           overwrite: true
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || '' }}
+      RELEASE_TAG: ${{github.event_name == 'workflow_dispatch' && inputs.release_tag || ''}}
     steps:
       - name: "Guard: bloquear uses @v*"
         shell: bash
@@ -157,7 +157,7 @@ jobs:
             exit 2
           fi
       - name: "Checkout"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
       - name: "Setup Python + venv + deps"
         uses: ./.github/actions/setup-python-venv
 
@@ -170,7 +170,7 @@ jobs:
 
       - name: "Download stage artifacts"
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # pinned (was v4)
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # pinned (was v4)
         with:
           pattern: boss-stage-*
           merge-multiple: true
@@ -191,8 +191,8 @@ jobs:
         if: always()
         id: aggregate
         env:
-          ARTS_DIR: ${{ runner.temp }}/boss-arts
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          ARTS_DIR: ${{runner.temp}}/boss-arts
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
           BOSS_STAGE_DIR: out/boss
           BOSS_OUT_DIR: out/boss
         run: |
@@ -204,7 +204,7 @@ jobs:
       - name: "Ensure `schema` on local aggregate report"
         if: steps.aggregate.outcome == 'success'
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         shell: bash
         run: |
           set -euo pipefail
@@ -227,7 +227,7 @@ jobs:
       - name: "Enforce report defaults (notes)"
         if: steps.aggregate.outcome == 'success'
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
@@ -236,7 +236,7 @@ jobs:
       - name: "Validate report schema (local)"
         if: steps.aggregate.outcome == 'success'
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         run: |
           set -euo pipefail
           . .venv/bin/activate 2>/dev/null || true
@@ -250,7 +250,7 @@ jobs:
         if: steps.aggregate.outcome == 'success'
         id: local_evidence
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         shell: bash
         run: |
           set -euo pipefail
@@ -277,7 +277,7 @@ jobs:
 
       - name: "Upload Boss Final aggregate"
         if: steps.aggregate.outcome == 'success'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: boss-final-aggregate
           path: |
@@ -290,7 +290,7 @@ jobs:
         if: steps.aggregate.outcome == 'success'
         id: guard
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         run: |
           if [ ! -f "$REPORT_DIR/guard_status.txt" ]; then
             echo "guard_status.txt ausente" >&2
@@ -306,7 +306,7 @@ jobs:
         if: steps.aggregate.outcome == 'success'
         uses: ./.github/actions/github-script
         env:
-          REPORT_DIR: ${{ runner.temp }}/boss-aggregate
+          REPORT_DIR: ${{runner.temp}}/boss-aggregate
         with:
           script: |
             const fs = require('fs');
@@ -344,5 +344,5 @@ jobs:
         run: exit 1
 
       - name: "Fail when any stage guard failed"
-        if: ${{ always() && needs.stage.result == 'failure' }}
+        if: ${{always() && needs.stage.result == 'failure'}}
         run: exit 1

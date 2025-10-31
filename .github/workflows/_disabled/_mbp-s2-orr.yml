@@ -2,7 +2,7 @@ name: MBP S2 ORR
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:
@@ -87,7 +87,7 @@ jobs:
           fi
 
       - name: Comentário no PR
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{github.event_name == 'pull_request'}}
         uses: ./.github/actions/github-script
         with:
           script: |
@@ -138,10 +138,10 @@ jobs:
               `📄 Hashes (3 primeiros): ${hashesManifest}`,
               `🔗 Evidence index: ${indexLink}`,
               `🖼️ Poster: ${posterLink}`
-            ].join('\n');
+].join('\n');
 
             github.rest.issues.createComment({
               ...context.repo,
               issue_number: context.issue.number,
               body: comment
-            });
+});

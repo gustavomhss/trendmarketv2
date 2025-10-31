@@ -44,13 +44,13 @@ jobs:
     name: "Chamar workflow reutilizável"
     uses: ./.github/workflows/_s4-orr.yml
     with:
-      ref: ${{ inputs.ref }}
-      run_microbench: ${{ inputs.run_microbench }}
-      run_tla: ${{ inputs.run_tla }}
-      run_sut: ${{ inputs.run_sut }}
-      bq_enable: ${{ inputs.bq_enable }}
-      run_sim: ${{ inputs.run_sim }}
-      run_dbt_ci: ${{ inputs.run_dbt_ci }}
+      ref: ${{inputs.ref}}
+      run_microbench: ${{inputs.run_microbench}}
+      run_tla: ${{inputs.run_tla}}
+      run_sut: ${{inputs.run_sut}}
+      bq_enable: ${{inputs.bq_enable}}
+      run_sim: ${{inputs.run_sim}}
+      run_dbt_ci: ${{inputs.run_dbt_ci}}
     secrets: inherit
 
   aggregate-boss-final:
@@ -59,7 +59,7 @@ jobs:
     needs: [call-orr]
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
 
       - name: Preparar zips de estágio → out/boss
         shell: bash

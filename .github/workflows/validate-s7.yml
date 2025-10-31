@@ -22,19 +22,19 @@ jobs:
     name: S7 validation
     runs-on: ubuntu-22.04
     env:
-      PYTHONPATH: ${{ github.workspace }}
+      PYTHONPATH: ${{github.workspace}}
     permissions:
       contents: read
       actions: read
       checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: '3.11'
 
@@ -45,7 +45,6 @@ jobs:
 
       - name: Actionlint
         run: echo "actionlint via reviewdog desabilitado na S7"
-
 
       - name: Ruff lint
         run: ruff check .
@@ -58,7 +57,7 @@ jobs:
 
       - name: Check signing seed present
         env:
-          ORACLE_ED25519_SEED: ${{ secrets.ORACLE_ED25519_SEED }}
+          ORACLE_ED25519_SEED: ${{secrets.ORACLE_ED25519_SEED}}
         shell: bash
         run: |
           set -euo pipefail
@@ -69,7 +68,7 @@ jobs:
 
       - name: Sign batch
         env:
-          ORACLE_ED25519_SEED: ${{ secrets.ORACLE_ED25519_SEED }}
+          ORACLE_ED25519_SEED: ${{secrets.ORACLE_ED25519_SEED}}
         run: python scripts/crypto/sign_batch.py
 
       - name: Verify signature
@@ -82,7 +81,7 @@ jobs:
         run: python scripts/ci/audit_reusable_workflows.py
 
       - name: Upload validation artifacts
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # pinned (was v4)
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # pinned (was v4)
         with:
           name: s7-validation-artifacts
           path: |
@@ -95,5 +94,5 @@ jobs:
     needs: validate
     with:
       run_tla: true
-      ref: ${{ github.sha }}
+      ref: ${{github.sha}}
     secrets: inherit

@@ -1,0 +1,16 @@
+extends: default
+ignore: |
+  .github/workflows/_disabled/*
+rules:
+  indentation: disable
+  line-length:
+    max: 300
+    allow-non-breakable-words: true
+  trailing-spaces: enable
+  key-duplicates: enable
+  brackets: enable
+  braces: enable
+  document-start: disable
+  comments-indentation: enable
+  empty-lines: enable
+  truthy: disable
