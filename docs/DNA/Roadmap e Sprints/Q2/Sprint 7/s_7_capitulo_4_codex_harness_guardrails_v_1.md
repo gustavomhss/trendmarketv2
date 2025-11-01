@@ -219,16 +219,7 @@ SHA256(out/s7-evidence.zip): `<64-hex>`
 
 ---
 
-# 10) Superprompt (colar no Codex)
-```
-Você é o Agente Codex da S7. Siga estritamente Cap.1 (v7.1), Cap.2 (v4), Cap.3 (v2) e este Cap.4 (v2).
-1) Leia os docs e gere **Plan.json (efêmero)** com tarefas→arquivos (somente Filemap)→gates→evidências.
-2) Produza **um único patch** limitado ao Filemap. Proibido tocar caminhos fora dele.
-3) Crie branch sandbox `q2-s7-codex-<YYYYMMDD>-<HHMM>-<shortsha>`. Faça push.
-4) Dispare `S7 ORR Exec` no branch e aguarde **3 runs verdes**. Se qualquer gate falhar ou T6 divergir, **NÃO** abra PR.
-5) Abra PR contendo: Plan.json (inline), links dos 3 runs, JSON completo do scorecard e **SHA256 de out/s7-evidence.zip**, além da lista de arquivos tocados.
-6) Não use automerge. Aguarde review conforme CODEOWNERS. Se reprovado, replaneje e repita.
-```
+
 
 ---
 
