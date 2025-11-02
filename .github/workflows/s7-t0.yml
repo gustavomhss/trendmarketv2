@@ -19,6 +19,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Gate T0 — validar existência + SHA1
         shell: bash
         run: |
@@ -38,13 +39,22 @@ jobs:
           if [ "${#miss[@]}" -gt 0 ] || [ "${#bad[@]}" -gt 0 ]; then
             {
               printf '{"gate":"T0","status":"FAIL","checked":%s' "$checked"
-              if [ "${#miss[@]}" -gt 0 ]; then printf ',"missing":['; for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done; printf ']'; fi
-              if [ "${#bad[@]}" -gt 0 ]; then printf ',"sha1_mismatch":['; for i in "${!bad[@]}"; do printf '"%s"%s' "${bad[$i]}" $([ "$i" -lt $((${#bad[@]}-1)) ] && echo , ); done; printf ']'; fi
+              if [ "${#miss[@]}" -gt 0 ]; then
+                printf ',"missing":['
+                for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done
+                printf ']'
+              fi
+              if [ "${#bad[@]}" -gt 0 ]; then
+                printf ',"sha1_mismatch":['
+                for i in "${!bad[@]}"; do printf '"%s"%s' "${bad[$i]}" $([ "$i" -lt $((${#bad[@]}-1)) ] && echo , ); done
+                printf ']'
+              fi
               printf '}\n'
             } > "$OUT"
             cat "$OUT"; exit 1
           fi
           printf '{"gate":"T0","status":"PASS","missing":[],"checked":%s}\n' "$checked" > "$OUT"; cat "$OUT"
+
       - name: Upload evidência T0
         uses: actions/upload-artifact@v4
         with:
