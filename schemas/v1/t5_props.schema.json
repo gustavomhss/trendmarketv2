@@ -1,0 +1,42 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t5_props.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "properties": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "counterexample": {
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "result"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "ok",
+    "properties",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

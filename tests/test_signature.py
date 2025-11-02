@@ -1,84 +1,87 @@
-from __future__ import annotations
-
-import base64
 import json
-from datetime import datetime, timezone
-from pathlib import Path
-
 import pytest
 
-from scripts.crypto.sign_batch import sign_batch
-from scripts.crypto.verify_signature import VerificationError, verify_signature
-from services.oracle.normalizer.merkle_append_only import write_batch
-from services.oracle.normalizer.normalizer import build_event
-
-SEED_B64 = "YjVJzNqMrMo6vdEAHj0AVMSn7UvBcQDzXagHgN5KVPg="
-FIXED_NOW = datetime(2025, 10, 29, 19, 10, tzinfo=timezone.utc)
+from scripts.crypto.sign_batch import (
+    PRIVKEY_PATH,
+    PUBKEY_PATH,
+    SignBatchError,
+    sign_batch,
+)
+from scripts.crypto.verify_batch import VerificationError, verify_signature
 
 
 @pytest.fixture()
-def temp_batch_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr("services.oracle.normalizer.merkle_append_only.BATCH_DIR", tmp_path)
-    monkeypatch.setattr("scripts.crypto.sign_batch.SIGNATURE_PATH", tmp_path / "signature.json")
-    return tmp_path
-
-
-def _build_sample_events() -> list[dict[str, object]]:
-    base = {
-        "lang": "pt",
-        "category": "mercado",
-        "source": "operador",
-        "observed_at": "2025-10-29T18:59:00Z",
-        "payload": {"valor": 1},
+def sample_batch(tmp_path):
+    batch = {
+        "entries_hash": "a" * 64,
+        "root": "b" * 64,
+        "schema_version": "1",
+        "created_at": "2025-01-01T00:00:00Z",
     }
-    events = []
-    for idx in range(3):
-        raw = dict(base)
-        raw["title"] = f"evento {idx}"
-        events.append(dict(build_event(raw, now=FIXED_NOW)))
-    return events
+    batch_path = tmp_path / "batch.json"
+    batch_path.write_text(json.dumps(batch, separators=(",", ":"), sort_keys=True))
+    return batch_path, batch
 
 
-def test_sign_and_verify_roundtrip(temp_batch_dir, monkeypatch):
-    events = _build_sample_events()
-    write_batch(events, batch_ts=FIXED_NOW)
-    monkeypatch.setenv("ORACLE_ED25519_SEED", SEED_B64)
-    batch_path = temp_batch_dir / "batch_latest.json"
-    signature_path = temp_batch_dir / "signature.json"
-    sign_batch(batch_path, Path("tools/crypto/keystore.json"))
-    verify_signature(signature_path, Path("tools/crypto/keystore.json"), batch_path)
+@pytest.fixture(autouse=True)
+def isolate_paths(monkeypatch, tmp_path):
+    sig_path = tmp_path / "signature.sig.json"
+    monkeypatch.setattr("scripts.crypto.sign_batch.SIGNATURE_PATH", sig_path)
+    monkeypatch.setattr("scripts.crypto.sign_batch.BATCH_PATH", tmp_path / "batch.json")
+    monkeypatch.setattr("scripts.crypto.verify_batch.BATCH_PATH", tmp_path / "batch.json")
+    yield
 
 
-def test_signature_fails_on_tamper(temp_batch_dir, monkeypatch):
-    events = _build_sample_events()
-    write_batch(events, batch_ts=FIXED_NOW)
-    monkeypatch.setenv("ORACLE_ED25519_SEED", SEED_B64)
-    batch_path = temp_batch_dir / "batch_latest.json"
-    signature_path = temp_batch_dir / "signature.json"
-    sign_batch(batch_path, Path("tools/crypto/keystore.json"))
-    with signature_path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    sig_bytes = bytearray(base64.b64decode(data["sig"]))
-    sig_bytes[0] ^= 0x01
-    data["sig"] = base64.b64encode(bytes(sig_bytes)).decode()
-    with signature_path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle)
+def test_sign_and_verify_roundtrip(sample_batch, tmp_path):
+    batch_path, batch = sample_batch
+    signature_path = tmp_path / "signed.sig.json"
+    result_path = sign_batch(
+        batch_path,
+        out_path=signature_path,
+        privkey_path=PRIVKEY_PATH,
+        pubkey_path=PUBKEY_PATH,
+    )
+    assert result_path == signature_path
+
+    verify_result = verify_signature(
+        batch_path,
+        signature_path=signature_path,
+        pubkey_path=PUBKEY_PATH,
+    )
+    assert verify_result["ok"] is True
+
+    signed_doc = json.loads(signature_path.read_text())
+    assert signed_doc["payload"] == batch
+    assert verify_result["payload_sha256"] == signed_doc["payload_sha256"]
+
+
+def test_sign_batch_requires_mandatory_fields(sample_batch):
+    batch_path, batch = sample_batch
+    batch_data = json.loads(batch_path.read_text())
+    batch_data.pop("root")
+    batch_path.write_text(json.dumps(batch_data))
+    with pytest.raises(SignBatchError):
+        sign_batch(batch_path)
+
+
+def test_verify_detects_tampered_payload(sample_batch, tmp_path):
+    batch_path, _ = sample_batch
+    signature_path = sign_batch(batch_path, out_path=tmp_path / "sig.json")
+
+    doc = json.loads(signature_path.read_text())
+    doc["payload"]["root"] = "c" * 64
+    signature_path.write_text(json.dumps(doc))
+
     with pytest.raises(VerificationError):
-        verify_signature(signature_path, Path("tools/crypto/keystore.json"), batch_path)
+        verify_signature(batch_path, signature_path=signature_path)
 
 
-def test_expired_key_rejected(temp_batch_dir, monkeypatch, tmp_path):
-    events = _build_sample_events()
-    write_batch(events, batch_ts=FIXED_NOW)
-    monkeypatch.setenv("ORACLE_ED25519_SEED", SEED_B64)
-    batch_path = temp_batch_dir / "batch_latest.json"
-    signature_path = temp_batch_dir / "signature.json"
-    sign_batch(batch_path, Path("tools/crypto/keystore.json"))
-
-    keystore_data = json.loads(Path("tools/crypto/keystore.json").read_text())
-    keystore_data["keys"][0]["not_after"] = "2025-09-01T00:00:00Z"
-    expired_path = tmp_path / "keystore_expired.json"
-    expired_path.write_text(json.dumps(keystore_data))
-
+def test_verify_rejects_domain_tag_override(sample_batch, tmp_path):
+    batch_path, _ = sample_batch
+    signature_path = sign_batch(batch_path, out_path=tmp_path / "sig.json")
     with pytest.raises(VerificationError):
-        verify_signature(signature_path, expired_path, batch_path)
+        verify_signature(
+            batch_path,
+            signature_path=signature_path,
+            domain_tag="tm.s7.batch.v1-alt",
+        )

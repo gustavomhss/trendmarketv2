@@ -1,0 +1,34 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t3_pins.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "drift": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "spoof_alerts": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "unpinned": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ok",
+    "unpinned",
+    "drift",
+    "spoof_alerts",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

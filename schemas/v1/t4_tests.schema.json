@@ -1,0 +1,34 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t4_tests.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "failed": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "passed": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tests": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ok",
+    "tests",
+    "passed",
+    "failed",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

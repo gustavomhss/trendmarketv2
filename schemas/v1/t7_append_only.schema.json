@@ -1,0 +1,31 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t7_append_only.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "details": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "violations": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "ok",
+    "violations",
+    "details",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

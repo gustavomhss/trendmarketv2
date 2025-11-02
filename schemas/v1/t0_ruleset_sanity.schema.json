@@ -1,0 +1,40 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t0_ruleset_sanity.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "extra": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "missing": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "required_contexts": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "ok",
+    "required_contexts",
+    "missing",
+    "extra",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

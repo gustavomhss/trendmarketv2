@@ -1,0 +1,46 @@
+{
+  "$id": "https://trendmarket/schemas/v1/manifest.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "size": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "size",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "generated_at",
+    "entries"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

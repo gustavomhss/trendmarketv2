@@ -1,50 +1,148 @@
 from __future__ import annotations
-import sys, json, base64, hashlib
+
+import argparse
+import base64
+import hashlib
+import json
+from dataclasses import dataclass
 from pathlib import Path
-try:
-    from nacl import signing
-except Exception as e:
-    sys.stderr.write(f"[verify] missing vendored nacl: {e}\n")
-    sys.exit(5)
+from typing import Any, Iterable, Mapping
 
-def _sha256_hex(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open('rb') as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b''):
-            h.update(chunk)
-    return h.hexdigest()
+from nacl import exceptions as nacl_exceptions
+from nacl import signing
 
-def _canon_manifest(manifest: list[dict]) -> bytes:
-    lines = [f"{m['sha256']}  {m['path']}\n" for m in sorted(manifest, key=lambda m: m['path'])]
-    return "".join(lines).encode("utf-8")
+from .sign_batch import (
+    BATCH_PATH,
+    DEFAULT_DOMAIN_TAG,
+    PUBKEY_PATH,
+    _canonical_bytes,
+    _canonical_payload,
+    _extract_pem_bytes,
+)
 
-def verify(signature_json: Path) -> bool:
-    data = json.loads(signature_json.read_text())
-    pub = base64.b64decode(data["pubkey_b64"])
-    sig = base64.b64decode(data["signature_b64"])
-    manifest = data["manifest"]
 
-    # valida hashes + existência
-    for m in manifest:
-        p = Path(m["path"])
-        if not p.is_file() or _sha256_hex(p) != m["sha256"]:
-            return False
+@dataclass(slots=True)
+class VerificationError(RuntimeError):
+    message: str
+    exit_code: int = 51
 
-    msg = _canon_manifest(manifest)
-    vk = signing.VerifyKey(pub)
+    def __str__(self) -> str:  # pragma: no cover
+        return self.message
+
+
+def _read_json(path: Path) -> Mapping[str, Any]:
     try:
-        vk.verify(msg, sig)
-        return True
-    except Exception:
-        return False
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise VerificationError(f"file not found: {path}", exit_code=52) from exc
+    except json.JSONDecodeError as exc:
+        raise VerificationError(f"invalid json: {path}", exit_code=52) from exc
 
-def main(argv=None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv:
-        sys.stderr.write("[verify] usage: verify_batch.py <signature.json>\n"); return 2
-    ok = verify(Path(argv[0]))
-    print("OK" if ok else "FAIL")
-    return 0 if ok else 3
 
-if __name__ == "__main__":
+def _load_public_key(path: Path) -> bytes:
+    raw = _extract_pem_bytes(path, "-----BEGIN ED25519 PUBLIC KEY-----")
+    if len(raw) != 32:
+        raise VerificationError("ed25519 public key must be 32 bytes", exit_code=52)
+    return raw
+
+
+def _decode_b64(value: str, label: str) -> bytes:
+    try:
+        return base64.b64decode(value, validate=True)
+    except Exception as exc:  # pragma: no cover - defensive
+        raise VerificationError(f"invalid base64 for {label}") from exc
+
+
+def verify_signature(
+    batch_path: Path | None = None,
+    *,
+    signature_path: Path,
+    pubkey_path: Path | None = None,
+    domain_tag: str = DEFAULT_DOMAIN_TAG,
+) -> dict[str, Any]:
+    batch_path = Path(batch_path or BATCH_PATH)
+    signature_path = Path(signature_path)
+    pubkey_path = Path(pubkey_path or PUBKEY_PATH)
+
+    batch_data = _read_json(batch_path)
+    expected_payload = _canonical_payload(batch_data)
+    payload_bytes = _canonical_bytes(expected_payload)
+    expected_payload_sha = hashlib.sha256(payload_bytes).hexdigest()
+
+    signature_doc = _read_json(signature_path)
+
+    if signature_doc.get("schema_version") != expected_payload["schema_version"]:
+        raise VerificationError("schema_version mismatch", exit_code=52)
+
+    domain = domain_tag if domain_tag.endswith("\n") else f"{domain_tag}\n"
+    if signature_doc.get("domain_tag") != domain:
+        raise VerificationError("domain_tag mismatch", exit_code=52)
+
+    if signature_doc.get("payload") != expected_payload:
+        raise VerificationError("payload does not match batch", exit_code=52)
+
+    payload_sha = signature_doc.get("payload_sha256")
+    if payload_sha != expected_payload_sha:
+        raise VerificationError("payload_sha256 mismatch", exit_code=52)
+
+    batch_bytes = batch_path.read_bytes()
+    batch_sha = hashlib.sha256(batch_bytes).hexdigest()
+    if signature_doc.get("batch_sha256") != batch_sha:
+        raise VerificationError("batch_sha256 mismatch", exit_code=52)
+
+    signature_b64 = signature_doc.get("signature")
+    public_b64 = signature_doc.get("public_key")
+    if not isinstance(signature_b64, str) or not isinstance(public_b64, str):
+        raise VerificationError("signature/public_key missing", exit_code=52)
+    signature_bytes = _decode_b64(signature_b64, "signature")
+    public_bytes = _decode_b64(public_b64, "public_key")
+
+    expected_public = _load_public_key(pubkey_path)
+    if expected_public != public_bytes:
+        raise VerificationError("public key does not match fixture", exit_code=52)
+
+    message = domain.encode("utf-8") + payload_bytes
+    verify_key = signing.VerifyKey(public_bytes)
+    try:
+        verify_key.verify(message, signature_bytes)
+    except nacl_exceptions.BadSignatureError as exc:
+        raise VerificationError("invalid signature") from exc
+
+    return {
+        "ok": True,
+        "payload_sha256": expected_payload_sha,
+        "batch_sha256": batch_sha,
+        "signature_sha256": hashlib.sha256(signature_bytes).hexdigest(),
+    }
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Verify canonical batch signature")
+    parser.add_argument("--in", dest="batch", default=str(BATCH_PATH))
+    parser.add_argument("--sig", dest="signature", required=True)
+    parser.add_argument("--pubkey", dest="pubkey", default=str(PUBKEY_PATH))
+    parser.add_argument("--domain-tag", dest="domain_tag", default=DEFAULT_DOMAIN_TAG)
+    return parser
+
+
+def main(argv: Iterable[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    try:
+        result = verify_signature(
+            Path(args.batch),
+            signature_path=Path(args.signature),
+            pubkey_path=Path(args.pubkey),
+            domain_tag=args.domain_tag,
+        )
+    except VerificationError as exc:
+        payload = {"ok": False, "error": exc.message}
+        print(json.dumps(payload, separators=(",", ":"), sort_keys=True), flush=True)
+        return exc.exit_code
+
+    print(json.dumps(result, separators=(",", ":"), sort_keys=True), flush=True)
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

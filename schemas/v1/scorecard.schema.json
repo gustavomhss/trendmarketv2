@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "gate": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "duration_ms"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://trendmarket/schemas/v1/scorecard.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "commit_sha": {
+      "pattern": "^[a-f0-9]{40}$",
+      "type": "string"
+    },
+    "finished_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "gates": {
+      "additionalProperties": false,
+      "properties": {
+        "T0": {
+          "$ref": "#/$defs/gate"
+        },
+        "T1": {
+          "$ref": "#/$defs/gate"
+        },
+        "T2": {
+          "$ref": "#/$defs/gate"
+        },
+        "T3": {
+          "$ref": "#/$defs/gate"
+        },
+        "T4": {
+          "$ref": "#/$defs/gate"
+        },
+        "T5": {
+          "$ref": "#/$defs/gate"
+        },
+        "T6": {
+          "$ref": "#/$defs/gate"
+        },
+        "T7": {
+          "$ref": "#/$defs/gate"
+        },
+        "T8": {
+          "$ref": "#/$defs/gate"
+        }
+      },
+      "required": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "T8"
+      ],
+      "type": "object"
+    },
+    "gating": {
+      "additionalProperties": false,
+      "properties": {
+        "hard_fail": {
+          "type": "boolean"
+        },
+        "warn_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hard_fail",
+        "warn_count"
+      ],
+      "type": "object"
+    },
+    "hashes": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "entries_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "evidence_zip": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "root": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entries_hash",
+        "root",
+        "batch_sha256",
+        "evidence_zip"
+      ],
+      "type": "object"
+    },
+    "slo_p95_ms": {
+      "additionalProperties": false,
+      "properties": {
+        "append_guard": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_batch": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "merkle": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "normalize": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pack": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sign": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "verify": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "normalize",
+        "build_batch",
+        "merkle",
+        "sign",
+        "verify",
+        "append_guard",
+        "pack",
+        "total"
+      ],
+      "type": "object"
+    },
+    "slo_violations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "sprint": {
+      "const": "Q2-S7",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "waivers_by_gate": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "type": "object"
+    },
+    "warnings_by_gate": {
+      "additionalProperties": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "sprint",
+    "commit_sha",
+    "started_at",
+    "finished_at",
+    "gates",
+    "hashes",
+    "slo_p95_ms",
+    "gating"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}

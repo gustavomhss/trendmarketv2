@@ -1,0 +1,31 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t6_determinism.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "byte_equal": {
+      "type": "boolean"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "hash_match": {
+      "type": "boolean"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "zip_equal": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ok",
+    "byte_equal",
+    "zip_equal",
+    "hash_match",
+    "duration_ms"
+  ],
+  "type": "object",
+  "version": "1.0.0"
+}
