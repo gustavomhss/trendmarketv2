@@ -1,0 +1,60 @@
+name: CRD Epic - Exec
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'triggers/run-exec-fast.txt'
+      - 'triggers/run-exec-full.txt'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Perfil (fast | full)
+        required: true
+        default: fast
+      environment:
+        description: Ambiente (dev | staging)
+        required: true
+        default: dev
+      epic_path:
+        description: Caminho do épico (MD)
+        required: true
+        default: docs/obs/CRD-8-epic.md
+      agents_md:
+        description: Caminho do AGENTS.md
+        required: true
+        default: AGENTS.md
+      run_matrix:
+        description: Executar matriz? (true/false)
+        required: false
+        default: "false"
+      project_dir:
+        description: Subdiretório do projeto
+        required: false
+        default: .
+      scripts_dir:
+        description: Pasta de scripts relativa ao project_dir
+        required: false
+        default: scripts
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  actions: write
+  checks: write
+
+concurrency:
+  group: exec-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  exec:
+    uses: ./.github/workflows/_crd-orr.yml
+    with:
+      profile: ${{inputs.profile}}
+      environment: ${{inputs.environment}}
+      epic_path: ${{inputs.epic_path}}
+      agents_md: ${{inputs.agents_md}}
+      project_dir: ${{inputs.project_dir}}
+      scripts_dir: ${{inputs.scripts_dir}}

@@ -1,0 +1,93 @@
+name: S4 ORR Exec
+true:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref opcional para checkout
+        required: false
+        type: string
+      run_microbench:
+        description: Executar microbench DEC
+        required: false
+        type: boolean
+        default: false
+      run_tla:
+        description: Executar checagens TLA
+        required: false
+        type: boolean
+        default: false
+      run_sut:
+        description: Start SUT via docker-compose
+        required: false
+        type: boolean
+        default: false
+      bq_enable:
+        description: Habilitar rota BigQuery
+        required: false
+        type: boolean
+        default: false
+      run_sim:
+        description: "Executar harness de simula\xE7\xE3o S5"
+        required: false
+        type: boolean
+        default: false
+      run_dbt_ci:
+        description: Executar dbt-ci com DuckDB
+        required: false
+        type: boolean
+        default: false
+jobs:
+  call-orr:
+    name: "Chamar workflow reutiliz\xE1vel"
+    uses: ./.github/workflows/_s4-orr.yml
+    with:
+      ref: ${{inputs.ref}}
+      run_microbench: ${{inputs.run_microbench}}
+      run_tla: ${{inputs.run_tla}}
+      run_sut: ${{inputs.run_sut}}
+      bq_enable: ${{inputs.bq_enable}}
+      run_sim: ${{inputs.run_sim}}
+      run_dbt_ci: ${{inputs.run_dbt_ci}}
+    secrets: inherit
+    if: (${{ github.event_name != 'pull_request' }}) && github.event_name != 'pull_request'
+  aggregate-boss-final:
+    name: Aggregate Boss Final
+    runs-on: ubuntu-22.04
+    needs:
+    - call-orr
+    steps:
+    - name: Checkout
+      uses: actions/checkout@  # pinned (was v4)
+    - name: "Preparar zips de est\xE1gio \u2192 out/boss"
+      shell: bash
+      run: "set -euo pipefail\nmkdir -p out/boss\nfound=false\nwhile IFS= read -r\
+        \ -d '' z; do\n  cp -v \"$z\" out/boss/ || true\n  found=true\ndone < <(find\
+        \ . -type f -name 'boss-stage-*.zip' -print0 || true)\nls -l out/boss || true\n\
+        if [ \"$found\" = false ]; then\n  echo \"[aggregate-boss] aviso: nenhum boss-stage-*.zip\
+        \ encontrado no workspace; ensure_schema far\xE1 rglob.\"\nfi\n"
+    - name: Aggregate reports (local)
+      shell: bash
+      env:
+        BOSS_OUT_DIR: out/boss
+        BOSS_STAGE_GLOB: boss-stage-*.zip
+      run: 'set -euo pipefail
+
+        python -m scripts.boss_final.aggregate_reports_local
+
+        '
+    if: (${{ github.event_name != 'pull_request' }}) && github.event_name != 'pull_request'
+  pr-ok:
+    name: PR quick pass
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    steps:
+    - name: no-op
+      run: echo PR-OK >/dev/null
+'on':
+  workflow_dispatch: {}
+  push:
+    branches:
+    - main
+    - master
+    - release/*
+  pull_request: {}

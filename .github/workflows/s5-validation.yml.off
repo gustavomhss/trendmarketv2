@@ -1,0 +1,99 @@
+name: Sprint 5 Validation
+true:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Optional ref to validate
+        required: false
+        type: string
+jobs:
+  sprint5-validate:
+    name: Sprint 5 validation suite
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+    - name: Checkout
+      uses: actions/checkout@  # pinned (was v4)
+      with:
+        ref: ${{inputs.ref || github.sha}}
+    - name: Install Python 3.11
+      run: 'set -euo pipefail
+
+        sudo apt-get update
+
+        sudo apt-get install -y software-properties-common
+
+        sudo add-apt-repository -y ppa:deadsnakes/ppa
+
+        sudo apt-get update
+
+        sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils python3.11-dev
+
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11
+        400
+
+        sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.11
+        400
+
+        sudo update-alternatives --set python3 /usr/bin/python3.11
+
+        sudo update-alternatives --set python /usr/bin/python3.11
+
+        python -m ensurepip --upgrade
+
+        '
+    - name: Install dependencies
+      run: 'set -euo pipefail
+
+        python -m pip install --upgrade pip
+
+        python -m pip install pytest ''dbt-duckdb~=1.8.0''
+
+        '
+    - name: Configure dbt profile
+      run: 'set -euo pipefail
+
+        mkdir -p ~/.dbt
+
+        cp ops/dbt/profiles_duckdb.yml ~/.dbt/profiles.yml
+
+        '
+    - name: Run Sprint 5 unit and integration tests
+      run: 'set -euo pipefail
+
+        pytest tests/unit tests/integration
+
+        '
+    - name: Run Sprint 5 simulations
+      run: 'set -euo pipefail
+
+        make sim-all
+
+        '
+    - name: Run Sprint 5 dbt pipeline
+      run: 'set -euo pipefail
+
+        make dbt-ci
+
+        '
+    - name: Package ORR evidence bundle
+      run: 'set -euo pipefail
+
+        make orr-bundle
+
+        '
+    - name: Upload Sprint 5 artifacts
+      if: always()
+      uses: actions/upload-artifact@  # pinned (was v4)
+      with:
+        name: sprint5-validation-artifacts
+        path: 'out/**
+
+          target/**
+
+          logs/**
+
+          '
+        if-no-files-found: warn
+'on':
+  pull_request: {}

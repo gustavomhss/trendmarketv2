@@ -1,0 +1,30 @@
+name: Canary Sampler
+on: {workflow_dispatch: {}}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@  # pinned (was v4)
+      - name: Sample 100 users
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import yaml, hashlib
+          from pathlib import Path
+          cfg = {'canary': {'enabled': False, 'percent': 0, 'audience': 'internal'}}
+          p = Path('configs/rollout/mbp_canary.yml')
+          if p.exists():
+              cfg.update(yaml.safe_load(p.read_text()) or {})
+          canary = cfg.get('canary', {})
+          percent = int(canary.get('percent', 0) or 0)
+          internal = canary.get('audience', 'internal')
+          can = 0
+          for uid in range(100):
+              key = str(uid).encode()
+              bucket = int(hashlib.sha1(key).hexdigest(), 16) % 100
+              if bucket < percent:
+                  can += 1
+          print(f"CONFIG: enabled={canary.get('enabled', False)} percent={percent} audience={internal}")
+          print(f"SAMPLE: canary={can} stable={100-can} (≈{percent}% alvo)")
+          PY
