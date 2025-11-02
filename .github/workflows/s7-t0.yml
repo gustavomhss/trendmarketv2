@@ -1,0 +1,55 @@
+name: "S7 — Gate T0 (spec discovery)"
+on:
+  push:
+    paths:
+      - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
+      - ".github/workflows/s7-t0.yml"
+  pull_request:
+    paths:
+      - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
+      - ".github/workflows/s7-t0.yml"
+  workflow_dispatch: {}
+
+jobs:
+  t0:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanity — capítulo 1 existe no commit (paths com espaços OK)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          P='docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_capitulo_1_spec_v_7.md'
+          git show "${SHA}:${P}" >/dev/null 2>&1 && echo "[OK] ${P}" || { echo "[MISS] ${P} no ${SHA}"; exit 1; }
+
+      - name: Gate T0 — existência via manifesto
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAN='docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json'
+          OUT='out/obs_gatecheck/T0_discovery.json'
+          mkdir -p "$(dirname "$OUT")"
+          [ -s "$MAN" ] || { echo '{"gate":"T0","status":"FAIL","reason":"no_manifest","checked":0}' > "$OUT"; cat "$OUT"; exit 1; }
+          checked=0; miss=()
+          while IFS= read -r line; do
+            p=$(printf '%s\n' "$line" | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')
+            [ -z "$p" ] && continue
+            checked=$((checked+1))
+            [ -f "$p" ] || miss+=("$p")
+          done < "$MAN"
+          if [ "${#miss[@]}" -gt 0 ]; then
+            printf '{"gate":"T0","status":"FAIL","checked":%s,"missing":[' "$checked" > "$OUT"
+            for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done >> "$OUT"
+            echo ']}' >> "$OUT"; cat "$OUT"; exit 1
+          else
+            printf '{"gate":"T0","status":"PASS","missing":[],"checked":%s}\n' "$checked" > "$OUT"; cat "$OUT"
+          fi
+
+      - name: Upload evidência T0
+        uses: actions/upload-artifact@v4
+        with:
+          name: s7-t0-evidence
+          path: out/obs_gatecheck/T0_discovery.json
