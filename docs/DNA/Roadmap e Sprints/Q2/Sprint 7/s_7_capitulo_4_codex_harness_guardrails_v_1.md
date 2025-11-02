@@ -1,21 +1,27 @@
 # Sprint Q2 — S7 (Stabilize)
 ## Capítulo 4 — Codex Harness & Guardrails (SOP operacional, sem alterar Cap.1–3)
-Versão: v2 (2025-10-31)  
-Owner: PO • Eng: Codex • ORR: SRE  
-Referências **normativas**: Cap.1 v7.1 (Spec) • Cap.2 v4 (Gates T0..T8) • Cap.3 v2 (Filemap 100%)
+Versão: v3 (2025-11-04)
+Owner: PO • Eng: Codex • ORR: SRE
+Referências **normativas**: Cap.1 v7.1 (Spec) • Cap.2 v5 (Gates T0..T8) • Cap.3 v2 (Filemap 100%)
 
 > Escopo: **Processo e automação de execução** para o agente Codex cumprir **Cap.1–3** sem atalhos. **Não** cria novos gates, **não** exige novos arquivos no repo.
 
-Changelog v2 (upgrade maciço 4→10):
-- **CEC — Codex Execution Contract**: contrato formal de entradas/saídas, estados, EXITs e telemetria do agente.
-- **Plan.json (efêmero) — Schema + Exemplo**: estrutural, auditável e verificável na PR.
-- **Receitas `gh` e API**: comandos exatos para disparo de workflow, coleta de artefatos e inspeção de rulesets.
-- **Anti‑flake rigoroso (3×)** com critérios diferenciais e matriz de decisão.
-- **Matriz de Riscos→Controles** (falhas típicas do LLM e contramedidas concretas).
-- **Rubrica de revisão (RACI→CODEOWNERS)** com checklists objetivos e razões de recusa prontas.
-- **Triage & Rollback SOP** com árvores de decisão e tempos‑alvo.
-- **Observabilidade do Harness**: correlação run↔commit↔scorecard, IDs, hashes e logs mínimos exigidos **no corpo da PR**.
-- **Modelo de PR canônico** com marcadores verificáveis.
+Changelog:
+- **v3 (2025-11-04)** — Manifesto NDJSON + Validador único:
+  - Codex **MUST** regenerar `s_7_filemap_v_7.json` (NDJSON) antes de qualquer execução e garantir commit limpo do manifesto.
+  - Gate T0 `t0_spec` integrado ao harness (`scripts/s7/t0_spec_check.py`), com logs `::error/::warning` e artefato `out/obs_gatecheck/T0_discovery.json` anexado em toda run.
+  - Bundle `s7-orr-evidence.zip` + `RESUMO_ORR_S7.json` obrigatórios, produzidos por `scripts/s7/build_orr_bundle.py` (zip determinístico, watchers A110, versões de ferramentas).
+  - Workflow canônico: `Sprint 7 — Validator Único` (`.github/workflows/s7-validator.yml`), status `t0_spec` obrigatório antes de `s7_exec`.
+- **v2 (upgrade maciço 4→10)**:
+  - **CEC — Codex Execution Contract**: contrato formal de entradas/saídas, estados, EXITs e telemetria do agente.
+  - **Plan.json (efêmero) — Schema + Exemplo**: estrutural, auditável e verificável na PR.
+  - **Receitas `gh` e API**: comandos exatos para disparo de workflow, coleta de artefatos e inspeção de rulesets.
+  - **Anti‑flake rigoroso (3×)** com critérios diferenciais e matriz de decisão.
+  - **Matriz de Riscos→Controles** (falhas típicas do LLM e contramedidas concretas).
+  - **Rubrica de revisão (RACI→CODEOWNERS)** com checklists objetivos e razões de recusa prontas.
+  - **Triage & Rollback SOP** com árvores de decisão e tempos‑alvo.
+  - **Observabilidade do Harness**: correlação run↔commit↔scorecard, IDs, hashes e logs mínimos exigidos **no corpo da PR**.
+  - **Modelo de PR canônico** com marcadores verificáveis.
 
 ---
 
@@ -35,24 +41,30 @@ Changelog v2 (upgrade maciço 4→10):
 ## 1.2 Entradas (MUST)
 - Repo: `trendmarketv2@<sha>` (HEAD de `main`).  
 - Docs: `docs/specs/s7/cap1_spec.md (v7.1)`, `cap2_gates.md (v4)`, `cap3_filemap.md (v2)`.  
-- Workflow: `S7 ORR Exec` (Cap.2 §7).  
+- Workflow: `Sprint 7 — Validator Único` (`t0_spec` + `s7_exec`) — gatilho padrão (`push`, `pull_request`, `workflow_dispatch`).
+- Workflow legado (quando explicitamente requerido pelo PO): `S7 ORR Exec`.
 - Branch sandbox: `q2-s7-codex-<YYYYMMDD>-<HHMM>-<shortsha>`.
 
 ## 1.3 Saídas (MUST)
-- **Diff único** (apenas caminhos do Filemap).  
-- **Runs ORR**: 3 execuções verdes (links).  
-- **Scorecard**: `out/scorecards/s7.json` (conteúdo colado na PR).  
-- **ZIP**: `out/s7-evidence.zip` (SHA256 colado na PR).  
+- **Diff único** (apenas caminhos do Filemap).
+- **Runs ORR**: 3 execuções verdes (links).
+- **Scorecard**: `out/scorecards/s7.json` (conteúdo colado na PR).
+- **Gate T0**: `out/obs_gatecheck/T0_discovery.json` anexado ao artefato `s7-t0-evidence`.
+- **Bundle ORR**: `out/s7-orr-evidence.zip` + `out/orr_s7/RESUMO_ORR_S7.json` + `out/orr_s7/filelist.txt` (SHA256 colado na PR).
+- **ZIP legado**: `out/s7-evidence.zip` (quando solicitado; SHA256 colado na PR).
 - **Plan.json (efêmero)** colado na PR.
 
 ## 1.4 Telemetria mínima (MUST)
 No corpo da PR (ver §7):
 - `cec.repo_sha`, `cec.branch`, `cec.run_ids[]` (3 runs), `cec.scorecard_sha256`, `cec.evidence_zip_sha256`, `cec.started_at`, `cec.finished_at`.
+- `cec.t0_spec.status`, `cec.t0_spec.checked`, `cec.t0_spec.missing[]`, `cec.t0_spec.sha1_mismatch[]` (do `T0_discovery.json`).
+- `cec.watchers`: `data_freshness_seconds`, `drift_score`, `failover_time_p95_s` (extraídos de `RESUMO_ORR_S7.json`).
 
 ## 1.5 EXITs (interpretação uniforme)
-- `CEC-10 filemap_violation` — patch toca caminho fora do Filemap (Cap.3).  
-- `CEC-20 gates_fail` — qualquer gate T0..T8 FAIL em **qualquer** run.  
-- `CEC-30 determinism_diverge` — divergência entre runs na T4–T6.  
+- `CEC-10 filemap_violation` — patch toca caminho fora do Filemap (Cap.3).
+- `CEC-20 gates_fail` — qualquer gate T0..T8 FAIL em **qualquer** run.
+- `CEC-21 t0_spec_fail` — `out/obs_gatecheck/T0_discovery.json` ≠ PASS (missing/sha1_mismatch/checked≠4).
+- `CEC-30 determinism_diverge` — divergência entre runs na T4–T6.
 - `CEC-40 missing_artifacts` — não há scorecard/ZIP no artefato do run.  
 - `CEC-50 pr_template_invalid` — corpo da PR sem campos obrigatórios/códigos.  
 - `CEC-60 stale_base` — base não é o HEAD de `main`.
@@ -92,6 +104,8 @@ gh run list --workflow "S7 ORR Exec" --branch "$BR" --repo "$GH_REPO"
 RUN_ID=<id>
 gh run download $RUN_ID --name s7-orr-evidence --repo "$GH_REPO" -D out/
 sha256sum out/s7-evidence.zip > out/sha256_s7_evidence.txt
+# Gate T0 — baixar evidência específica
+gh run download $RUN_ID --name s7-t0-evidence --repo "$GH_REPO" -D out/
 ```
 
 ## 3.3 Sanity de Ruleset (Cap.2 T0) — via API
@@ -121,6 +135,7 @@ Matriz de decisão:
 | Risco típico | Controle (MUST/SHOULD) | Onde prova |
 |---|---|---|
 | Criar arquivos fora do Filemap | Filemap Guard (checagem local) | `CEC-10` se violar |
+| Manifesto NDJSON desatualizado | `python -m scripts.s7.generate_filemap_manifest` + `t0_spec` PASS | `out/obs_gatecheck/T0_discovery.json` |
 | Ignorar gates e abrir PR cedo | SOP exige ORR PASS 3× antes da PR | Corpo PR + links de run |
 | Drift de ruleset | T0 + `gh api` sanity | `out/evidence/T0_ruleset_sanity/*` |
 | Falta de constantes crypto | Teste T4 dedicado | `pytest_report.json` |
@@ -133,13 +148,14 @@ Matriz de decisão:
 # 6) Rubrica de Revisão (RACI→CODEOWNERS)
 **Security (scripts/crypto/*):** domain‑tag `tm.s7.batch.v1
 `; Base64 padrão; constants presentes; negativos cobertos.  
-**SRE (scripts/ci/*, workflows):** nomes de jobs estáveis; pins por SHA + anti‑spoof; ruleset T0 ativo.  
+**SRE (scripts/ci/*, scripts/s7/*, workflows):** nomes de jobs estáveis; manifesto NDJSON regenerado/validado; pins por SHA + anti‑spoof; ruleset T0 ativo.
 **PO/SRE (schemas/v1/*):** `$id`/`version` corretos; scorecard/manifest válidos.  
 **QA (tests/**):** cobertura de negativos; properties sem falsos positivos.
 
 Checklist objetivo (colar na review):
-- [ ] Patch dentro do Filemap (Cap.3)  
-- [ ] 3 runs verdes + ZIP/bytes idênticos (Cap.2 T6)  
+- [ ] Patch dentro do Filemap (Cap.3)
+- [ ] Gate T0 (`t0_spec`) PASS — `missing=[]`, `sha1_mismatch=[]`, `checked=4`
+- [ ] 3 runs verdes + ZIP/bytes idênticos (Cap.2 T6)
 - [ ] Scorecard colado na PR (JSON completo)  
 - [ ] SHA256 do ZIP colado  
 - [ ] Links dos 3 runs  

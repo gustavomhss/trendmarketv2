@@ -1,15 +1,22 @@
 # Sprint Q2 — S7 (Stabilize)
 ## Capítulo 2 — GATES ORR & Scorecards (Blueprint para o Codex)
-Versão: v4 (2025-10-31)  
-Owner: PO • Eng: Codex • ORR: SRE  
+Versão: v5 (2025-11-04)
+Owner: PO • Eng: Codex • ORR: SRE
 Escopo: somente Cap.2. Cap.1 está **travado** (v7.1 FINAL). Cap.3 (Filemap) virá após sua aprovação deste capítulo.
 
-Changelog v4 (revisão final com micro‑patches):
-- **T0_ruleset_sanity** adicionado (fecha o loop): valida via **GitHub API/gh** se o ruleset ativo exige **exatamente** os 8 checks (agora 9, com T0) por **contexto**.
-- **Schemas JSON com `$id` e `version`** (scorecard, MANIFEST e T0..T7) publicados em `/schemas/v1/*.schema.json` e validados no CI.
-- **ZIP reprodutível endurecido**: compressão **DEFLATE nível fixo 6**, `SOURCE_DATE_EPOCH=0`, ordem lexicográfica, sem *extra fields*; teste que recalcula sha256 de **cada entrada** do ZIP e confere com `MANIFEST.json`.
-- **Scorecard enriquecido**: `warnings_by_gate` e `waivers_by_gate` (por gate) + campo `gating` com `hard_fail` e `warn_count`.
-- **Pins (T3) anti‑spoof**: verificação por API de que cada SHA pertence ao **repositório/owner esperado** (novo EXIT 32).
+Changelog:
+- **v5 (2025-11-04)** — Gate T0 estrito + validador único:
+  - Workflow consolidado `.github/workflows/s7-validator.yml` com jobs `t0_spec` (gating obrigatório) e `s7_exec` (ORR completo com needs em `t0_spec`).
+  - Manifesto NDJSON `s_7_filemap_v_7.json` regenerado em cada run pelo Codex (`scripts.s7.generate_filemap_manifest`), validado linha a linha por `scripts.s7.t0_spec_check` e armazenado em `out/obs_gatecheck/T0_discovery.json`.
+  - Contrato JSON do Gate T0 formalizado (campos `gate,status,checked,missing,sha1_mismatch`) com exemplos PASS/FAIL; `checked` MUST ser exatamente 4 e arrays MUST estar vazios no PASS.
+  - Bundle `s7-orr-evidence.zip` reprodutível com `RESUMO_ORR_S7.json`, métricas/versões e watchers A110 (`data_freshness_seconds`, `drift_score`, `failover_time_p95_s`).
+  - Branch protection para `main` obriga o status **Sprint 7 — Validator Único / Gate T0 — Spec Discovery** antes do merge.
+- **v4 (2025-10-31)** — revisão final com micro‑patches:
+  - **T0_ruleset_sanity** adicionado (fecha o loop): valida via **GitHub API/gh** se o ruleset ativo exige **exatamente** os 8 checks (agora 9, com T0) por **contexto**.
+  - **Schemas JSON com `$id` e `version`** (scorecard, MANIFEST e T0..T7) publicados em `/schemas/v1/*.schema.json` e validados no CI.
+  - **ZIP reprodutível endurecido**: compressão **DEFLATE nível fixo 6**, `SOURCE_DATE_EPOCH=0`, ordem lexicográfica, sem *extra fields*; teste que recalcula sha256 de **cada entrada** do ZIP e confere com `MANIFEST.json`.
+  - **Scorecard enriquecido**: `warnings_by_gate` e `waivers_by_gate` (por gate) + campo `gating` com `hard_fail` e `warn_count`.
+  - **Pins (T3) anti‑spoof**: verificação por API de que cada SHA pertence ao **repositório/owner esperado** (novo EXIT 32).
 
 ---
 
@@ -26,11 +33,12 @@ Garantir que a S7 seja **determinística, segura e auditável** com **regras obj
 ### 2) Integração GitHub — Checks obrigatórios (normativo)
 **Nomes de jobs (estáveis)** → **MUST** ser exatamente: `t0_ruleset_sanity`, `t1_yaml`, `t2_security`, `t3_pins`, `t4_tests`, `t5_props`, `t6_determinism`, `t7_append_only`, `t8_pack`.
 
-**Workflow reutilizável:** `.github/workflows/_s7-orr.yml`  
-**Wrapper:** `.github/workflows/s7-exec.yml`
+**Workflow único Sprint 7:** `.github/workflows/s7-validator.yml` — job `t0_spec` roda primeiro (Gate T0) e `s7_exec` herda `needs: [t0_spec]`.
+**Workflow reutilizável:** `.github/workflows/_s7-orr.yml`
+**Wrapper legado:** `.github/workflows/s7-exec.yml`
 
 **Branch Protection/Rulesets (UI):**
-- **MUST** habilitar *Require status checks to pass* para `main`/`release/*` e **listar os 9 checks** acima (inclui T0).
+- **MUST** habilitar *Require status checks to pass* para `main`/`release/*` e **listar os 9 checks** acima (inclui T0) + o status `Sprint 7 — Validator Único / Gate T0 — Spec Discovery` (novo gate obrigatório antes do ORR).
 - **MUST** habilitar *Require a pull request before merging* + *Require approvals* (≥1) + *Dismiss stale reviews*.
 - **SHOULD** bloquear *Force pushes* e *Bypass* exceto admins.
 
@@ -80,6 +88,41 @@ gh api -X POST repos/$OWNER/$REPO/rulesets --input ruleset_s7.json
 - Cada gate T* **mede** `duration_ms`.  
 - **FAIL (merge‑blocking)** se `duration_ms > Hard`.  
 - **WARN** se `Warn < duration_ms ≤ Hard` → registrar em `scorecard.warnings_by_gate[Ti]` e **opcionalmente** exigir *waiver*; 3 WARNs consecutivos no mesmo gate **devem** abrir issue de performance.
+
+---
+
+## Gate T0 — Spec Discovery (Manifest NDJSON)
+**Objetivo:** bloquear a S7 logo no primeiro job do workflow caso qualquer capítulo crítico esteja ausente ou com SHA1 divergente.
+
+**Como funciona:**
+- O job `t0_spec` (workflow `s7-validator.yml`) gera o manifesto `docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json` via `python -m scripts.s7.generate_filemap_manifest` e, em seguida, valida cada linha NDJSON com `python -m scripts.s7.t0_spec_check`.
+- O manifesto **MUST** listar exatamente quatro objetos (um por capítulo). Campos obrigatórios: `{"path": "<relativo>", "bytes": <int>, "sha1": "<blob sha1>"}`.
+- O validador calcula `git hash-object` para cada entrada, produz `out/obs_gatecheck/T0_discovery.json` e anota `missing[]`/`sha1_mismatch[]` via `::error`/`::warning`.
+- PASS somente quando `status="PASS" ∧ checked=4 ∧ missing=[] ∧ sha1_mismatch=[]`. Qualquer violação → `status="FAIL"`, bloqueando `s7_exec`.
+
+**Contrato JSON (`T0_discovery.json`):**
+```json
+{"gate":"T0","status":"PASS","checked":4,"missing":[],"sha1_mismatch":[]}
+```
+
+**Exemplo FAIL (capítulo ausente):**
+```json
+{"gate":"T0","status":"FAIL","checked":3,"missing":["docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_capitulo_4_codex_harness_guardrails_v_1.md"],"sha1_mismatch":[]}
+```
+
+**Exemplo FAIL (drift de conteúdo):**
+```json
+{"gate":"T0","status":"FAIL","checked":4,"missing":[],"sha1_mismatch":["docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_capitulo_2_gates_orr_scorecards_v_1.md"]}
+```
+
+**Evidências:**
+- `out/obs_gatecheck/T0_discovery.json` (artefato `s7-t0-evidence`).
+- Logs com `::error file=<path>::T0 missing` e `::warning file=<path>::sha1 mismatch (...)`.
+- Watchers A110 ancorados no resumo (`RESUMO_ORR_S7.json`): `data_freshness_seconds=0`, `drift_score=0`, `failover_time_p95_s=0` quando `t0_spec=PASS`.
+
+**Requisitos complementares:**
+- `t0_spec` **MUST** ser status obrigatório na proteção de branch (`Sprint 7 — Validator Único / Gate T0 — Spec Discovery`).
+- O job `s7_exec` **MUST** declarar `needs: [t0_spec]` e abortar se `t0_spec` falhar.
 
 ---
 
@@ -329,6 +372,7 @@ Todos os schemas deste capítulo **MUST** residir em `/schemas/v1/` no repo e se
 ## Tabela‑resumo (merge‑blocking)
 | Gate | Descrição | Aprovação (MUST) | Evidências | SLO Warn/Hard |
 |---|---|---|---|---|
+| T0-spec | Manifest NDJSON (cap. críticos) | `status=PASS ∧ checked=4 ∧ missing=[] ∧ sha1_mismatch=[]` | `out/obs_gatecheck/T0_discovery.json` | 3s / 10s |
 | T0 | Ruleset Sanity | contexts **exatos** presentes | `T0_ruleset_sanity/*` | 3s / 10s |
 | T1 | YAML & Repo | yamllint=0; estrutura OK | `T1_yaml/*` | 5s / 15s |
 | T2 | Segurança | Sem HIGH/CRIT; fixtures allowlisted | `T2_security/*` | 20s / 60s |
@@ -338,6 +382,14 @@ Todos os schemas deste capítulo **MUST** residir em `/schemas/v1/` no repo e se
 | T6 | Determinismo | Bytes/hashes/ZIP idênticos & esperados | `T6_determinism/*` | 20s / 60s |
 | T7 | Append‑only | `ok=true`; negativos falham | `T7_append_only/*` | 5s / 15s |
 | T8 | Evidence/Score | ZIP+MANIFEST+scorecard válidos | `s7-evidence.zip`, `MANIFEST.json`, `scorecards/s7.json` | 10s / 30s |
+
+---
+
+## Evidência consolidada (`RESUMO_ORR_S7.json`)
+- Gerado por `python -m scripts.s7.build_orr_bundle` no job `s7_exec` com base nas evidências parciais (`T0_ci`, `T1_yaml`, `T2_security`, `T3_pins`, `T4_tests`...).
+- Estrutura mínima: `{gate:"S7_EXEC", verdict:"PASS|FAIL", commit, branch, t0_spec:{...}, gates:{...}, versions:{python,jq,yamllint,gitleaks}, watchers:{data_freshness_seconds,drift_score,failover_time_p95_s}}`.
+- Sempre empacotado em `out/s7-orr-evidence.zip` (compressão DEFLATE nível 6, timestamps fixos) junto com `out/orr_s7/filelist.txt`.
+- `verdict` reflete o estado de cada gate (incluindo `t0_spec`); em caso de falha, o bundle ainda é produzido e o passo final imprime `::error ::S7 ORR verdict FAIL`.
 
 ---
 
@@ -360,5 +412,5 @@ python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest 
 - **Schemas JSON** normativos com `$id`/`version` para scorecard, MANIFEST e T0..T7.  
 - **Determinismo multi‑ambiente** (matrix 3.11.14/3.11.9) com igualdade de bytes e ZIP reprodutível.  
 - **ZIP reprodutível** (DEFLATE nível 6) com `MANIFEST.json` verificado.  
-- **CLI de ruleset** (gh api) e **T0** fechando o loop contra drift da UI.
+- **Gate T0** completo: manifesto NDJSON regenerado/validado (`t0_spec`) + CLI de ruleset (gh api) garantindo contexts exatos.
 

@@ -1,48 +1,128 @@
 {
   "schema": "trendmarketv2.sprint6.report",
   "schema_version": 2,
-  "timestamp_utc": "2025-10-26T03:27:34Z",
+  "timestamp_utc": "2025-11-02T16:56:35Z",
   "status": "PASS",
+  "summary": {
+    "total": 5,
+    "passing": 5,
+    "failing": 0
+  },
   "metrics": {
     "quorum_ratio": {
-      "observed": 0.7025,
-      "target": 0.6667,
-      "ok": true
+      "observed": "0.7025",
+      "target": "0.6667",
+      "delta": "0.0358",
+      "comparison": "gte",
+      "unit": "ratio",
+      "sample_size": 1440,
+      "window": "24h",
+      "ok": true,
+      "formatted_observed": "0.7025",
+      "formatted_target": "0.6667",
+      "guidance": ""
     },
     "failover_time_p95_s": {
-      "observed": 42.5,
-      "target": 60.0,
-      "ok": true
+      "observed": "42.500",
+      "target": "60.000",
+      "delta": "17.500",
+      "comparison": "lte",
+      "unit": "seconds",
+      "sample_size": 18,
+      "window": "7d",
+      "ok": true,
+      "formatted_observed": "42.500s",
+      "formatted_target": "60.000s",
+      "guidance": ""
     },
     "staleness_p95_s": {
-      "observed": 18.1,
-      "target": 30.0,
-      "ok": true
+      "observed": "18.100",
+      "target": "30.000",
+      "delta": "11.900",
+      "comparison": "lte",
+      "unit": "seconds",
+      "sample_size": 288,
+      "window": "24h",
+      "ok": true,
+      "formatted_observed": "18.100s",
+      "formatted_target": "30.000s",
+      "guidance": ""
     },
     "cdc_lag_p95_s": {
-      "observed": 88.2,
-      "target": 120.0,
-      "ok": true
+      "observed": "88.200",
+      "target": "120.000",
+      "delta": "31.800",
+      "comparison": "lte",
+      "unit": "seconds",
+      "sample_size": 288,
+      "window": "24h",
+      "ok": true,
+      "formatted_observed": "88.200s",
+      "formatted_target": "120.000s",
+      "guidance": ""
     },
     "divergence_pct": {
-      "observed": 0.4,
-      "target": 1.0,
-      "ok": true
+      "observed": "0.4",
+      "target": "1.0",
+      "delta": "0.6",
+      "comparison": "lte",
+      "unit": "percent",
+      "sample_size": 96,
+      "window": "24h",
+      "ok": true,
+      "formatted_observed": "0.4%",
+      "formatted_target": "1.0%",
+      "guidance": ""
     }
   },
   "inputs": {
     "thresholds": {
+      "cdc_lag_p95_s": 120.0,
+      "divergence_pct": 1.0,
+      "failover_time_p95_s": 60.0,
+      "quorum_ratio": 0.6667,
       "schema": "trendmarketv2.sprint6.thresholds",
       "schema_version": 2,
+      "staleness_p95_s": 30.0,
       "timestamp_utc": "2024-09-01T06:00:00Z"
     },
     "metrics": {
+      "cdc_lag_p95_s": {
+        "observed": 88.2,
+        "sample_size": 288,
+        "unit": "seconds",
+        "window": "24h"
+      },
+      "divergence_pct": {
+        "observed": 0.4,
+        "sample_size": 96,
+        "unit": "percent",
+        "window": "24h"
+      },
+      "failover_time_p95_s": {
+        "observed": 42.5,
+        "sample_size": 18,
+        "unit": "seconds",
+        "window": "7d"
+      },
+      "quorum_ratio": {
+        "observed": 0.7025,
+        "sample_size": 1440,
+        "unit": "ratio",
+        "window": "24h"
+      },
       "schema": "trendmarketv2.sprint6.metrics",
       "schema_version": 2,
+      "staleness_p95_s": {
+        "observed": 18.1,
+        "sample_size": 288,
+        "unit": "seconds",
+        "window": "24h"
+      },
       "timestamp_utc": "2024-09-02T06:00:00Z"
     }
   },
   "bundle": {
-    "sha256": "f02a7eeaa3c07407a2f5cd414fe0afa834ef6df78c2a139ba185d6393d99288d"
+    "sha256": "8063bc4d410196c848f9daf8e56a542148e3a841facfe5000b56b3b13ec22669"
   }
 }
