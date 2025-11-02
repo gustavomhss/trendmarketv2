@@ -1,0 +1,14 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t3_pins.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "unpinned", "drift", "spoof_alerts"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "unpinned": {"type": "integer", "minimum": 0},
+    "drift": {"type": "integer", "minimum": 0},
+    "spoof_alerts": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

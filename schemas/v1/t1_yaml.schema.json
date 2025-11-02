@@ -1,0 +1,13 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t1_yaml.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "issues", "duration_ms"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "issues": {"type": "integer", "minimum": 0},
+    "duration_ms": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

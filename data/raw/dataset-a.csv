@@ -1,0 +1,2 @@
+source,region,category,product,value,unit,currency,observed_at,ingested_at,quality,confidence
+ibge,BR-RJ,transporte,Passagem municipal,5.25,UN,brl,2025-10-27 07:30:00-03:00,2025-10-27 07:32:00-03:00,C,0.74

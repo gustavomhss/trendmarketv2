@@ -1,0 +1,127 @@
+name: "S7 ORR Exec"
+on:
+  workflow_dispatch: {}
+
+env:
+  TZ: UTC
+  LC_ALL: C
+  LANG: C.UTF-8
+  PYTHONUTF8: "1"
+  SOURCE_DATE_EPOCH: "0"
+
+jobs:
+  t0_ruleset_sanity:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - name: Ruleset sanity
+        run: python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
+
+  t1_yaml:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - name: Lint YAML
+        run: |
+          python -m scripts.ci.filemap_check --out out/evidence/T1_yaml/filemap_check.json
+          yamllint . | tee out/evidence/T1_yaml/yamllint_report.txt
+
+  t2_security:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - name: Run gitleaks
+        run: |
+          mkdir -p out/evidence/T2_security
+          gitleaks detect --source . --no-banner --report-format json --report-path out/evidence/T2_security/gitleaks_report.json
+
+  t3_pins:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - name: Generate lock
+        run: |
+          python -m scripts.ci.generate_actions_lock > actions.lock
+          python -m scripts.ci.validate_actions_lock --lock actions.lock --out out/evidence/T3_pins/pins_report.json
+          python -m scripts.ci.verify_action_commit_owners --workflows .github/workflows --out out/evidence/T3_pins/sha_origin_report.json
+
+  t4_tests:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python-version: ["3.11.14", "3.11.9"]
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Run pytest
+        run: pytest tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file=out/evidence/T4_tests/pytest_report.json
+
+  t5_props:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+        with:
+          python-version: "3.11.14"
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Run property tests
+        run: pytest tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json
+
+  t6_determinism:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python-version: ["3.11.14", "3.11.9"]
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Determinism
+        run: python -m scripts.det.check_determinism --out out/evidence/T6_determinism/compare.json
+
+  t7_append_only:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+        with:
+          python-version: "3.11.14"
+      - name: Append-only guard
+        run: python -m scripts.merkle.append_only_guard --log data/log/log.jsonl --out out/evidence/T7_append_only/append_only_report.json
+
+  t8_pack:
+    needs:
+      - t0_ruleset_sanity
+      - t1_yaml
+      - t2_security
+      - t3_pins
+      - t4_tests
+      - t5_props
+      - t6_determinism
+      - t7_append_only
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+        with:
+          python-version: "3.11.14"
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Build scorecard and evidence
+        run: |
+          python -m scripts.scorecard.write --out out/scorecards/s7.json
+          python -m scripts.evidence.manifest --root out --out out/MANIFEST.json
+          python -m scripts.evidence.pack --root out --out out/s7-evidence.zip --manifest out/MANIFEST.json
+          python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest out/MANIFEST.json
+      - uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90
+        with:
+          name: s7-orr-evidence
+          path: out/

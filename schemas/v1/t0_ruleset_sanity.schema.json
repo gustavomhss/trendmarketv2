@@ -1,0 +1,24 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t0_ruleset_sanity.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "required_contexts", "missing", "extra", "duration_ms"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "required_contexts": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "missing": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "extra": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "duration_ms": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

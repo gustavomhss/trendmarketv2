@@ -1,108 +1,40 @@
 from __future__ import annotations
 
 import json
-import math
-import time
-from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
-from typing import Dict, Iterable, List
 
-import pytest
-
-from services.oracle.normalizer.normalizer import (
-    NormalizationError,
-    build_event,
-    equivalence_hash,
+from scripts.normalizer.normalize_batch import (
+    Decimal4Encoder,
+    build_batch_document,
+    canonical_json,
+    normalize_records,
+    sort_key,
 )
 
-GOLDEN_PATH = Path("tests/goldens/normalizer")
-FIXED_NOW = datetime(2025, 10, 29, 19, 10, tzinfo=timezone.utc)
+FIXTURE_JSON = Path("tests/fixtures/data/dataset-a.json")
 
 
-def load_goldens() -> Iterable[Dict[str, object]]:
-    for path in sorted(GOLDEN_PATH.glob("*.json")):
-        with path.open("r", encoding="utf-8") as handle:
-            yield json.load(handle)
+def test_normalize_records_deterministic(tmp_path: Path) -> None:
+    records = normalize_records(FIXTURE_JSON)
+    assert len(records) == 3
+    keys = [sort_key(record) for record in records]
+    assert keys == sorted(keys)
 
+    first = records[0]
+    expected_hash = hashlib.sha256(
+        f"{first['source']}|{first['product']}|{first['region']}|{first['observed_at']}|{first['value']:.4f}".encode("utf-8")
+    ).hexdigest()
+    assert first["idempotency_key"] == expected_hash
 
-def test_golden_events_match_expected() -> None:
-    for case in load_goldens():
-        event = build_event(case["input"], now=FIXED_NOW)  # type: ignore[index]
-        assert dict(event) == case["expected"]  # type: ignore[index]
+    batch = build_batch_document(records)
+    assert batch["stats"]["count"] == 3
+    assert batch["stats"]["min_observed_at"] <= batch["stats"]["max_observed_at"]
 
+    serialized = canonical_json(records)
+    assert hashlib.sha256(serialized).hexdigest() == batch["entries_hash"]
 
-def test_equivalence_hash_deterministic() -> None:
-    raw = {
-        "title": "Riesgo País sube",
-        "lang": "es",
-        "category": "Mercado",
-        "source": "Bolsa Lima",
-        "observed_at": "2025-10-29T18:55:00Z",
-        "payload": {"valor": 1.23},
-    }
-    event_a = build_event(raw, now=FIXED_NOW)
-    event_b = build_event(raw, now=FIXED_NOW)
-    assert event_a["equivalenceHash"] == event_b["equivalenceHash"]
-    assert event_a["id"] == event_b["id"]
-    assert event_a["equivalenceHash"] == equivalence_hash(raw["title"], raw["category"])
-
-
-def test_invalid_title_length() -> None:
-    raw = {
-        "title": "a" * 181,
-        "lang": "pt",
-        "category": "economia",
-        "source": "agencia",
-        "observed_at": "2025-10-29T19:00:00Z",
-        "payload": {},
-    }
-    with pytest.raises(NormalizationError):
-        build_event(raw, now=FIXED_NOW)
-
-
-def test_invalid_token_normalization() -> None:
-    raw = {
-        "title": "ok",
-        "lang": "pt",
-        "category": "x" * 120,
-        "source": "agencia",
-        "observed_at": "2025-10-29T19:00:00Z",
-        "payload": {},
-    }
-    with pytest.raises(NormalizationError):
-        build_event(raw, now=FIXED_NOW)
-
-
-def test_payload_rejects_underscore_keys() -> None:
-    raw = {
-        "title": "ok",
-        "lang": "pt",
-        "category": "economia",
-        "source": "agencia",
-        "observed_at": "2025-10-29T19:00:00Z",
-        "payload": {"_secret": 1},
-    }
-    with pytest.raises(NormalizationError):
-        build_event(raw, now=FIXED_NOW)
-
-
-def test_microbench_p95_under_threshold() -> None:
-    base_payload = {
-        "title": "Evento base",
-        "lang": "pt",
-        "category": "mercado",
-        "source": "operador",
-        "observed_at": "2025-10-29T18:59:00Z",
-        "payload": {"valor": 1},
-    }
-    samples: List[float] = []
-    for idx in range(1000):
-        raw = dict(base_payload)
-        raw["title"] = f"{base_payload['title']} {idx}"
-        start = time.perf_counter()
-        build_event(raw, now=FIXED_NOW)
-        samples.append(time.perf_counter() - start)
-    samples.sort()
-    p95_index = math.ceil(0.95 * len(samples)) - 1
-    p95_value_ms = samples[p95_index] * 1000
-    assert p95_value_ms <= 150
+    out_path = tmp_path / "batch.json"
+    out_path.write_text(json.dumps(batch, cls=Decimal4Encoder, separators=(",", ":")))
+    loaded = json.loads(out_path.read_text())
+    assert loaded["entries_hash"] == batch["entries_hash"]

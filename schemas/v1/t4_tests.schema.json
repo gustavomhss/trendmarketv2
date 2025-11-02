@@ -1,0 +1,14 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t4_tests.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "tests", "passed", "failed"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "tests": {"type": "integer", "minimum": 0},
+    "passed": {"type": "integer", "minimum": 0},
+    "failed": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,3 @@
+[allowlist]
+  description = "Allowlist for test fixtures"
+  files = ["tests/fixtures/crypto/test_ed25519_priv.pem", "tests/fixtures/crypto/test_ed25519_pub.pem"]

@@ -1,0 +1,14 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t2_security.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "findings_total", "high", "critical"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "findings_total": {"type": "integer", "minimum": 0},
+    "high": {"type": "integer", "minimum": 0},
+    "critical": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

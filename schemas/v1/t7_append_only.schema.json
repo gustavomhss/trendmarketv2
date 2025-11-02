@@ -1,0 +1,16 @@
+{
+  "$id": "https://trendmarket/schemas/v1/t7_append_only.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "violations", "details"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "violations": {"type": "integer", "minimum": 0},
+    "details": {
+      "type": "array",
+      "items": {"type": "object"}
+    }
+  },
+  "additionalProperties": false
+}
