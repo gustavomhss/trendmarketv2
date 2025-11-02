@@ -6,7 +6,7 @@ requires-python = ">=3.11,<3.12"
 readme = "README.md"
 license = {text = "MIT"}
 dependencies = [
-  "jsonschema>=4.21,<4.22",
+  "jsonschema>=4.21,<4.26",
   "pynacl>=1.5,<2.0"
 ]
 
