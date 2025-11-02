@@ -1,4 +1,4 @@
-name: "S7 T0 fast-pass"
+name: "S7 — Gate T0 (fast-pass)"
 on:
   push:
     paths:
@@ -13,32 +13,35 @@ on:
 jobs:
   t0:
     runs-on: ubuntu-22.04
+    concurrency:
+      group: s7-t0-fast-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
-      - name: Gate T0 — existence only
+      - name: Gate T0 — existência (fast-pass)
         shell: bash
         run: |
           set -euo pipefail
-          MAN="docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json"
-          OUT="out/obs_gatecheck/T0_discovery.json"
+          MAN='docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json'
+          OUT='out/obs_gatecheck/T0_discovery.json'
           mkdir -p "$(dirname "$OUT")"
           checked=0; miss=()
           if [ -s "$MAN" ]; then
             while IFS= read -r line; do
-              p=$(printf "%s\n" "$line" | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p'); [ -z "$p" ] && continue
+              p=$(printf '%s\n' "$line" | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'); [ -z "$p" ] && continue
               checked=$((checked+1)); [ -f "$p" ] || miss+=("$p")
             done < "$MAN"
           fi
           if [ "${#miss[@]}" -gt 0 ]; then
-            printf '{"gate":"T0","status":"FAIL","checked":%s,"missing":[' "$checked" > "$OUT"
-            for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done >> "$OUT"
-            echo ']}' >> "$OUT"
+            { printf '{"gate":"T0","status":"FAIL","checked":%s,"missing":[' "$checked"
+              for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done
+              printf ']}\n'; } > "$OUT"
             echo "::warning::T0 FAIL (existence)"
           else
             printf '{"gate":"T0","status":"PASS","missing":[],"checked":%s}\n' "$checked" > "$OUT"
             echo "::notice::T0 PASS (existence)"
           fi
-      - name: Upload evidence
+      - name: Upload evidência T0
         if: always()
         uses: actions/upload-artifact@v4
         with:
