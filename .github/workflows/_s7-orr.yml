@@ -13,14 +13,14 @@ jobs:
   t0_ruleset_sanity:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
       - name: Ruleset sanity
         run: python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
 
   t1_yaml:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
       - name: Lint YAML
         run: |
           python -m scripts.ci.filemap_check --out out/evidence/T1_yaml/filemap_check.json
@@ -29,7 +29,7 @@ jobs:
   t2_security:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
       - name: Run gitleaks
         run: |
           mkdir -p out/evidence/T2_security
@@ -38,7 +38,7 @@ jobs:
   t3_pins:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
       - name: Generate lock
         run: |
           python -m scripts.ci.generate_actions_lock > actions.lock
@@ -51,8 +51,8 @@ jobs:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
+      - b375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -63,8 +63,8 @@ jobs:
   t5_props:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
+      - b375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Install
@@ -78,8 +78,8 @@ jobs:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
+      - b375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -90,8 +90,8 @@ jobs:
   t7_append_only:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
+      - b375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Append-only guard
@@ -109,8 +109,8 @@ jobs:
       - t7_append_only
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - Ibd71901bbe5b1630ceea73d27597364c9af683
+      - b375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Install

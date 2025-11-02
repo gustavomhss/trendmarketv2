@@ -57,7 +57,7 @@ jobs:
     - call-orr
     steps:
     - name: Checkout
-      uses: actions/checkout@  # pinned (was v4)
+      Ibd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
     - name: "Preparar zips de est\xE1gio \u2192 out/boss"
       shell: bash
       run: "set -euo pipefail\nmkdir -p out/boss\nfound=false\nwhile IFS= read -r\

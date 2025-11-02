@@ -62,8 +62,8 @@ jobs:
         \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
         \ >&2\n  exit 2\nfi\n"
     - name: Checkout
-      uses: actions/checkout@  # pinned (was v4)
-    - uses: actions/setup-python@  # pinned (was v5)
+      Ibd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
+    - b375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
       with:
         python-version: '3.11'
         check-latest: true
@@ -122,7 +122,7 @@ jobs:
         \ .)\nls -lh \"$zip_path\"\n"
     - name: Upload stage artifact (zip)
       if: always()
-      uses: actions/upload-artifact@  # pinned (was v4)
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (was v4)
       with:
         name: boss-stage-${{env.STAGE}}
         path: out/boss/boss-stage-${{env.STAGE}}.zip
@@ -149,7 +149,7 @@ jobs:
         \ .github/workflows; then\n  echo \"[guard] Encontrado uses @v* \u2014 bloqueando\"\
         \ >&2\n  exit 2\nfi\n"
     - name: Checkout
-      uses: actions/checkout@  # pinned (was v4)
+      Ibd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
     - name: Setup Python + venv + deps
       uses: ./.github/actions/setup-python-venv
     - name: Prepare artifact workspace
@@ -163,7 +163,7 @@ jobs:
         '
     - name: Download stage artifacts
       if: always()
-      uses: actions/download-artifact@  # pinned (was v4)
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned (was v4)
       with:
         pattern: boss-stage-*
         merge-multiple: true
@@ -276,7 +276,7 @@ jobs:
         \nfi\n"
     - name: Upload Boss Final aggregate
       if: steps.aggregate.outcome == 'success'
-      uses: actions/upload-artifact@  # pinned (was v4)
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (was v4)
       with:
         name: boss-final-aggregate
         path: '${{ runner.temp }}/boss-aggregate
