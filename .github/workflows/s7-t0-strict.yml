@@ -28,8 +28,8 @@ jobs:
           [ -s "$MAN" ] || { echo '{"gate":"T0","status":"FAIL","reason":"no_manifest","checked":0}' > "$OUT"; cat "$OUT"; exit 1; }
           checked=0; miss=(); bad=()
           while IFS= read -r line; do
-            path=$(printf '%s\n' "$line" | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'); [ -z "$path" ] && continue
-            sha1=$(printf '%s\n' "$line" | sed -n 's/.*"sha1"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{40\}\)".*/\1/p')
+            path="$(printf '%s' "$line" | jq -r 'try .path // empty')"; [ -z "$path" ] && continue
+            sha1="$(printf '%s' "$line" | jq -r 'try .sha1 // empty')"
             checked=$((checked+1))
             if [ ! -f "$path" ]; then miss+=("$path"); continue; fi
             if [ -n "$sha1" ]; then calc=$(git hash-object "$path"); [ "$calc" = "$sha1" ] || bad+=("$path"); fi

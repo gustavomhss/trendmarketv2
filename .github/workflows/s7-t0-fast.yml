@@ -28,7 +28,7 @@ jobs:
           checked=0; miss=()
           if [ -s "$MAN" ]; then
             while IFS= read -r line; do
-              p=$(printf '%s\n' "$line" | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'); [ -z "$p" ] && continue
+              p="$(printf '%s' "$line" | jq -r 'try .path // empty')"; [ -z "$p" ] && continue
               checked=$((checked+1)); [ -f "$p" ] || miss+=("$p")
             done < "$MAN"
           fi
