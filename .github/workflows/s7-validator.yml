@@ -31,11 +31,11 @@ jobs:
       SOURCE_DATE_EPOCH: "0"
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: "3.11"
       - name: Regenerate Sprint 7 manifest
@@ -68,11 +68,11 @@ jobs:
       CI_SEED: "12345"
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Ensure local bin on PATH

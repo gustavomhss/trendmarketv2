@@ -29,7 +29,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
       - id: t0_spec_check
@@ -74,7 +74,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Ruleset sanity
@@ -89,7 +89,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
       - id: lint_yaml
@@ -125,7 +125,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
       - id: gitleaks
@@ -176,7 +176,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
       - name: Generate lock
@@ -197,10 +197,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -250,10 +250,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Install
@@ -273,10 +273,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -293,10 +293,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Append-only guard
@@ -319,10 +319,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Install
