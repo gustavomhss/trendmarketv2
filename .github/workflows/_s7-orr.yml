@@ -60,7 +60,7 @@ jobs:
           PY
       - name: Upload T0 evidence
         if: always()
-        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (v4 SHA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
         with:
           name: s7-t0-evidence
           path: out/obs_gatecheck/T0_discovery.json
@@ -336,7 +336,7 @@ jobs:
           python -m scripts.s7.build_orr_bundle --summary out/orr_s7/RESUMO_ORR_S7.json --bundle out/s7-orr-evidence.zip --filelist out/orr_s7/filelist.txt
       - name: Upload ORR evidence bundle
         if: always()
-        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (v4 SHA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
         with:
           name: s7-orr-evidence
           path: out/
