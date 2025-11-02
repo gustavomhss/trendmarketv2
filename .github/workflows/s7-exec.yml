@@ -1,30 +1,10 @@
 name: "S7 ORR Exec Wrapper"
 on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        type: string
-        required: false
-      run_microbench:
-        type: boolean
-        required: false
-        default: false
-      run_tla:
-        type: boolean
-        required: false
-        default: false
+  workflow_dispatch: {}
   push:
     branches:
       - q2-s7-codex-**
 
 jobs:
   run:
-    concurrency:
-      group: s7-exec-${{ github.ref || github.sha }}
-      cancel-in-progress: false
     uses: ./.github/workflows/_s7-orr.yml
-    with:
-      ref: ${{ github.event.inputs.ref || github.sha }}
-      run_microbench: ${{ fromJSON(github.event.inputs.run_microbench || 'false') }}
-      run_tla: ${{ fromJSON(github.event.inputs.run_tla || 'false') }}
-    secrets: inherit

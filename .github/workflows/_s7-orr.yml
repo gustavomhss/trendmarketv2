@@ -1,18 +1,6 @@
 name: "S7 ORR Exec"
 on:
-  workflow_call:
-    inputs:
-      ref:
-        type: string
-        required: false
-      run_microbench:
-        type: boolean
-        required: false
-        default: false
-      run_tla:
-        type: boolean
-        required: false
-        default: false
+  workflow_dispatch: {}
 
 env:
   TZ: UTC
@@ -22,163 +10,35 @@ env:
   SOURCE_DATE_EPOCH: "0"
 
 jobs:
-  t0_spec:
-    runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t0-spec
-      cancel-in-progress: false
-    steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-      - id: t0_spec_check
-        name: Validate T0 manifest
-        run: |
-          python -m scripts.s7.t0_spec_check --output out/obs_gatecheck/T0_discovery.json
-      - name: Record CI summary
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          discovery_path = Path("out/obs_gatecheck/T0_discovery.json")
-          summary_path = Path("out/evidence/T0_ci/render_summary.json")
-          summary_path.parent.mkdir(parents=True, exist_ok=True)
-
-          status = "FAIL"
-          payload: dict[str, object]
-          if discovery_path.exists():
-              data = json.loads(discovery_path.read_text(encoding="utf-8"))
-              status = "PASS" if str(data.get("status")).upper() == "PASS" else "FAIL"
-              payload = {"status": status, "discovery": data}
-          else:
-              payload = {"status": status, "error": "discovery_missing"}
-
-          summary_path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-          PY
-      - name: Upload T0 evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
-        with:
-          name: s7-t0-evidence
-          path: out/obs_gatecheck/T0_discovery.json
-
   t0_ruleset_sanity:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t0-ruleset
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Ruleset sanity
         run: python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
 
   t1_yaml:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t1-yaml
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-      - id: lint_yaml
-        name: Lint YAML
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Lint YAML
         run: |
-          set -o pipefail
           python -m scripts.ci.filemap_check --out out/evidence/T1_yaml/filemap_check.json
           yamllint . | tee out/evidence/T1_yaml/yamllint_report.txt
-      - name: Summarize yamllint
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          outcome = os.environ.get("YAMLLINT_OUTCOME", "failure")
-          status = "PASS" if outcome == "success" else "FAIL"
-          summary_path = Path("out/evidence/T1_yaml/yamllint_summary.json")
-          summary_path.parent.mkdir(parents=True, exist_ok=True)
-          payload = {"status": status, "report": "out/evidence/T1_yaml/yamllint_report.txt"}
-          summary_path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-          PY
-        env:
-          YAMLLINT_OUTCOME: ${{ steps.lint_yaml.outcome }}
 
   t2_security:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t2-security
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-      - id: gitleaks
-        name: Run gitleaks
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Run gitleaks
         run: |
           mkdir -p out/evidence/T2_security
           gitleaks detect --source . --no-banner --report-format json --report-path out/evidence/T2_security/gitleaks_report.json
-      - name: Summarize gitleaks
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          outcome = os.environ.get("GITLEAKS_OUTCOME", "failure")
-          status = "PASS" if outcome == "success" else "FAIL"
-          summary_path = Path("out/evidence/T2_security/gitleaks_summary.json")
-          summary_path.parent.mkdir(parents=True, exist_ok=True)
-
-          report_path = Path("out/evidence/T2_security/gitleaks_report.json")
-          findings = 0
-          if report_path.exists():
-              try:
-                  data = json.loads(report_path.read_text(encoding="utf-8"))
-              except json.JSONDecodeError:
-                  data = {}
-              findings_raw = data.get("findings") if isinstance(data, dict) else None
-              if isinstance(findings_raw, list):
-                  findings = len(findings_raw)
-                  if findings:
-                      status = "FAIL"
-
-          summary_path.write_text(
-              json.dumps({"status": status, "findings": findings}, ensure_ascii=False, sort_keys=True),
-              encoding="utf-8",
-          )
-          PY
-        env:
-          GITLEAKS_OUTCOME: ${{ steps.gitleaks.outcome }}
 
   t3_pins:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t3-pins
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Generate lock
         run: |
           python -m scripts.ci.generate_actions_lock > actions.lock
@@ -186,74 +46,25 @@ Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
           python -m scripts.ci.verify_action_commit_owners --workflows .github/workflows --out out/evidence/T3_pins/sha_origin_report.json
 
   t4_tests:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t4-${{ matrix.python-version }}
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: python -m pip install --upgrade pip && pip install .[dev]
-      - id: pytest
-        name: Run pytest
+      - name: Run pytest
         run: pytest tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file=out/evidence/T4_tests/pytest_report.json
-      - name: Summarize pytest
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          outcome = os.environ.get("PYTEST_OUTCOME", "failure")
-          summary_path = Path("out/evidence/T4_tests/pytest_summary.json")
-          summary_path.parent.mkdir(parents=True, exist_ok=True)
-
-          report_path = Path("out/evidence/T4_tests/pytest_report.json")
-          status = "PASS" if outcome == "success" else "FAIL"
-          details: dict[str, object] = {"status": status}
-          if report_path.exists():
-              try:
-                  data = json.loads(report_path.read_text(encoding="utf-8"))
-              except json.JSONDecodeError:
-                  data = {}
-              if isinstance(data, dict):
-                  summary = data.get("summary")
-                  if isinstance(summary, dict):
-                      details.update(summary)
-                  if data.get("exitcode") not in (0, "0"):
-                      details["status"] = "FAIL"
-                      status = "FAIL"
-
-          summary_path.write_text(json.dumps(details, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-          PY
-        env:
-          PYTEST_OUTCOME: ${{ steps.pytest.outcome }}
 
   t5_props:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t5-props
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Install
@@ -262,21 +73,13 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         run: pytest tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json
 
   t6_determinism:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t6-${{ matrix.python-version }}
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -285,18 +88,10 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         run: python -m scripts.det.check_determinism --out out/evidence/T6_determinism/compare.json
 
   t7_append_only:
-    needs:
-      - t0_spec
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t7-append-only
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Append-only guard
@@ -304,7 +99,6 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
 
   t8_pack:
     needs:
-      - t0_spec
       - t0_ruleset_sanity
       - t1_yaml
       - t2_security
@@ -314,15 +108,9 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
       - t6_determinism
       - t7_append_only
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-orr-${{ inputs.ref || github.sha }}-t8-pack
-      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Install
@@ -333,10 +121,7 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
           python -m scripts.evidence.manifest --root out --out out/MANIFEST.json
           python -m scripts.evidence.pack --root out --out out/s7-evidence.zip --manifest out/MANIFEST.json
           python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest out/MANIFEST.json
-          python -m scripts.s7.build_orr_bundle --summary out/orr_s7/RESUMO_ORR_S7.json --bundle out/s7-orr-evidence.zip --filelist out/orr_s7/filelist.txt
-      - name: Upload ORR evidence bundle
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: s7-orr-evidence
           path: out/
