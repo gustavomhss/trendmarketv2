@@ -200,7 +200,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (v5 SHA)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -253,7 +253,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (v5 SHA)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Install
@@ -276,7 +276,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (v5 SHA)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -296,7 +296,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (v5 SHA)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Append-only guard
@@ -322,7 +322,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (v5 SHA)
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38  # pinned (v5 SHA)
         with:
           python-version: "3.11.14"
       - name: Install
