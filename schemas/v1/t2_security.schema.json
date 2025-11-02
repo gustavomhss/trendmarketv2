@@ -1,34 +1,14 @@
 {
   "$id": "https://trendmarket/schemas/v1/t2_security.schema.json",
-  "additionalProperties": false,
-  "properties": {
-    "critical": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "findings_total": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "high": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "ok": {
-      "type": "boolean"
-    }
-  },
-  "required": [
-    "ok",
-    "findings_total",
-    "high",
-    "critical",
-    "duration_ms"
-  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
   "type": "object",
-  "version": "1.0.0"
+  "required": ["ok", "findings_total", "high", "critical"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "findings_total": {"type": "integer", "minimum": 0},
+    "high": {"type": "integer", "minimum": 0},
+    "critical": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
 }

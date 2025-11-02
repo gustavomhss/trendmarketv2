@@ -1,0 +1,28 @@
+[
+  {
+    "source": "IPEA",
+    "region": "br-sp",
+    "category": "Alimentos",
+    "product": "Arroz agulhinha Tipo 1",
+    "value": "5,4321",
+    "unit": "KG",
+    "currency": "brl",
+    "observed_at": "2025-10-29T10:00:00-03:00",
+    "ingested_at": "2025-10-29T13:05:07-03:00",
+    "quality": "a",
+    "confidence": "0.97"
+  },
+  {
+    "source": "conab",
+    "region": "BR-mg",
+    "category": "energia",
+    "product": "Diesel S-10",
+    "value": 6.2109,
+    "unit": "L",
+    "currency": "BRL",
+    "observed_at": "2025-10-28T12:45:00-03:00",
+    "ingested_at": "2025-10-28T12:47:10-03:00",
+    "quality": "B",
+    "confidence": 0.83
+  }
+]

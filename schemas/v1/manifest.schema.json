@@ -1,46 +1,25 @@
 {
   "$id": "https://trendmarket/schemas/v1/manifest.schema.json",
-  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["version", "generated_at", "entries"],
   "properties": {
+    "version": {"type": "integer", "const": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
     "entries": {
+      "type": "array",
       "items": {
-        "additionalProperties": false,
+        "type": "object",
+        "required": ["path", "size", "sha256"],
         "properties": {
-          "path": {
-            "type": "string"
-          },
-          "sha256": {
-            "pattern": "^[a-f0-9]{64}$",
-            "type": "string"
-          },
-          "size": {
-            "minimum": 0,
-            "type": "integer"
-          }
+          "path": {"type": "string"},
+          "size": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
         },
-        "required": [
-          "path",
-          "size",
-          "sha256"
-        ],
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "generated_at": {
-      "format": "date-time",
-      "type": "string"
-    },
-    "version": {
-      "const": 1,
-      "type": "integer"
+        "additionalProperties": false
+      }
     }
   },
-  "required": [
-    "version",
-    "generated_at",
-    "entries"
-  ],
-  "type": "object",
-  "version": "1.0.0"
+  "additionalProperties": false
 }

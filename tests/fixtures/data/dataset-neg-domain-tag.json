@@ -1,0 +1,13 @@
+{
+  "signature": {
+    "domain_tag": "tm.s7.batch.vX\n",
+    "payload": {
+      "created_at": "2025-10-29T16:05:10Z",
+      "entries_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "root": "0000000000000000000000000000000000000000000000000000000000000000",
+      "schema_version": "1"
+    },
+    "public_key": "YmFkcHVibGlja2V5YmFkcHVibGlja2V5YmFkcHVibGlja2V5YmFk",
+    "signature": "YmFkc2lnbmF0dXJlYmFkc2lnbmF0dXJlYmFkc2lnbmF0dXJlYmFk"
+  }
+}

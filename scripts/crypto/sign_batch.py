@@ -12,10 +12,10 @@ from typing import Any, Iterable, Mapping
 from nacl import exceptions as nacl_exceptions
 from nacl import signing
 
-SIGNATURE_PATH = Path("out/signatures/latest.sig.json")
-BATCH_PATH = Path("out/normalized/batch.json")
-PUBKEY_PATH = Path("tests/fixtures/crypto/test_ed25519_pub.pem")
-PRIVKEY_PATH = Path("tests/fixtures/crypto/test_ed25519_priv.pem")
+SIGNATURE_PATH = "out/signatures/latest.sig.json"
+BATCH_PATH = "out/normalized/batch.json"
+PUBKEY_PATH = "tests/fixtures/crypto/test_ed25519_pub.pem"
+PRIVKEY_PATH = "tests/fixtures/crypto/test_ed25519_priv.pem"
 DEFAULT_DOMAIN_TAG = "tm.s7.batch.v1"
 SCHEMA_VERSION = "1"
 

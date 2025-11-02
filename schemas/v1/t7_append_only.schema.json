@@ -1,31 +1,16 @@
 {
   "$id": "https://trendmarket/schemas/v1/t7_append_only.schema.json",
-  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "violations", "details"],
   "properties": {
+    "ok": {"type": "boolean"},
+    "violations": {"type": "integer", "minimum": 0},
     "details": {
-      "items": {
-        "type": "object"
-      },
-      "type": "array"
-    },
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "ok": {
-      "type": "boolean"
-    },
-    "violations": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "array",
+      "items": {"type": "object"}
     }
   },
-  "required": [
-    "ok",
-    "violations",
-    "details",
-    "duration_ms"
-  ],
-  "type": "object",
-  "version": "1.0.0"
+  "additionalProperties": false
 }

@@ -1,34 +1,14 @@
 {
   "$id": "https://trendmarket/schemas/v1/t3_pins.schema.json",
-  "additionalProperties": false,
-  "properties": {
-    "drift": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "ok": {
-      "type": "boolean"
-    },
-    "spoof_alerts": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "unpinned": {
-      "minimum": 0,
-      "type": "integer"
-    }
-  },
-  "required": [
-    "ok",
-    "unpinned",
-    "drift",
-    "spoof_alerts",
-    "duration_ms"
-  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
   "type": "object",
-  "version": "1.0.0"
+  "required": ["ok", "unpinned", "drift", "spoof_alerts"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "unpinned": {"type": "integer", "minimum": 0},
+    "drift": {"type": "integer", "minimum": 0},
+    "spoof_alerts": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
 }

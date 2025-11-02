@@ -1,31 +1,14 @@
 {
   "$id": "https://trendmarket/schemas/v1/t6_determinism.schema.json",
-  "additionalProperties": false,
-  "properties": {
-    "byte_equal": {
-      "type": "boolean"
-    },
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "hash_match": {
-      "type": "boolean"
-    },
-    "ok": {
-      "type": "boolean"
-    },
-    "zip_equal": {
-      "type": "boolean"
-    }
-  },
-  "required": [
-    "ok",
-    "byte_equal",
-    "zip_equal",
-    "hash_match",
-    "duration_ms"
-  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
   "type": "object",
-  "version": "1.0.0"
+  "required": ["ok", "byte_equal", "zip_equal", "hash_match"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "byte_equal": {"type": "boolean"},
+    "zip_equal": {"type": "boolean"},
+    "hash_match": {"type": "boolean"}
+  },
+  "additionalProperties": false
 }

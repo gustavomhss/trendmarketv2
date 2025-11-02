@@ -1,40 +1,24 @@
 {
   "$id": "https://trendmarket/schemas/v1/t0_ruleset_sanity.schema.json",
-  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["ok", "required_contexts", "missing", "extra", "duration_ms"],
   "properties": {
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "extra": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
+    "ok": {"type": "boolean"},
+    "required_contexts": {
+      "type": "array",
+      "items": {"type": "string"}
     },
     "missing": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
+      "type": "array",
+      "items": {"type": "string"}
     },
-    "ok": {
-      "type": "boolean"
+    "extra": {
+      "type": "array",
+      "items": {"type": "string"}
     },
-    "required_contexts": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    }
+    "duration_ms": {"type": "integer", "minimum": 0}
   },
-  "required": [
-    "ok",
-    "required_contexts",
-    "missing",
-    "extra",
-    "duration_ms"
-  ],
-  "type": "object",
-  "version": "1.0.0"
+  "additionalProperties": false
 }

@@ -1,34 +1,14 @@
 {
   "$id": "https://trendmarket/schemas/v1/t4_tests.schema.json",
-  "additionalProperties": false,
-  "properties": {
-    "duration_ms": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "failed": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "ok": {
-      "type": "boolean"
-    },
-    "passed": {
-      "minimum": 0,
-      "type": "integer"
-    },
-    "tests": {
-      "minimum": 0,
-      "type": "integer"
-    }
-  },
-  "required": [
-    "ok",
-    "tests",
-    "passed",
-    "failed",
-    "duration_ms"
-  ],
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
   "type": "object",
-  "version": "1.0.0"
+  "required": ["ok", "tests", "passed", "failed"],
+  "properties": {
+    "ok": {"type": "boolean"},
+    "tests": {"type": "integer", "minimum": 0},
+    "passed": {"type": "integer", "minimum": 0},
+    "failed": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
 }

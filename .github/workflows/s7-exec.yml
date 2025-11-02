@@ -1,0 +1,10 @@
+name: "S7 ORR Exec Wrapper"
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - q2-s7-codex-**
+
+jobs:
+  run:
+    uses: ./.github/workflows/_s7-orr.yml
