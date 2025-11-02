@@ -15,8 +15,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Gate T0 — existência + SHA1 (strict, hardened)
+      - name: Gate T0 — existência + SHA1 (STRICT, jq)
         shell: bash
         run: |
           set -euo pipefail
@@ -25,24 +24,23 @@ jobs:
           mkdir -p "$(dirname "$OUT")"
 
           if [ ! -s "$MAN" ]; then
-            echo '{"gate":"T0","status":"FAIL","reason":"no_manifest","checked":0}' > "$OUT"
-            cat "$OUT"; exit 1
+            echo '{"gate":"T0","status":"FAIL","reason":"no_manifest","checked":0}' | tee "$OUT"
+            exit 1
           fi
 
           checked=0; declare -a miss bad
-          while IFS= read -r row; do
-            # row é base64: {p:path, s:sha1}
-            p="$(printf '%s' "$row" | base64 -d | jq -r '.p // empty')"
-            s="$(printf '%s' "$row" | base64 -d | jq -r '.s // empty')"
+
+          # Lê cada linha-JSON do manifesto de forma segura
+          while IFS= read -r line; do
+            p="$(jq -r 'try .path // empty' <<<"$line")"
+            s="$(jq -r 'try .sha1 // empty' <<<"$line")"
             [ -z "$p" ] && continue
             checked=$((checked+1))
-
             if [ ! -f "$p" ]; then
               echo "::error file=$p::T0 missing"
               miss+=("$p")
               continue
             fi
-
             if [ -n "$s" ]; then
               calc="$(git hash-object "$p")"
               if [ "$calc" != "$s" ]; then
@@ -50,21 +48,23 @@ jobs:
                 bad+=("$p")
               fi
             fi
-          done < <(jq -r -c '{p:.path,s:.sha1}|@base64' "$MAN")
+          done < "$MAN"
 
-          {
-            printf '{"gate":"T0","status":"%s","checked":%s' "$([ ${#miss[@]} -eq 0 ] && [ ${#bad[@]} -eq 0 ] && echo PASS || echo FAIL)" "$checked"
-            if [ ${#miss[@]} -gt 0 ]; then
-              printf ',"missing":['; for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done; printf ']'
-            fi
-            if [ ${#bad[@]} -gt 0 ]; then
-              printf ',"sha1_mismatch":['; for i in "${!bad[@]}"; do printf '"%s"%s' "${bad[$i]}" $([ "$i" -lt $((${#bad[@]}-1)) ] && echo , ); done; printf ']'
-            fi
-            printf '}\n'
-          } | tee "$OUT"
+          status='PASS'; if [ ${#miss[@]} -gt 0 ] || [ ${#bad[@]} -gt 0 ]; then status='FAIL'; fi
 
-          # Falha somente em caso de problema real
-          if [ ${#miss[@]} -gt 0 ] || [ ${#bad[@]} -gt 0 ]; then exit 1; fi
+          # Constrói arrays JSON com jq (sem truncar)
+          miss_json='[]'; [ ${#miss[@]} -gt 0 ] && miss_json="$(printf '%s\n' "${miss[@]}" | jq -R . | jq -s .)"
+          bad_json='[]';  [ ${#bad[@]}  -gt 0 ] && bad_json="$(printf  '%s\n' "${bad[@]}"  | jq -R . | jq -s .)"
+
+          jq -n \
+            --arg status "$status" \
+            --argjson checked "$checked" \
+            --argjson missing "$miss_json" \
+            --argjson bad "$bad_json" \
+            '{gate:"T0",status:$status,checked:$checked,missing:$missing,sha1_mismatch:$bad}' \
+            | tee "$OUT"
+
+          [ "$status" = "PASS" ] || exit 1
 
       - name: Upload evidência T0 (strict)
         if: always()
