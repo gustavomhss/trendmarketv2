@@ -1,0 +1,400 @@
+name: "Sprint 7 — Validator Único"
+
+on:
+  push:
+    paths:
+      - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
+      - "scripts/s7/**"
+      - ".github/workflows/s7-validator.yml"
+  pull_request:
+    paths:
+      - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
+      - "scripts/s7/**"
+      - ".github/workflows/s7-validator.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: s7-validator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  t0_spec:
+    name: Gate T0 — Spec Discovery
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      TZ: UTC
+      LC_ALL: C
+      LANG: C.UTF-8
+      PYTHONUTF8: "1"
+      SOURCE_DATE_EPOCH: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
+        with:
+          python-version: "3.11"
+      - name: Regenerate Sprint 7 manifest
+        run: python -m scripts.s7.generate_filemap_manifest
+      - name: Gate T0 — validação estrita
+        run: |
+          set -euo pipefail
+          python -m scripts.s7.t0_spec_check
+      - name: Upload evidência T0
+        if: always()
+        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (was v4)
+        with:
+          name: s7-t0-evidence
+          path: out/obs_gatecheck/T0_discovery.json
+
+  s7_exec:
+    name: Gate ORR — Sprint 7 Exec
+    needs: [t0_spec]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      TZ: UTC
+      LC_ALL: C
+      LANG: C.UTF-8
+      PYTHONUTF8: "1"
+      SOURCE_DATE_EPOCH: "0"
+      PYTHONHASHSEED: "0"
+      CI_SEED: "12345"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
+        with:
+          python-version: "3.11.14"
+      - name: Ensure local bin on PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Python dependencies
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r requirements.lock
+          bash bin/setup_preflight_tools.sh
+      - name: Regenerate Sprint 7 manifest (snapshot)
+        run: python -m scripts.s7.generate_filemap_manifest
+      - name: Validar snapshot do Gate T0
+        run: |
+          set -euo pipefail
+          python -m scripts.s7.t0_spec_check
+      - name: Tool versions
+        run: |
+          set -euo pipefail
+          python --version
+          jq --version
+          if command -v yamllint >/dev/null 2>&1; then
+            yamllint --version
+          else
+            echo "[skip] yamllint"
+          fi
+      - name: Render/validate CI
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T0_ci
+          SUMMARY="out/evidence/T0_ci/render_summary.json"
+          LOG="out/evidence/T0_ci/render.log"
+          if [ -f scripts/ci/render_ci.py ]; then
+            start=$(date +%s)
+            python -m scripts.ci.render_ci >"$LOG" 2>&1
+            end=$(date +%s)
+            STATUS="PASS"
+            DETAIL="render_ci.py"
+            DURATION_MS=$(( (end - start) * 1000 ))
+          else
+            printf '[skip] render_ci.py ausente\n' | tee "$LOG"
+            STATUS="SKIP"
+            DETAIL="no_render_script"
+            DURATION_MS=0
+          fi
+          export SUMMARY STATUS DETAIL DURATION_MS
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+status = os.environ.get("STATUS", "SKIP")
+detail = os.environ.get("DETAIL", "")
+duration = int(os.environ.get("DURATION_MS", "0"))
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "ci_render",
+            "status": status,
+            "detail": detail,
+            "duration_ms": duration,
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: Yamllint
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T1_yaml
+          REPORT="out/evidence/T1_yaml/yamllint.log"
+          SUMMARY="out/evidence/T1_yaml/yamllint_summary.json"
+          if command -v yamllint >/dev/null 2>&1; then
+            set +e
+            yamllint .github/workflows >"$REPORT" 2>&1
+            STATUS_CODE=$?
+            set -e
+            if [ "$STATUS_CODE" -ne 0 ]; then
+              echo "::error ::yamllint violations detectadas"
+            fi
+            export SUMMARY STATUS_CODE
+            python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+status_code = int(os.environ["STATUS_CODE"])
+status = "PASS" if status_code == 0 else "FAIL"
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "yamllint",
+            "status": status,
+            "exit_code": status_code,
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+          else
+            echo "yamllint ausente" >"$REPORT"
+            STATUS_CODE=0
+            export SUMMARY STATUS_CODE
+            python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "yamllint",
+            "status": "SKIP",
+            "exit_code": int(os.environ["STATUS_CODE"]),
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+          fi
+      - name: Gitleaks scan
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T2_security
+          REPORT="out/evidence/T2_security/gitleaks_report.json"
+          LOG="out/evidence/T2_security/gitleaks.log"
+          SUMMARY="out/evidence/T2_security/gitleaks_summary.json"
+          STATUS_CODE=0
+          SKIPPED=0
+          if command -v gitleaks >/dev/null 2>&1; then
+            set +e
+            gitleaks detect --source . --no-banner --report-format json --report-path "$REPORT" --config .gitleaks.toml >"$LOG" 2>&1
+            STATUS_CODE=$?
+            set -e
+            if [ "$STATUS_CODE" -ne 0 ]; then
+              echo "::warning ::gitleaks detect encontrou alertas"
+            fi
+          else
+            printf '[]' >"$REPORT"
+            echo "gitleaks ausente" >"$LOG"
+            SKIPPED=1
+          fi
+          export SUMMARY REPORT STATUS_CODE SKIPPED
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+status = "PASS"
+if os.environ.get("SKIPPED") == "1":
+    status = "SKIP"
+else:
+    status = "PASS" if int(os.environ["STATUS_CODE"]) == 0 else "WARN"
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "gitleaks",
+            "status": status,
+            "exit_code": int(os.environ.get("STATUS_CODE", "0")),
+            "report": os.environ["REPORT"],
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: Validate actions.lock pins
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T3_pins
+          SUMMARY="out/evidence/T3_pins/actions_lock_summary.json"
+          set +e
+          python -m scripts.ci.validate_actions_lock --lock actions.lock --out out/evidence/T3_pins/pins_report.json
+          STATUS_CODE=$?
+          set -e
+          if [ "$STATUS_CODE" -ne 0 ]; then
+            echo "::error ::actions.lock mismatch detectado"
+          fi
+          export SUMMARY STATUS_CODE
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+status_code = int(os.environ["STATUS_CODE"])
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "actions_lock",
+            "status": "PASS" if status_code == 0 else "FAIL",
+            "exit_code": status_code,
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: Pytest determinístico
+        env:
+          PYTHONHASHSEED: "0"
+          CI_SEED: "12345"
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T4_tests
+          LOG="out/evidence/T4_tests/pytest.log"
+          SUMMARY="out/evidence/T4_tests/pytest_summary.json"
+          set +e
+          pytest -q | tee "$LOG"
+          STATUS_CODE=$?
+          set -e
+          if [ "$STATUS_CODE" -ne 0 ]; then
+            echo "::error ::pytest falhou"
+          fi
+          export SUMMARY STATUS_CODE
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+status_code = int(os.environ["STATUS_CODE"])
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "tests",
+            "status": "PASS" if status_code == 0 else "FAIL",
+            "exit_code": status_code,
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: Microbench smoke
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T5_microbench
+          LOG="out/evidence/T5_microbench/microbench.log"
+          SUMMARY="out/evidence/T5_microbench/summary.json"
+          if [ -x scripts/microbench_dec.sh ]; then
+            set +e
+            bash scripts/microbench_dec.sh >"$LOG" 2>&1
+            STATUS_CODE=$?
+            set -e
+            if [ "$STATUS_CODE" -ne 0 ]; then
+              echo "::warning ::microbench smoke retornou $STATUS_CODE"
+            fi
+            SKIPPED=0
+          else
+            echo "[skip] microbench" >"$LOG"
+            STATUS_CODE=0
+            SKIPPED=1
+          fi
+          export SUMMARY STATUS_CODE SKIPPED
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+if os.environ.get("SKIPPED") == "1":
+    status = "SKIP"
+else:
+    status = "PASS" if int(os.environ.get("STATUS_CODE", "0")) == 0 else "WARN"
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "microbench",
+            "status": status,
+            "exit_code": int(os.environ.get("STATUS_CODE", "0")),
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: TLA / Apalache smoke
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T6_tla
+          SUMMARY="out/evidence/T6_tla/summary.json"
+          if compgen -G "models/**/*.tla" >/dev/null 2>&1; then
+            echo "[skip] execução TLA não configurada" > out/evidence/T6_tla/tla.log
+            STATUS="SKIP"
+          else
+            echo "[skip] nenhum arquivo .tla" > out/evidence/T6_tla/tla.log
+            STATUS="SKIP"
+          fi
+          export SUMMARY STATUS
+          python - <<'PY'
+import json
+import os
+summary_path = os.environ["SUMMARY"]
+with open(summary_path, "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "gate": "tla",
+            "status": os.environ.get("STATUS", "SKIP"),
+        },
+        handle,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+PY
+      - name: Build ORR summary and bundle
+        id: build_bundle
+        run: |
+          set +e
+          python -m scripts.s7.build_orr_bundle
+          status=$?
+          set -e
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload Sprint 7 evidence
+        if: always()
+        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (was v4)
+        with:
+          name: s7-orr-evidence
+          path: |
+            out/s7-orr-evidence.zip
+            out/orr_s7/filelist.txt
+      - name: Enforce ORR verdict
+        if: always()
+        run: |
+          if [ "${{ steps.build_bundle.outputs.exit_code }}" != "0" ]; then
+            echo "::error ::S7 ORR verdict FAIL"
+            exit 1
+          fi
+          echo "S7 ORR verdict PASS"

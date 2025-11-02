@@ -3,7 +3,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Python 3.11
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
+      uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87 # pinned (was v5)
       with:
         python-version: '3.11'
         check-latest: true

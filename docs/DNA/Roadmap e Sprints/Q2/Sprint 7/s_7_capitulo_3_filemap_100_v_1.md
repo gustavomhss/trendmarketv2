@@ -2,11 +2,12 @@
 ## Capítulo 3 — FILEMAP 100% (Blueprint para o Codex)
 Versão: v2 (2025-10-31)  
 Owner: PO • Eng: Codex • ORR: SRE  
-Referências normativas: Cap.1 **v7.1 FINAL**, Cap.2 **v4** (travados)
+Referências normativas: Cap.1 **v7.1 FINAL**, Cap.2 **v5** (travados)
 
 Changelog v2 (revisão da equipe — 100/10):
-- **Filemap exaustivo (100%)** com inventário *linha‑a‑linha* de arquivos → finalidade → consumidores → GATES → regras de conteúdo.  
-- **Checker de conformidade do filemap** (`scripts/ci/filemap_check.py`) com EXIT `12 filemap_mismatch` (executado em T1).  
+- **Manifesto NDJSON verificado**: `s_7_filemap_v_7.json` agora alimenta diretamente o Gate T0 (`t0_spec`) do workflow `s7-validator.yml` — divergência bloqueia merge.
+- **Filemap exaustivo (100%)** com inventário *linha‑a‑linha* de arquivos → finalidade → consumidores → GATES → regras de conteúdo.
+- **Checker de conformidade do filemap** (`scripts/ci/filemap_check.py`) com EXIT `12 filemap_mismatch` (executado em T1).
 - **Rastreabilidade**: matrizes (Arquivo→Gate; Arquivo→Entregável E1..E7; Gate→Evidência).  
 - **RACI por pasta** (Owner/Responsible/Consulted/Informed).  
 - **Pinos e versões cruzadas** (docs ↔ schemas ↔ scripts).  
@@ -30,7 +31,8 @@ Changelog v2 (revisão da equipe — 100/10):
 .
 ├─ .github/
 │  ├─ workflows/
-│  │  ├─ s7-exec.yml                       # MUST (wrapper)
+│  │  ├─ s7-validator.yml                  # MUST (workflow único; jobs `t0_spec` + `s7_exec`)
+│  │  ├─ s7-exec.yml                       # SHOULD (wrapper legado)
 │  │  └─ _s7-orr.yml                       # MUST (reutilizável)
 │  ├─ CODEOWNERS                           # MUST (RACI→Owner)
 │  └─ dependabot.yml                       # SHOULD (segurança)
@@ -74,6 +76,11 @@ Changelog v2 (revisão da equipe — 100/10):
 │  │  ├─ manifest.py                       # MUST
 │  │  ├─ pack.py                           # MUST (DEFLATE-6/repro)
 │  │  └─ verify_manifest.py                # MUST
+│  ├─ s7/
+│  │  ├─ __init__.py                       # MUST (namespace)
+│  │  ├─ generate_filemap_manifest.py      # MUST (Gate T0 — regenerar NDJSON)
+│  │  ├─ t0_spec_check.py                  # MUST (Gate T0 — validar NDJSON)
+│  │  └─ build_orr_bundle.py               # MUST (Bundle determinístico + RESUMO)
 │  ├─ merkle/
 │  │  ├─ merkle_build.py                   # MUST
 │  │  └─ append_only_guard.py              # MUST
@@ -111,9 +118,10 @@ Changelog v2 (revisão da equipe — 100/10):
 - `.gitleaks.toml` **MUST** conter allowlist apenas para `tests/fixtures/crypto/*`.  
 - `pyproject.toml` **MUST** fixar `python = "3.11.*"` e dependências mínimas (`jsonschema`, `pynacl`/`cryptography`, etc.) com *upper bounds* estáveis.  
 - `CODEOWNERS` **MUST** mapear:
-  - `scripts/crypto/*` → `@sre @security`  
-  - `.github/workflows/*` e `scripts/ci/*` → `@sre`  
-  - `schemas/v1/*` → `@po @sre`  
+  - `scripts/crypto/*` → `@sre @security`
+  - `.github/workflows/*` e `scripts/ci/*` → `@sre`
+  - `scripts/s7/*` → `@sre @qa`
+  - `schemas/v1/*` → `@po @sre`
   - `tests/**` → `@qa`  
 - `dependabot.yml` **SHOULD** cobrir `github-actions` (diário) e `pip` (semanal).
 
@@ -139,6 +147,9 @@ Changelog v2 (revisão da equipe — 100/10):
 ` final) e hashes com os **esperados** do Cap.1 §9; comparar ZIP reprodutível.  
 - `scripts/evidence/pack.py` **MUST** gerar ZIP com **DEFLATE nível 6**, ordem lexicográfica e `SOURCE_DATE_EPOCH=0`.  
 - `scripts/ci/filemap_check.py` **MUST** validar presença/nomes do inventário desta seção; EXIT `12 filemap_mismatch`.
+- `scripts/s7/generate_filemap_manifest.py` **MUST** gerar NDJSON estável (4 linhas) usando `git hash-object` e `json.dumps(..., separators=(", ", ": "))`.
+- `scripts/s7/t0_spec_check.py` **MUST** validar o NDJSON linha a linha, produzir `out/obs_gatecheck/T0_discovery.json` e garantir `checked=4` no PASS.
+- `scripts/s7/build_orr_bundle.py` **MUST** montar `out/s7-orr-evidence.zip` determinístico + `out/orr_s7/filelist.txt` e `RESUMO_ORR_S7.json` com watchers/versões.
 
 ---
 
@@ -179,6 +190,7 @@ Changelog v2 (revisão da equipe — 100/10):
 | `scripts/merkle/append_only_guard.py` | **E5 — Append‑only** |
 | `scripts/evidence/{manifest,pack,verify_manifest}.py` | **E7 — Empacotamento** |
 | `scripts/det/check_determinism.py` | **E6 — Determinismo** |
+| `scripts/s7/{generate_filemap_manifest,t0_spec_check,build_orr_bundle}.py` | **S7 — Gate T0/Bundle ORR** |
 
 ### F.3) Gate → Evidência (arquivo gerado)
 | Gate | Evidência (out/...) |
@@ -200,6 +212,7 @@ Changelog v2 (revisão da equipe — 100/10):
 |---|---|---|---|---|
 | `.github/workflows` | PO | SRE | Security | Dev Team |
 | `scripts/ci` | SRE | SRE | PO/Security | Dev Team |
+| `scripts/s7` | SRE | SRE | QA/PO | Dev Team |
 | `scripts/crypto` | Security | Dev | SRE | PO |
 | `scripts/normalizer` | PO | Dev | Data | SRE |
 | `scripts/merkle` | SRE | Dev | Security | PO |

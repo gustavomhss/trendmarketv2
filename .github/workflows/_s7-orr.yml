@@ -13,14 +13,14 @@ jobs:
   t0_ruleset_sanity:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
       - name: Ruleset sanity
         run: python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
 
   t1_yaml:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
       - name: Lint YAML
         run: |
           python -m scripts.ci.filemap_check --out out/evidence/T1_yaml/filemap_check.json
@@ -29,7 +29,7 @@ jobs:
   t2_security:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
       - name: Run gitleaks
         run: |
           mkdir -p out/evidence/T2_security
@@ -38,7 +38,7 @@ jobs:
   t3_pins:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
       - name: Generate lock
         run: |
           python -m scripts.ci.generate_actions_lock > actions.lock
@@ -51,8 +51,8 @@ jobs:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -63,8 +63,8 @@ jobs:
   t5_props:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Install
@@ -78,8 +78,8 @@ jobs:
       matrix:
         python-version: ["3.11.14", "3.11.9"]
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -90,8 +90,8 @@ jobs:
   t7_append_only:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Append-only guard
@@ -109,8 +109,8 @@ jobs:
       - t7_append_only
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72
-      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87
+      - uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+      - uses: actions/setup-python@3fbe49a64b204ce5b05c73e4593934d6683f2f87  # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Install
@@ -121,7 +121,7 @@ jobs:
           python -m scripts.evidence.manifest --root out --out out/MANIFEST.json
           python -m scripts.evidence.pack --root out --out out/s7-evidence.zip --manifest out/MANIFEST.json
           python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest out/MANIFEST.json
-      - uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90
+      - uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (was v4)
         with:
           name: s7-orr-evidence
           path: out/

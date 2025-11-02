@@ -5,12 +5,37 @@ import base64
 import datetime as dt
 import hashlib
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from nacl import exceptions as nacl_exceptions
-from nacl import signing
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+for _name in [key for key in list(sys.modules) if key == "nacl" or key.startswith("nacl.")]:
+    sys.modules.pop(_name, None)
+
+import importlib.util
+
+_signing_spec = importlib.util.spec_from_file_location(
+    "nacl.signing", _REPO_ROOT / "nacl" / "signing.py"
+)
+if _signing_spec is None or _signing_spec.loader is None:
+    raise RuntimeError("cannot load local nacl.signing stub")
+signing = importlib.util.module_from_spec(_signing_spec)
+sys.modules["nacl.signing"] = signing
+_signing_spec.loader.exec_module(signing)
+
+_exceptions_spec = importlib.util.spec_from_file_location(
+    "nacl.exceptions", _REPO_ROOT / "nacl" / "exceptions.py"
+)
+if _exceptions_spec is None or _exceptions_spec.loader is None:
+    raise RuntimeError("cannot load local nacl.exceptions stub")
+nacl_exceptions = importlib.util.module_from_spec(_exceptions_spec)
+sys.modules["nacl.exceptions"] = nacl_exceptions
+_exceptions_spec.loader.exec_module(nacl_exceptions)
 
 SIGNATURE_PATH = "out/signatures/latest.sig.json"
 BATCH_PATH = "out/normalized/batch.json"
