@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, List, Sequence
 
 REQUIRED_CONTEXTS = [
+    "S7 ORR Exec / t0_spec",
     "S7 ORR Exec / t0_ruleset_sanity",
     "S7 ORR Exec / t1_yaml",
     "S7 ORR Exec / t2_security",

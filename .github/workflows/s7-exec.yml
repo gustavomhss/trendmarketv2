@@ -19,6 +19,9 @@ on:
 
 jobs:
   run:
+    concurrency:
+      group: s7-exec-${{ github.ref || github.sha }}
+      cancel-in-progress: false
     uses: ./.github/workflows/_s7-orr.yml
     with:
       ref: ${{ github.event.inputs.ref || github.sha }}

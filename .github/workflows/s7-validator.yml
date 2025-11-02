@@ -31,7 +31,7 @@ jobs:
       SOURCE_DATE_EPOCH: "0"
     steps:
       - name: Checkout
-        uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
@@ -46,7 +46,7 @@ jobs:
           python -m scripts.s7.t0_spec_check
       - name: Upload evidência T0
         if: always()
-        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (was v4)
+        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (v4 SHA)
         with:
           name: s7-t0-evidence
           path: out/obs_gatecheck/T0_discovery.json
@@ -68,7 +68,7 @@ jobs:
       CI_SEED: "12345"
     steps:
       - name: Checkout
-        uses: actions/checkout@f43a0e5d5da3b32b842f6cce0cf5b7a9766f2a72  # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
@@ -384,7 +384,7 @@ PY
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
       - name: Upload Sprint 7 evidence
         if: always()
-        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (was v4)
+        uses: actions/upload-artifact@5d5fd0d0f13b66b0d7c0d180fba59a9d6f4b4c90  # pinned (v4 SHA)
         with:
           name: s7-orr-evidence
           path: |
