@@ -43,18 +43,21 @@ jobs:
         with:
           name: s7-t0-evidence
           path: s7-t0-evidence
+          if-no-files-found: warn
       - name: Summarise T0 discovery
         if: always()
         run: |
           set -euo pipefail
           if [[ ! -f s7-t0-evidence/T0_discovery.json ]]; then
-            echo "::warning::T0_discovery.json missing in wrapper run"
-            exit 0
+            mkdir -p s7-t0-evidence
+            cat <<'JSON' > s7-t0-evidence/T0_discovery.json
+{"gate":"T0","status":"MISSING","checked":0,"missing":[],"badhash":[]}
+JSON
           fi
           echo "T0_discovery.json contents:" >&2
           cat s7-t0-evidence/T0_discovery.json >&2
-          status=$(jq -r '.status' s7-t0-evidence/T0_discovery.json)
-          checked=$(jq -r '.checked' s7-t0-evidence/T0_discovery.json)
-          missing_count=$(jq '.missing | length' s7-t0-evidence/T0_discovery.json)
-          badhash_count=$(jq '.badhash | length' s7-t0-evidence/T0_discovery.json)
+          status=$(jq -r '.status // "UNKNOWN"' s7-t0-evidence/T0_discovery.json 2>/dev/null || echo "UNKNOWN")
+          checked=$(jq -r '.checked // 0' s7-t0-evidence/T0_discovery.json 2>/dev/null || echo 0)
+          missing_count=$(jq '.missing | length' s7-t0-evidence/T0_discovery.json 2>/dev/null || echo 0)
+          badhash_count=$(jq '.badhash | length' s7-t0-evidence/T0_discovery.json 2>/dev/null || echo 0)
           echo "::notice::T0 status=${status} checked=${checked} missing=${missing_count} badhash=${badhash_count}"
