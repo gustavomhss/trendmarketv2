@@ -13,6 +13,9 @@ on:
       - ".github/workflows/s7-validator.yml"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 concurrency:
   group: s7-validator-${{ github.ref }}
   cancel-in-progress: true
@@ -31,11 +34,11 @@ jobs:
       SOURCE_DATE_EPOCH: "0"
     steps:
       - name: Checkout
-uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
         with:
           python-version: "3.11"
       - name: Regenerate Sprint 7 manifest
@@ -68,11 +71,11 @@ uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (wa
       CI_SEED: "12345"
     steps:
       - name: Checkout
-uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Ensure local bin on PATH
@@ -196,6 +199,13 @@ with open(summary_path, "w", encoding="utf-8") as handle:
     )
 PY
           fi
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          if ! command -v gitleaks >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y gitleaks
+          fi
       - name: Gitleaks scan
         run: |
           set -euo pipefail
@@ -207,7 +217,7 @@ PY
           SKIPPED=0
           if command -v gitleaks >/dev/null 2>&1; then
             set +e
-            gitleaks detect --source . --no-banner --report-format json --report-path "$REPORT" --config .gitleaks.toml >"$LOG" 2>&1
+            gitleaks detect --source . --no-banner --redact --report-format json --report-path "$REPORT" --config .gitleaks.toml >"$LOG" 2>&1
             STATUS_CODE=$?
             set -e
             if [ "$STATUS_CODE" -ne 0 ]; then
