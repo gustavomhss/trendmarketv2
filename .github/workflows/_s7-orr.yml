@@ -3,6 +3,9 @@ name: "S7 — ORR (callee)"
 on:
   workflow_call:
     inputs:
+      ref:
+        type: string
+        required: false
       run_microbench:
         type: boolean
         required: false
@@ -39,6 +42,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: Gate T0 — manifest integrity
         id: manifest
         run: |
@@ -68,10 +72,7 @@ if not man.exists() or man.stat().st_size == 0:
     result["missing"].append(str(man))
 else:
     jq_proc = subprocess.run([
-        "jq",
-        "-c",
-        ".",
-        str(man),
+        "jq", "-c", ".[]? // .", str(man)
     ], capture_output=True, text=True)
     if jq_proc.returncode != 0:
         result["badhash"].append({
@@ -135,7 +136,49 @@ PY
       - name: Fail on T0 discovery issues
         if: steps.manifest.outputs.status == 'FAIL'
         run: |
-          echo "::error::T0 manifest checks failed. Review s7-t0-evidence/T0_discovery.json"
+          echo "::error::T0 manifest checks failed. Review artifact 's7-t0-evidence' (out/obs_gatecheck/T0_discovery.json)"
+          exit 1
+
+  t1b_actionlint:
+    name: t1b_actionlint
+    needs: t0_spec
+    runs-on: ubuntu-22.04
+    outputs:
+      status: ${{ steps.alint.outputs.status }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+      - name: Install actionlint (tarball)
+        run: |
+          set -euo pipefail
+          ver="1.7.1"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ver}/actionlint_${ver}_linux_amd64.tar.gz"
+          curl -fsSL "$url" -o actionlint.tgz
+          tar -xzf actionlint.tgz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint -version
+      - name: Run actionlint
+        id: alint
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T1b_actionlint
+          set +e
+          actionlint -color 2>&1 | tee out/evidence/T1b_actionlint/actionlint.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          status="PASS"; [ "$rc" -ne 0 ] && status="FAIL"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t1b-actionlint
+          path: out/evidence/T1b_actionlint
+      - name: Fail on actionlint issues
+        if: steps.alint.outputs.status == 'FAIL'
+        run: |
+          echo "::error::actionlint reported issues. Review s7-t1b-actionlint artifact."
           exit 1
 
   t1_yaml:
@@ -148,6 +191,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: '3.11'
@@ -290,6 +334,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -372,6 +417,7 @@ PY
     name: t3_pins
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
     runs-on: ubuntu-22.04
@@ -381,12 +427,24 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: scan pins
         id: scan
         run: |
           set -euo pipefail
           mkdir -p out/evidence/T3_pins
-          rg --line-number -e 'uses:[[:space:]]*"?actions/.+@' .github/workflows | tee out/evidence/T3_pins/pins.txt || true
+          if command -v rg >/dev/null 2>&1; then
+            set +e
+            rg --line-number -e 'uses:[[:space:]]*"?actions/.+@' .github/workflows | tee out/evidence/T3_pins/pins.txt
+            rg_rc=${PIPESTATUS[0]}
+            set -e
+            if [ "$rg_rc" -gt 1 ]; then
+              echo "rg failed with exit code $rg_rc" >&2
+              exit "$rg_rc"
+            fi
+          else
+            echo "[skip] ripgrep (rg) not installed" | tee out/evidence/T3_pins/pins.txt
+          fi
           python - <<'PY'
 import json
 import re
@@ -399,7 +457,7 @@ CANONICAL = {
     "actions/setup-python": "42375524e23c412d93fb67b49958b491fce71c38",
 }
 
-pattern = re.compile(r"uses:\s*"?([\w.-]+/[\w.-]+)@([A-Za-z0-9]+)")
+pattern = re.compile(r'uses:\s*"?([\w\.-]+/[\w\.-]+)@([A-Za-z0-9]+)')
 issues = []
 
 def is_sha(ref: str) -> bool:
@@ -469,6 +527,7 @@ PY
     name: t4_tests (py${{ matrix.py }})
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
     runs-on: ubuntu-22.04
@@ -480,6 +539,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -538,8 +598,17 @@ PY
             set +e
             python -m pip install --upgrade pip 2>&1 | tee "$out_dir/pip-upgrade.log"
             pip_upgrade_rc=${PIPESTATUS[0]}
-            python -m pip install ".[dev]" 2>&1 | tee "$out_dir/pip-install.log"
-            pip_install_rc=${PIPESTATUS[0]}
+            if { [ -f pyproject.toml ] && grep -Eq "\[project\]|\[tool.poetry\]" pyproject.toml; } || \
+               { [ -f setup.cfg ] && grep -Eq "\[metadata\]|\[options\]" setup.cfg; } || \
+               [ -f setup.py ]; then
+              python -m pip install ".[dev]" 2>&1 | tee "$out_dir/pip-install.log"; pip_install_rc=${PIPESTATUS[0]}
+            elif [ -f requirements-dev.txt ]; then
+              python -m pip install -r requirements-dev.txt 2>&1 | tee "$out_dir/pip-install.log"; pip_install_rc=${PIPESTATUS[0]}
+            elif [ -f requirements.txt ]; then
+              python -m pip install -r requirements.txt 2>&1 | tee "$out_dir/pip-install.log"; pip_install_rc=${PIPESTATUS[0]}
+            else
+              python -m pip install pytest 2>&1 | tee "$out_dir/pip-install.log"; pip_install_rc=${PIPESTATUS[0]}
+            fi
             pip freeze > "$out_dir/requirements-freeze.txt"
             freeze_rc=$?
             pytest -q 2>&1 | tee "$out_dir/pytest.txt"
@@ -570,6 +639,7 @@ PY
     name: t5_props
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
     runs-on: ubuntu-22.04
@@ -579,6 +649,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: Placeholder properties report
         id: placeholder
         run: |
@@ -596,6 +667,7 @@ PY
     name: t6_determinism (py${{ matrix.py }})
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
     runs-on: ubuntu-22.04
@@ -607,6 +679,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -732,6 +805,7 @@ PY
     name: t7_append_only
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
     runs-on: ubuntu-22.04
@@ -741,6 +815,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: append-only guard
         id: guard
         run: |
@@ -916,6 +991,7 @@ PY
     name: t8_pack
     needs:
       - t0_spec
+      - t1b_actionlint
       - t1_yaml
       - t2_security
       - t3_pins
@@ -928,6 +1004,8 @@ PY
     env:
       T0_STATUS: ${{ needs.t0_spec.outputs.status || '' }}
       T0_RESULT: ${{ needs.t0_spec.result }}
+      T1B_STATUS: ${{ needs.t1b_actionlint.outputs.status || '' }}
+      T1B_RESULT: ${{ needs.t1b_actionlint.result }}
       T1_STATUS: ${{ needs.t1_yaml.outputs.status || '' }}
       T1_RESULT: ${{ needs.t1_yaml.result }}
       T2_STATUS: ${{ needs.t2_security.outputs.status || '' }}
@@ -942,6 +1020,9 @@ PY
       T7_RESULT: ${{ needs.t7_append_only.result }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
       - name: pack bundle
         run: |
           set -euo pipefail
@@ -968,6 +1049,7 @@ def resolve_status(status_env: str | None, result_env: str | None) -> str:
 gates = []
 for gate, artifact in [
     ("T0", "s7-t0-evidence"),
+    ("T1B", "s7-t1b-actionlint"),
     ("T1", "s7-t1-yaml"),
     ("T2", "s7-t2-security"),
     ("T3", "s7-t3-pins"),
