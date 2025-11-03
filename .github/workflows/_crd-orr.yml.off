@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@  # pinned (was v4)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (was v4)
         with:
           fetch-depth: 0
       - name: Print inputs
@@ -58,7 +58,7 @@ jobs:
           mkdir -p out/obs_gatecheck/logs out/obs_gatecheck/evidence
           bash "${{ inputs.scripts_dir }}/orr_all.sh"
       - name: Upload ORR bundle
-        uses: actions/upload-artifact@  # pinned (was v4)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (was v4)
         with:
           name: obs-bundle-${{inputs.profile}}-${{inputs.environment}}
           path: |

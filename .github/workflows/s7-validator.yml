@@ -31,11 +31,11 @@ jobs:
       SOURCE_DATE_EPOCH: "0"
     steps:
       - name: Checkout
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
         with:
           python-version: "3.11"
       - name: Regenerate Sprint 7 manifest
@@ -46,7 +46,7 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
           python -m scripts.s7.t0_spec_check
       - name: Upload evidência T0
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (v4 SHA)
         with:
           name: s7-t0-evidence
           path: out/obs_gatecheck/T0_discovery.json
@@ -68,11 +68,11 @@ b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
       CI_SEED: "12345"
     steps:
       - name: Checkout
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned (v4 SHA)
         with:
           fetch-depth: 0
       - name: Setup Python
-b375524e23c412d93fb67b49958b491fce71c38  # pinned (was v5)
+uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # pinned (was v5)
         with:
           python-version: "3.11.14"
       - name: Ensure local bin on PATH
@@ -384,7 +384,7 @@ PY
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
       - name: Upload Sprint 7 evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (v4 SHA)
         with:
           name: s7-orr-evidence
           path: |

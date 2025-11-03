@@ -9,41 +9,35 @@ on:
       - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
       - ".github/workflows/s7-t0-fast.yml"
   workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: s7-t0-fast-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
 
 jobs:
   t0:
     runs-on: ubuntu-22.04
-    concurrency:
-      group: s7-t0-fast-${{ github.ref }}
-      cancel-in-progress: true
+    permissions:
+      contents: read
+      actions: write
     steps:
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-      - name: Gate T0 — existência (fast-pass)
-        shell: bash
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Evaluate manifest (fast mode)
         run: |
           set -euo pipefail
-          MAN='docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json'
-          OUT='out/obs_gatecheck/T0_discovery.json'
-          mkdir -p "$(dirname "$OUT")"
-          checked=0; miss=()
-          if [ -s "$MAN" ]; then
-            while IFS= read -r line; do
-              p="$(printf '%s' "$line" | jq -r 'try .path // empty')"; [ -z "$p" ] && continue
-              checked=$((checked+1)); [ -f "$p" ] || miss+=("$p")
-            done < "$MAN"
-          fi
-          if [ "${#miss[@]}" -gt 0 ]; then
-            { printf '{"gate":"T0","status":"FAIL","checked":%s,"missing":[' "$checked"
-              for i in "${!miss[@]}"; do printf '"%s"%s' "${miss[$i]}" $([ "$i" -lt $((${#miss[@]}-1)) ] && echo , ); done
-              printf ']}\n'; } > "$OUT"
-            echo "::warning::T0 FAIL (existence)"
-          else
-            printf '{"gate":"T0","status":"PASS","missing":[],"checked":%s}\n' "$checked" > "$OUT"
-            echo "::notice::T0 PASS (existence)"
-          fi
-        - name: Upload evidência T0
-          if: always()
-          uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
+          scripts/ci/t0_gate.sh --mode fast
+      - name: Upload evidência T0
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: s7-t0-evidence
           path: out/obs_gatecheck/T0_discovery.json
+          retention-days: 7
