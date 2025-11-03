@@ -6,6 +6,7 @@ on:
       ref:
         type: string
         required: false
+        default: ""
       run_microbench:
         type: boolean
         required: false
@@ -42,7 +43,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: Gate T0 — manifest integrity
         id: manifest
         run: |
@@ -71,9 +72,7 @@ result = {
 if not man.exists() or man.stat().st_size == 0:
     result["missing"].append(str(man))
 else:
-    jq_proc = subprocess.run([
-        "jq", "-c", ".[]? // .", str(man)
-    ], capture_output=True, text=True)
+    jq_proc = subprocess.run(["jq", "-c", ".[]? // .", str(man)], capture_output=True, text=True)
     if jq_proc.returncode != 0:
         result["badhash"].append({
             "path": str(man),
@@ -100,11 +99,7 @@ else:
             if not path.is_file():
                 result["missing"].append(str(path))
                 continue
-            hash_proc = subprocess.run(
-                ["git", "hash-object", "--", str(path)],
-                capture_output=True,
-                text=True,
-            )
+            hash_proc = subprocess.run(["git", "hash-object", "--", str(path)], capture_output=True, text=True)
             if hash_proc.returncode != 0:
                 result["badhash"].append({
                     "path": str(path),
@@ -149,7 +144,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: Install actionlint (tarball)
         run: |
           set -euo pipefail
@@ -191,7 +186,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: '3.11'
@@ -306,7 +301,7 @@ PY
           if [ "$rc" -eq 0 ]; then
             status="PASS"
             allow_manual_fix="true"
-          else
+          else:
             status="FAIL"
             allow_manual_fix="false"
           fi
@@ -334,7 +329,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -357,7 +352,7 @@ PY
           printf '%s\n' "$rc" > out/evidence/T2_security/exit_code.txt
           if [ "$rc" -eq 0 ]; then
             status="PASS"
-          else
+          else:
             status="FAIL"
           fi
           echo "status=$status" >> "$GITHUB_OUTPUT"
@@ -427,7 +422,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: scan pins
         id: scan
         run: |
@@ -539,7 +534,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -649,7 +644,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: Placeholder properties report
         id: placeholder
         run: |
@@ -679,7 +674,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -815,7 +810,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: append-only guard
         id: guard
         run: |
@@ -1022,7 +1017,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
       - name: pack bundle
         run: |
           set -euo pipefail
