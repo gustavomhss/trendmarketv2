@@ -9,66 +9,44 @@ on:
       - "docs/DNA/Roadmap e Sprints/Q2/Sprint 7/**"
       - ".github/workflows/s7-t0-strict.yml"
   workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: s7-t0-strict-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
 
 jobs:
   t0:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (v4 SHA)
-      - name: Gate T0 — existência + SHA1 (STRICT, jq)
-        shell: bash
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Evaluate manifest (strict mode)
+        id: gate
         run: |
           set -euo pipefail
-          MAN='docs/DNA/Roadmap e Sprints/Q2/Sprint 7/s_7_filemap_v_7.json'
-          OUT='out/obs_gatecheck/T0_discovery.json'
-          mkdir -p "$(dirname "$OUT")"
-
-          if [ ! -s "$MAN" ]; then
-            echo '{"gate":"T0","status":"FAIL","reason":"no_manifest","checked":0}' | tee "$OUT"
-            exit 1
-          fi
-
-          checked=0; declare -a miss bad
-
-          # Lê cada linha-JSON do manifesto de forma segura
-          while IFS= read -r line; do
-            p="$(jq -r 'try .path // empty' <<<"$line")"
-            s="$(jq -r 'try .sha1 // empty' <<<"$line")"
-            [ -z "$p" ] && continue
-            checked=$((checked+1))
-            if [ ! -f "$p" ]; then
-              echo "::error file=$p::T0 missing"
-              miss+=("$p")
-              continue
-            fi
-            if [ -n "$s" ]; then
-              calc="$(git hash-object "$p")"
-              if [ "$calc" != "$s" ]; then
-                echo "::warning file=$p::sha1 mismatch (calc=$calc expected=$s)"
-                bad+=("$p")
-              fi
-            fi
-          done < "$MAN"
-
-          status='PASS'; if [ ${#miss[@]} -gt 0 ] || [ ${#bad[@]} -gt 0 ]; then status='FAIL'; fi
-
-          # Constrói arrays JSON com jq (sem truncar)
-          miss_json='[]'; [ ${#miss[@]} -gt 0 ] && miss_json="$(printf '%s\n' "${miss[@]}" | jq -R . | jq -s .)"
-          bad_json='[]';  [ ${#bad[@]}  -gt 0 ] && bad_json="$(printf  '%s\n' "${bad[@]}"  | jq -R . | jq -s .)"
-
-          jq -n \
-            --arg status "$status" \
-            --argjson checked "$checked" \
-            --argjson missing "$miss_json" \
-            --argjson bad "$bad_json" \
-            '{gate:"T0",status:$status,checked:$checked,missing:$missing,sha1_mismatch:$bad}' \
-            | tee "$OUT"
-
-          [ "$status" = "PASS" ] || exit 1
-
+          scripts/ci/t0_gate.sh --mode fast
+          status=$(jq -r '.status' out/obs_gatecheck/T0_discovery.json)
+          echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Upload evidência T0 (strict)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # pinned (v4 SHA)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: s7-t0-strict-evidence
           path: out/obs_gatecheck/T0_discovery.json
+          retention-days: 7
+      - name: Falha se T0 estiver inválido
+        if: always() && steps.gate.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::T0 manifest check falhou (modo estrito)."
+          exit 1

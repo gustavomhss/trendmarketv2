@@ -1,3 +1,4 @@
+name: "S7 ORR Exec"
 on:
   workflow_call:
     inputs:
@@ -9,11 +10,15 @@ on:
         required: false
         type: boolean
         default: false
-
-name: "S7 ORR Exec"
-on:
   workflow_dispatch: {}
-
+permissions:
+  contents: read
+concurrency:
+  group: s7-orr-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
 env:
   TZ: UTC
   LC_ALL: C
@@ -22,96 +27,396 @@ env:
   SOURCE_DATE_EPOCH: "0"
 
 jobs:
-  t0_ruleset_sanity:
+  t0_spec:
+    name: "T0 – manifest guard"
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Ruleset sanity
-        run: python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Prepare workspace
+        run: |
+          set -euo pipefail
+          mkdir -p out/obs_gatecheck out/evidence/T0_ruleset_sanity
+      - name: Evaluate S7 manifest
+        id: t0_eval
+        run: |
+          set -euo pipefail
+          scripts/ci/t0_gate.sh --mode fast
+          status=$(jq -r '.status' out/obs_gatecheck/T0_discovery.json)
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Run ruleset sanity
+        run: |
+          set -euo pipefail
+          python -m scripts.ci.ruleset_sanity --out out/evidence/T0_ruleset_sanity/ruleset_check.json
+      - name: Upload T0 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t0-evidence
+          path: out/obs_gatecheck/T0_discovery.json
+          retention-days: 7
+      - name: Upload ruleset sanity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t0-ruleset-sanity
+          path: out/evidence/T0_ruleset_sanity
+          retention-days: 7
+      - name: Fail on T0 discovery issues
+        if: steps.t0_eval.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::T0 manifest checks failed. Review out/obs_gatecheck/T0_discovery.json"
+          exit 1
 
   t1_yaml:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - name: Lint YAML
+        id: t1_lint
         run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T1_yaml
+          status="PASS"
+          set +e
           python -m scripts.ci.filemap_check --out out/evidence/T1_yaml/filemap_check.json
+          rc_filemap=$?
+          if [[ $rc_filemap -ne 0 ]]; then
+            status="FAIL"
+          fi
           yamllint . | tee out/evidence/T1_yaml/yamllint_report.txt
+          rc_yaml=${PIPESTATUS[0]}
+          if [[ $rc_yaml -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T1 YAML evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t1-yaml
+          path: out/evidence/T1_yaml
+          retention-days: 7
+      - name: Fail on YAML issues
+        if: steps.t1_lint.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::YAML validation failed. See s7-t1-yaml artifact for details."
+          exit 1
 
   t2_security:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - name: Run gitleaks
+        id: t2_gitleaks
         run: |
+          set -euo pipefail
           mkdir -p out/evidence/T2_security
+          status="PASS"
+          set +e
           gitleaks detect --source . --no-banner --report-format json --report-path out/evidence/T2_security/gitleaks_report.json
+          rc=$?
+          if [[ $rc -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T2 security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t2-security
+          path: out/evidence/T2_security
+          retention-days: 7
+      - name: Fail on gitleaks findings
+        if: steps.t2_gitleaks.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::Gitleaks detected issues. Review s7-t2-security artifact."
+          exit 1
 
   t3_pins:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
       - name: Generate lock
+        id: t3_pins
         run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T3_pins
+          status="PASS"
+          set +e
           python -m scripts.ci.generate_actions_lock > actions.lock
+          rc_generate=$?
+          if [[ $rc_generate -ne 0 ]]; then
+            status="FAIL"
+          fi
           python -m scripts.ci.validate_actions_lock --lock actions.lock --out out/evidence/T3_pins/pins_report.json
+          rc_validate=$?
+          if [[ $rc_validate -ne 0 ]]; then
+            status="FAIL"
+          fi
           python -m scripts.ci.verify_action_commit_owners --workflows .github/workflows --out out/evidence/T3_pins/sha_origin_report.json
+          rc_verify=$?
+          if [[ $rc_verify -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T3 pins evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t3-pins
+          path: out/evidence/T3_pins
+          retention-days: 7
+      - name: Fail on pinning issues
+        if: steps.t3_pins.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::Pin validation failed. Review s7-t3-pins artifact."
+          exit 1
 
   t4_tests:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11.14", "3.11.9"]
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir '.[dev]'
       - name: Run pytest
-        run: pytest tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file=out/evidence/T4_tests/pytest_report.json
+        id: t4_pytest
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "out/evidence/T4_tests/${PYTHON_VERSION}"
+          status="PASS"
+          set +e
+          pytest tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file="out/evidence/T4_tests/${PYTHON_VERSION}/pytest_report.json"
+          rc=$?
+          if [[ $rc -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          printf '%s\n' "$rc" > "out/evidence/T4_tests/${PYTHON_VERSION}/exit_code.txt"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T4 test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t4-tests-${{ matrix.python-version }}
+          path: out/evidence/T4_tests/${{ matrix.python-version }}
+          retention-days: 7
+      - name: Fail on pytest errors
+        if: steps.t4_pytest.outputs.status == 'FAIL'
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          echo "::error::pytest failed for Python ${PYTHON_VERSION}. See s7-t4-tests-${PYTHON_VERSION} artifact."
+          exit 1
 
   t5_props:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir '.[dev]'
       - name: Run property tests
-        run: pytest tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json
+        id: t5_props
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T5_props
+          status="PASS"
+          set +e
+          pytest tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json
+          rc=$?
+          if [[ $rc -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          printf '%s\n' "$rc" > out/evidence/T5_props/exit_code.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T5 props evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t5-props
+          path: out/evidence/T5_props
+          retention-days: 7
+      - name: Fail on property test errors
+        if: steps.t5_props.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::Property tests failed. Review s7-t5-props artifact."
+          exit 1
 
   t6_determinism:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11.14", "3.11.9"]
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir '.[dev]'
       - name: Determinism
-        run: python -m scripts.det.check_determinism --out out/evidence/T6_determinism/compare.json
+        id: t6_determinism
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "out/evidence/T6_determinism/${PYTHON_VERSION}"
+          status="PASS"
+          set +e
+          python -m scripts.det.check_determinism --out "out/evidence/T6_determinism/${PYTHON_VERSION}/compare.json"
+          rc=$?
+          if [[ $rc -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          printf '%s\n' "$rc" > "out/evidence/T6_determinism/${PYTHON_VERSION}/exit_code.txt"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T6 determinism evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t6-determinism-${{ matrix.python-version }}
+          path: out/evidence/T6_determinism/${{ matrix.python-version }}
+          retention-days: 7
+      - name: Fail on determinism issues
+        if: steps.t6_determinism.outputs.status == 'FAIL'
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          set -euo pipefail
+          echo "::error::Determinism check failed for Python ${PYTHON_VERSION}. See s7-t6-determinism-${PYTHON_VERSION} artifact."
+          exit 1
 
   t7_append_only:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
       - name: Append-only guard
-        run: python -m scripts.merkle.append_only_guard --log data/log/log.jsonl --out out/evidence/T7_append_only/append_only_report.json
+        id: t7_append_only
+        run: |
+          set -euo pipefail
+          mkdir -p out/evidence/T7_append_only
+          status="PASS"
+          set +e
+          python -m scripts.merkle.append_only_guard --log data/log/log.jsonl --out out/evidence/T7_append_only/append_only_report.json
+          rc=$?
+          if [[ $rc -ne 0 ]]; then
+            status="FAIL"
+          fi
+          set -e
+          printf '%s\n' "$rc" > out/evidence/T7_append_only/exit_code.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload T7 append-only evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-t7-append-only
+          path: out/evidence/T7_append_only
+          retention-days: 7
+      - name: Fail on append-only issues
+        if: steps.t7_append_only.outputs.status == 'FAIL'
+        run: |
+          set -euo pipefail
+          echo "::error::Append-only guard failed. Review s7-t7-append-only artifact."
+          exit 1
 
   t8_pack:
     needs:
-      - t0_ruleset_sanity
+      - t0_spec
       - t1_yaml
       - t2_security
       - t3_pins
@@ -120,20 +425,35 @@ jobs:
       - t6_determinism
       - t7_append_only
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: "3.11.14"
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install .[dev]
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-cache-dir '.[dev]'
       - name: Build scorecard and evidence
         run: |
+          set -euo pipefail
           python -m scripts.scorecard.write --out out/scorecards/s7.json
           python -m scripts.evidence.manifest --root out --out out/MANIFEST.json
           python -m scripts.evidence.pack --root out --out out/s7-evidence.zip --manifest out/MANIFEST.json
           python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest out/MANIFEST.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - name: Upload ORR evidence bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: s7-orr-evidence
           path: out/
+          retention-days: 7

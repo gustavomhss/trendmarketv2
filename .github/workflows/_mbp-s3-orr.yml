@@ -7,8 +7,7 @@ true:
 jobs:
   orr:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@  # pinned (was v4)
+    steps:Ibd71901bbe5b1630ceea73d27597364c9af683  # pinned (was v4)
     - name: Tooling versions
       run: 'bash --version | head -n1 || true
 
@@ -42,7 +41,7 @@ jobs:
         \ then\n  echo \"TWAP FREEZE=YES \u2014 abortando conforme regra de release\"\
         \ >&2\n  exit 1\nelse\n  echo \"FREEZE=NO \u2014 ok para prosseguir\"\nfi\n"
     - name: Publicar artefatos
-      uses: actions/upload-artifact@  # pinned (was v4)
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # pinned (was v4)
       with:
         name: s3-evidence
         path: out/s3_gatecheck/evidence
