@@ -1,0 +1,2 @@
+# Placeholder for append-only exceptions ledger entries.
+# Each JSON file should contain objects with "path", "sha1" and "signature" keys.
