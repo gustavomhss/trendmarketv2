@@ -12,7 +12,11 @@ tests:
       - eval_time: 15m
         alertname: OBS_P95_Swap_TooHigh
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # Freshness >5s sustentada para oracle
@@ -23,7 +27,12 @@ tests:
       - eval_time: 10m
         alertname: OBS_Oracle_Stale
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', source: 'oracle', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              source: oracle
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # CDC lag >10s por 10m
@@ -34,7 +43,12 @@ tests:
       - eval_time: 15m
         alertname: OBS_CDC_Lag_Warn
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', stream: 'orders', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              stream: orders
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # CDC lag crítico >30s por 5m
@@ -45,7 +59,12 @@ tests:
       - eval_time: 10m
         alertname: OBS_CDC_Lag_Crit
         exp_alerts:
-          - exp_labels: {severity: 'critical', team: 'ce', stream: 'orders', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: critical
+              team: ce
+              stream: orders
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # Drift warn >0.2 por 30m
@@ -56,7 +75,12 @@ tests:
       - eval_time: 50m
         alertname: OBS_Drift_Critical_Feature_Warn
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', feature: 'price_psi', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              feature: price_psi
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # Drift crítico >0.4 por 15m
@@ -67,7 +91,12 @@ tests:
       - eval_time: 25m
         alertname: OBS_Drift_Critical_Feature_Crit
         exp_alerts:
-          - exp_labels: {severity: 'critical', team: 'ce', feature: 'volume_psi', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: critical
+              team: ce
+              feature: volume_psi
+              service: trendmarket-amm
+              env: dev
 
   - interval: 1m
     # Cobertura de hooks <0.95 por 30m
@@ -78,7 +107,10 @@ tests:
       - eval_time: 40m
         alertname: OBS_Hook_Coverage_Low
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              env: dev
 
   - interval: 1m
     # Hook sem execuções em 1h
@@ -89,7 +121,11 @@ tests:
       - eval_time: 1h
         alertname: OBS_Hook_Execution_Stalled
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', hook_id: 'hook_pre_trade', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              hook_id: hook_pre_trade
+              env: dev
 
   - interval: 1m
     # Cardinalidade excedendo 70% do budget
@@ -100,7 +136,10 @@ tests:
       - eval_time: 20m
         alertname: OBS_Cardinality_Budget_Warn
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', metric: 'amm_op_latency_seconds_bucket'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              metric: amm_op_latency_seconds_bucket
 
   - interval: 1m
     # Cardinalidade ultrapassando 90% do budget
@@ -111,7 +150,10 @@ tests:
       - eval_time: 20m
         alertname: OBS_Cardinality_Budget_Crit
         exp_alerts:
-          - exp_labels: {severity: 'critical', team: 'ce', metric: 'data_freshness_seconds'}
+          - exp_labels:
+              severity: critical
+              team: ce
+              metric: data_freshness_seconds
 
   - interval: 1m
     # Synthetic ok ratio abaixo de 99%
@@ -122,4 +164,9 @@ tests:
       - eval_time: 20m
         alertname: OBS_Synthetic_OK_Ratio_Low
         exp_alerts:
-          - exp_labels: {severity: 'warn', team: 'ce', route: 'swap', service: 'trendmarket-amm', env: 'dev'}
+          - exp_labels:
+              severity: warn
+              team: ce
+              route: swap
+              service: trendmarket-amm
+              env: dev
