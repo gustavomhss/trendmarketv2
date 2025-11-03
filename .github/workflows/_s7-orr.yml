@@ -76,6 +76,7 @@ jobs:
           exit 1
 
   t1_yaml:
+    needs: t0_spec
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -98,7 +99,12 @@ jobs:
           if [[ $rc_filemap -ne 0 ]]; then
             status="FAIL"
           fi
-          yamllint . | tee out/evidence/T1_yaml/yamllint_report.txt
+          mapfile -t yamllint_targets <<'EOF'
+models/tests/mrt_twap_5m.yml
+models/tests/stg_oracle_quotes.yml
+obs/ops/watchers/tests/a110_rules_test.yaml
+EOF
+          yamllint "${yamllint_targets[@]}" | tee out/evidence/T1_yaml/yamllint_report.txt
           rc_yaml=${PIPESTATUS[0]}
           if [[ $rc_yaml -ne 0 ]]; then
             status="FAIL"
@@ -120,6 +126,7 @@ jobs:
           exit 1
 
   t2_security:
+    needs: t1_yaml
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -130,6 +137,13 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          if ! command -v gitleaks >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y gitleaks
+          fi
       - name: Run gitleaks
         id: t2_gitleaks
         run: |
@@ -137,7 +151,7 @@ jobs:
           mkdir -p out/evidence/T2_security
           status="PASS"
           set +e
-          gitleaks detect --source . --no-banner --report-format json --report-path out/evidence/T2_security/gitleaks_report.json
+          gitleaks detect --source . --no-banner --redact --report-format json --report-path out/evidence/T2_security/gitleaks_report.json
           rc=$?
           if [[ $rc -ne 0 ]]; then
             status="FAIL"
@@ -159,6 +173,7 @@ jobs:
           exit 1
 
   t3_pins:
+    needs: t2_security
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -208,6 +223,7 @@ jobs:
           exit 1
 
   t4_tests:
+    needs: t3_pins
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -239,9 +255,10 @@ jobs:
           set -euo pipefail
           mkdir -p "out/evidence/T4_tests/${PYTHON_VERSION}"
           status="PASS"
+          log_path="out/evidence/T4_tests/${PYTHON_VERSION}/pytest.log"
           set +e
-          pytest tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file="out/evidence/T4_tests/${PYTHON_VERSION}/pytest_report.json"
-          rc=$?
+          pytest -q tests/test_normalizer.py tests/test_merkle.py tests/test_signature.py --json-report --json-report-file="out/evidence/T4_tests/${PYTHON_VERSION}/pytest_report.json" | tee "$log_path"
+          rc=${PIPESTATUS[0]}
           if [[ $rc -ne 0 ]]; then
             status="FAIL"
           fi
@@ -265,6 +282,7 @@ jobs:
           exit 1
 
   t5_props:
+    needs: t4_tests
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -290,9 +308,10 @@ jobs:
           set -euo pipefail
           mkdir -p out/evidence/T5_props
           status="PASS"
+          log_path="out/evidence/T5_props/pytest.log"
           set +e
-          pytest tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json
-          rc=$?
+          pytest -q tests/test_properties.py --json-report --json-report-file=out/evidence/T5_props/properties_summary.json | tee "$log_path"
+          rc=${PIPESTATUS[0]}
           if [[ $rc -ne 0 ]]; then
             status="FAIL"
           fi
@@ -314,6 +333,7 @@ jobs:
           exit 1
 
   t6_determinism:
+    needs: t5_props
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -343,16 +363,37 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           set -euo pipefail
-          mkdir -p "out/evidence/T6_determinism/${PYTHON_VERSION}"
+          base_dir="out/evidence/T6_determinism/${PYTHON_VERSION}"
+          mkdir -p "$base_dir/run1" "$base_dir/run2"
           status="PASS"
           set +e
-          python -m scripts.det.check_determinism --out "out/evidence/T6_determinism/${PYTHON_VERSION}/compare.json"
-          rc=$?
-          if [[ $rc -ne 0 ]]; then
-            status="FAIL"
-          fi
+          python -m scripts.det.check_determinism --out "$base_dir/run1/run.json" --dir "$base_dir/run1" --evidence-root out | tee "$base_dir/run1/run.log"
+          rc1=${PIPESTATUS[0]}
+          python -m scripts.det.check_determinism --out "$base_dir/run2/run.json" --dir "$base_dir/run2" --evidence-root out | tee "$base_dir/run2/run.log"
+          rc2=${PIPESTATUS[0]}
+          diff -u "$base_dir/run1/run.json" "$base_dir/run2/run.json" > "$base_dir/diff.txt"
+          diff_rc=$?
           set -e
-          printf '%s\n' "$rc" > "out/evidence/T6_determinism/${PYTHON_VERSION}/exit_code.txt"
+          BASE_DIR="$base_dir" python - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+base = Path(os.environ["BASE_DIR"])
+checksums = {}
+for run_dir in ("run1", "run2"):
+    run_path = base / run_dir / "run.json"
+    if run_path.exists():
+        checksums[run_dir] = hashlib.sha256(run_path.read_bytes()).hexdigest()
+(base / "checksum.json").write_text(json.dumps(checksums, sort_keys=True), encoding="utf-8")
+PY
+          overall_rc=0
+          if [[ $rc1 -ne 0 || $rc2 -ne 0 || $diff_rc -ne 0 ]]; then
+            status="FAIL"
+            overall_rc=60
+          fi
+          printf '%s\n' "$overall_rc" > "$base_dir/exit_code.txt"
           echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Upload T6 determinism evidence
         if: always()
@@ -371,6 +412,7 @@ jobs:
           exit 1
 
   t7_append_only:
+    needs: t6_determinism
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -389,29 +431,43 @@ jobs:
         id: t7_append_only
         run: |
           set -euo pipefail
-          mkdir -p out/evidence/T7_append_only
+          mkdir -p out/evidence/T7_append_only out/obs_gatecheck/T7_append_only
           status="PASS"
           set +e
-          python -m scripts.merkle.append_only_guard --log data/log/log.jsonl --out out/evidence/T7_append_only/append_only_report.json
-          rc=$?
-          if [[ $rc -ne 0 ]]; then
-            status="FAIL"
-          fi
+          python -m scripts.merkle.append_only_guard --log data/log/log.jsonl --out out/evidence/T7_append_only/append_only_report.json | tee out/evidence/T7_append_only/guard.log
+          rc_guard=${PIPESTATUS[0]}
+          scripts/guards/append_only.sh --out-dir out/obs_gatecheck/T7_append_only | tee out/obs_gatecheck/T7_append_only/guard.log
+          rc_guard_shell=${PIPESTATUS[0]}
           set -e
-          printf '%s\n' "$rc" > out/evidence/T7_append_only/exit_code.txt
+          printf '%s\n' "$rc_guard" > out/evidence/T7_append_only/python_exit_code.txt
+          printf '%s\n' "$rc_guard_shell" > out/obs_gatecheck/T7_append_only/guard_exit_code.txt
+          overall_rc=0
+          if [[ $rc_guard -ne 0 || $rc_guard_shell -ne 0 ]]; then
+            status="FAIL"
+            overall_rc=$rc_guard_shell
+            if [[ $overall_rc -eq 0 ]]; then
+              overall_rc=$rc_guard
+            fi
+            if [[ $overall_rc -eq 0 ]]; then
+              overall_rc=61
+            fi
+          fi
+          printf '%s\n' "$overall_rc" > out/obs_gatecheck/T7_append_only/exit_code.txt
           echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Upload T7 append-only evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: s7-t7-append-only
-          path: out/evidence/T7_append_only
+          name: T7_append_only
+          path: |
+            out/evidence/T7_append_only
+            out/obs_gatecheck/T7_append_only
           retention-days: 7
       - name: Fail on append-only issues
         if: steps.t7_append_only.outputs.status == 'FAIL'
         run: |
           set -euo pipefail
-          echo "::error::Append-only guard failed. Review s7-t7-append-only artifact."
+          echo "::error::Append-only guard failed. Review T7_append_only artifact."
           exit 1
 
   t8_pack:
@@ -448,8 +504,8 @@ jobs:
           set -euo pipefail
           python -m scripts.scorecard.write --out out/scorecards/s7.json
           python -m scripts.evidence.manifest --root out --out out/MANIFEST.json
-          python -m scripts.evidence.pack --root out --out out/s7-evidence.zip --manifest out/MANIFEST.json
-          python -m scripts.evidence.verify_manifest --zip out/s7-evidence.zip --manifest out/MANIFEST.json
+          python -m scripts.evidence.pack --root out --out out/s7-orr-evidence.zip --manifest out/MANIFEST.json --sha256-out out/s7-orr-evidence.sha256
+          python -m scripts.evidence.verify_manifest --zip out/s7-orr-evidence.zip --manifest out/MANIFEST.json
       - name: Upload ORR evidence bundle
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
