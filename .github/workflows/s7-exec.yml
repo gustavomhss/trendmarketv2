@@ -68,8 +68,7 @@ jobs:
           if [[ -z "$target" ]]; then
             mkdir -p s7-t0-evidence
             target="s7-t0-evidence/T0_discovery.json"
-            printf '%s
-' '{"gate":"T0","status":"MISSING","checked":0,"missing":[],"badhash":[]}' > "$target"
+            printf '%s\n' '{"gate":"T0","status":"MISSING","checked":0,"missing":[],"badhash":[]}' > "$target"
           fi
           echo "T0_discovery.json contents:" >&2
           cat "$target" >&2
