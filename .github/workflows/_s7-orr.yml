@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Gate T0 — manifest integrity
         id: manifest
         run: |
@@ -144,7 +144,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Install actionlint (tarball)
         run: |
           set -euo pipefail
@@ -186,7 +186,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: '3.11'
@@ -329,7 +329,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -391,8 +391,8 @@ for finding in findings:
     })
 
 summary = {
-    'total_findings': len(entries),
-    'entries': entries,
+        'total_findings': len(entries),
+        'entries': entries,
 }
 
 summary_path.write_text(json.dumps(summary, indent=2), encoding='utf-8')
@@ -422,7 +422,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: scan pins
         id: scan
         run: |
@@ -437,7 +437,7 @@ PY
               echo "rg failed with exit code $rg_rc" >&2
               exit "$rg_rc"
             fi
-          else
+          else:
             echo "[skip] ripgrep (rg) not installed" | tee out/evidence/T3_pins/pins.txt
           fi
           python - <<'PY'
@@ -485,15 +485,15 @@ for path in Path(".github/workflows").rglob("*.yml"):
 
 out_dir = Path("out/evidence/T3_pins")
 out_dir.mkdir(parents=True, exist_ok=True)
-Path(out_dir / "canonical_map.json").write_text(json.dumps(CANONICAL, indent=2), encoding="utf-8")
-Path(out_dir / "pin_audit.json").write_text(json.dumps({"issues": issues}, indent=2), encoding="utf-8")
+Path(out_dir / "canonical_map.json").write_text(json.dumps(CANONICAL, indent=2), encoding='utf-8')
+Path(out_dir / "pin_audit.json").write_text(json.dumps({"issues": issues}, indent=2), encoding='utf-8')
 PY
           python - <<'PY'
 import json
 from pathlib import Path
 pin_path = Path("out/evidence/T3_pins/pin_audit.json")
 if not pin_path.exists():
-    pin_path.write_text(json.dumps({"issues": []}, indent=2), encoding="utf-8")
+    pin_path.write_text(json.dumps({"issues": []}, indent=2), encoding='utf-8')
 PY
           status=$(python - <<'PY'
 import json
@@ -534,7 +534,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -644,7 +644,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Placeholder properties report
         id: placeholder
         run: |
@@ -674,7 +674,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -810,7 +810,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: append-only guard
         id: guard
         run: |
@@ -1017,7 +1017,7 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: pack bundle
         run: |
           set -euo pipefail
@@ -1068,7 +1068,7 @@ summary = {
     "gates": gates,
     "status_counts": counts,
 }
-Path("out/orr_bundle/summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+Path("out/orr_bundle/summary.json").write_text(json.dumps(summary, indent=2), encoding='utf-8')
 PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
