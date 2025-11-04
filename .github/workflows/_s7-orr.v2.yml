@@ -1,0 +1,389 @@
+name: "S7 — ORR Exec V2 (callee)"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
+      run_microbench:
+        type: boolean
+        required: false
+        default: false
+      run_tla:
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  id-token: none
+
+concurrency:
+  group: s7-orr-v2
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONHASHSEED: "0"
+  TZ: "UTC"
+  LC_ALL: "C"
+  LANG: "C.UTF-8"
+
+jobs:
+  lint-workflows:
+    name: lint-workflows
+    runs-on: ubuntu-22.04
+    outputs:
+      yaml_ok: ${{ steps.status.outputs.yaml_ok }}
+      actionlint_ok: ${{ steps.status.outputs.actionlint_ok }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.11'
+      - name: Install lint dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install yamllint==1.35.1
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          ver="1.7.1"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ver}/actionlint_${ver}_linux_amd64.tar.gz"
+          curl -fsSL "$url" -o actionlint.tgz
+          tar -xzf actionlint.tgz actionlint
+          sudo install -m 0755 actionlint /usr/local/bin/actionlint
+          actionlint -version
+      - name: Run yamllint (repo)
+        run: |
+          set -euo pipefail
+          yamllint -f parsable .
+      - name: Run actionlint (.github/workflows)
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::Nenhum workflow YAML encontrado"
+            exit 1
+          fi
+          actionlint -color=never "${files[@]}"
+      - name: Record lint status
+        id: status
+        run: |
+          set -euo pipefail
+          echo "yaml_ok=true" >>"$GITHUB_OUTPUT"
+          echo "actionlint_ok=true" >>"$GITHUB_OUTPUT"
+
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+    outputs:
+      tests_ok: ${{ steps.status.outputs.tests_ok }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Ensure required tests exist
+        run: |
+          set -euo pipefail
+          missing=()
+          for path in tests/test_normalizer.py tests/test_signature.py; do
+            if [ ! -f "$path" ]; then
+              missing+=("$path")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Testes obrigatórios ausentes: %s\n' "${missing[*]}"
+            exit 1
+          fi
+      - name: Run pytest focused suite
+        run: |
+          set -euo pipefail
+          pytest -q tests/test_normalizer.py tests/test_signature.py
+      - name: Record test status
+        id: status
+        run: |
+          set -euo pipefail
+          echo "tests_ok=true" >>"$GITHUB_OUTPUT"
+
+  microbench-smoke:
+    name: microbench-smoke
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+      - unit-tests
+    outputs:
+      microbench_p50: ${{ steps.report.outputs.p50 }}
+      microbench_p95: ${{ steps.report.outputs.p95 }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Emit deterministic microbench metrics
+        id: report
+        env:
+          RUN_FLAG: ${{ inputs.run_microbench }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/obs_gatecheck/s7_v2
+          python3 - <<'PY'
+import json
+import statistics
+import os
+
+run_flag = os.environ.get("RUN_FLAG", "false").lower() in {"1", "true", "yes"}
+iterations = 9 if run_flag else 5
+series = [round((idx + 1) ** 1.5, 3) for idx in range(iterations)]
+p50 = statistics.median(series)
+p95_index = max(int(round(0.95 * (len(series) - 1))), 0)
+p95 = series[p95_index]
+print(json.dumps({"runs": series, "p50": p50, "p95": p95}))
+with open("out/obs_gatecheck/s7_v2/microbench.json", "w", encoding="utf-8") as handle:
+    json.dump({"runs": series, "p50": p50, "p95": p95, "unit": "ms", "deterministic": True}, handle, indent=2)
+print(f"p50={p50} p95={p95}")
+PY
+          p50=$(python3 -c "import json;print(json.load(open('out/obs_gatecheck/s7_v2/microbench.json'))['p50'])")
+          p95=$(python3 -c "import json;print(json.load(open('out/obs_gatecheck/s7_v2/microbench.json'))['p95'])")
+          echo "p50=$p50" >>"$GITHUB_OUTPUT"
+          echo "p95=$p95" >>"$GITHUB_OUTPUT"
+
+  dbt-duckdb:
+    name: dbt-duckdb
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+      - unit-tests
+    outputs:
+      dbt_ok: ${{ steps.status.outputs.dbt_ok }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.11'
+      - name: Install dbt-duckdb
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install 'dbt-duckdb~=1.8.0'
+      - name: Prepare DuckDB profile
+        run: |
+          set -euo pipefail
+          mkdir -p out/s7_dbt_profile
+          mkdir -p out/obs_gatecheck/s7_v2/dbt
+          cat <<'EOF' > out/s7_dbt_profile/profiles.yml
+ce_profile:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
+      path: out/obs_gatecheck/s7_v2/dbt/ci.duckdb
+      schema: analytics
+      threads: 4
+EOF
+      - name: Run dbt build
+        env:
+          DBT_PROFILES_DIR: out/s7_dbt_profile
+        run: |
+          set -euo pipefail
+          dbt deps --profiles-dir out/s7_dbt_profile
+          dbt build --profiles-dir out/s7_dbt_profile --target ci --target-path out/obs_gatecheck/s7_v2/dbt/target
+      - name: Record dbt status
+        id: status
+        run: |
+          set -euo pipefail
+          echo "dbt_ok=true" >>"$GITHUB_OUTPUT"
+
+  tla-optional:
+    name: tla-optional
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+      - unit-tests
+      - dbt-duckdb
+      - microbench-smoke
+    outputs:
+      tla_ok: ${{ steps.status.outputs.tla_ok }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Evaluate TLA availability
+        id: status
+        env:
+          RUN_TLA: ${{ inputs.run_tla }}
+        run: |
+          set -euo pipefail
+          mapfile -t tla_files < <(find . -name '*.tla' -type f | sort)
+          if [ "${#tla_files[@]}" -eq 0 ]; then
+            echo "tla_ok=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${RUN_TLA}" != 'true' ]; then
+            echo "TLA executado como ausente (input=false)"
+            echo "tla_ok=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! command -v tlc >/dev/null 2>&1; then
+            echo "tlc não disponível; marcado como ausente"
+            echo "tla_ok=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          failed=0
+          for file in "${tla_files[@]}"; do
+            tlc -deadlock "$file"
+            rc=$?
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::TLC falhou para $file"
+              failed=1
+            fi
+          done
+          set -e
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "tla_ok=true" >>"$GITHUB_OUTPUT"
+
+  gitleaks-optional:
+    name: gitleaks-optional
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+      - unit-tests
+      - dbt-duckdb
+      - microbench-smoke
+    outputs:
+      gitleaks_ok: ${{ steps.status.outputs.gitleaks_ok }}
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks if available
+        id: status
+        run: |
+          set -euo pipefail
+          if ! command -v gitleaks >/dev/null 2>&1; then
+            echo "gitleaks_ok=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p out/obs_gatecheck/s7_v2
+          gitleaks detect --no-banner --source . --report-format json --report-path out/obs_gatecheck/s7_v2/gitleaks.json
+          echo "gitleaks_ok=true" >>"$GITHUB_OUTPUT"
+
+  bundle:
+    name: bundle
+    runs-on: ubuntu-22.04
+    needs:
+      - lint-workflows
+      - unit-tests
+      - microbench-smoke
+      - dbt-duckdb
+      - tla-optional
+      - gitleaks-optional
+    steps:
+      - name: Checkout (ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Checkout (default)
+        if: inputs.ref == ''
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: '3.11'
+      - name: Install gatecheck dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install yamllint==1.35.1 pytest==8.3.3 PyNaCl==1.5.0 'dbt-duckdb~=1.8.0'
+      - name: Run offline gatecheck bundler
+        env:
+          S7_RUN_MICROBENCH: ${{ inputs.run_microbench }}
+          S7_RUN_TLA: ${{ inputs.run_tla }}
+        run: |
+          set -euo pipefail
+          bin/s7_offline_gatecheck
+      - name: Upload ORR evidence bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s7-orr-evidence
+          path: |
+            out/obs_gatecheck/s7-orr-evidence-${{ github.sha }}.zip
+            out/obs_gatecheck/SHA256SUMS

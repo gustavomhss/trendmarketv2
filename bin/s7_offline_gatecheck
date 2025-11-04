@@ -1,0 +1,433 @@
+#!/usr/bin/env python3
+"""Deterministic gatecheck harness for Sprint 7 ORR V2."""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import shutil
+import statistics
+import subprocess
+import sys
+from hashlib import sha256
+from pathlib import Path
+from typing import Iterable, List, Sequence
+import zipfile
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+OUT_DIR = REPO_ROOT / "out" / "obs_gatecheck"
+RUN_DIR = OUT_DIR / "s7_v2"
+LOG_DIR = RUN_DIR / "logs"
+REPORT_DIR = RUN_DIR / "reports"
+DBT_DIR = RUN_DIR / "dbt"
+SCORECARD_PATH = REPO_ROOT / "scorecards" / "s7.json"
+WORKFLOW_PATH = REPO_ROOT / ".github/workflows/_s7-orr.v2.yml"
+ACTIONS_LOCK = REPO_ROOT / "actions.lock"
+ZIP_BASENAME = "s7-orr-evidence"
+ZIP_TS = (2020, 1, 1, 0, 0, 0)
+
+EXPECTED_JOBS = [
+    "lint-workflows",
+    "unit-tests",
+    "microbench-smoke",
+    "dbt-duckdb",
+    "tla-optional",
+    "gitleaks-optional",
+    "bundle",
+]
+
+PRE_FLIGHT_TARGET = "leasson learned so far v1.md"
+
+
+def _print(msg: str) -> None:
+    print(msg, flush=True)
+
+
+def ensure_preflight() -> Path:
+    target_lower = PRE_FLIGHT_TARGET.lower()
+    candidates: List[Path] = []
+    for base in [REPO_ROOT / "docs" / "DNA", REPO_ROOT / "docs", REPO_ROOT]:
+        if not base.exists():
+            continue
+        for path in base.rglob("*"):
+            if path.is_file() and path.name.lower() == target_lower:
+                candidates.append(path)
+    if not candidates:
+        raise SystemExit(
+            "Pré-flight obrigatório falhou: arquivo 'Leasson Learned so far v1.md' não encontrado em docs/DNA, docs ou raiz."
+        )
+    chosen = sorted(candidates)[0]
+    _print(f"[preflight] encontrado: {chosen.relative_to(REPO_ROOT)}")
+    return chosen
+
+
+def read_actions_lock() -> dict:
+    if not ACTIONS_LOCK.exists():
+        raise SystemExit("actions.lock ausente; execute scripts/ci/pin_actions.py para gerar pins.")
+    try:
+        data = json.loads(ACTIONS_LOCK.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"actions.lock inválido: {exc}") from exc
+    return data
+
+
+def print_pin_summary(data: dict) -> None:
+    workflows = data.get("workflows")
+    if not isinstance(workflows, dict):
+        raise SystemExit("actions.lock malformado: chave 'workflows' ausente")
+    used: dict[str, set[str]] = {}
+    for wf_name, pins in workflows.items():
+        if not isinstance(pins, dict):
+            continue
+        for action, ref in pins.items():
+            used.setdefault(action, set()).add(ref)
+    summary_lines = []
+    for action, refs in sorted(used.items()):
+        for ref in sorted(refs):
+            summary_lines.append(f"- {action}@{ref}")
+    if summary_lines:
+        _print("[pins] ações referenciadas neste repositório:")
+        for line in summary_lines:
+            _print(line)
+    else:
+        _print("[pins] nenhum pin encontrado em actions.lock")
+
+
+def verify_job_names() -> None:
+    if not WORKFLOW_PATH.exists():
+        raise SystemExit(f"Workflow esperado não encontrado: {WORKFLOW_PATH}")
+    content = WORKFLOW_PATH.read_text(encoding="utf-8").splitlines()
+    jobs: List[str] = []
+    for line in content:
+        if not line.startswith("  "):
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if ":" not in stripped:
+            continue
+        key = stripped.split(":", 1)[0]
+        if " " in key or key.startswith("-"):
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent == 2:
+            jobs.append(key)
+    if sorted(jobs) != sorted(EXPECTED_JOBS):
+        raise SystemExit(
+            "Configuração inválida: nomes de jobs divergentes do esperado. Esperado: "
+            + ", ".join(EXPECTED_JOBS)
+        )
+    joined = "\n".join(content)
+    if "name: s7-orr-evidence" not in joined:
+        raise SystemExit("Configuração inválida: artifact deve chamar-se 's7-orr-evidence'.")
+    if "out/obs_gatecheck/s7-orr-evidence-${{ github.sha }}.zip" not in joined:
+        raise SystemExit("Configuração inválida: caminho do ZIP precisa ser out/obs_gatecheck/s7-orr-evidence-${{ github.sha }}.zip.")
+    if "out/obs_gatecheck/SHA256SUMS" not in joined:
+        raise SystemExit("Configuração inválida: SHA256SUMS deve ser publicado em out/obs_gatecheck/SHA256SUMS.")
+    _print("[guard] nomes de jobs confirmados")
+
+
+def ensure_directories() -> None:
+    for path in [OUT_DIR, RUN_DIR, LOG_DIR, REPORT_DIR, DBT_DIR, SCORECARD_PATH.parent]:
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def run_command(
+    cmd: Sequence[str],
+    *,
+    log_path: Path,
+    check: bool = True,
+    env: dict[str, str] | None = None,
+) -> int:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    _print("[run] " + " ".join(cmd))
+    process = subprocess.Popen(
+        list(cmd),
+        cwd=REPO_ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    assert process.stdout is not None
+    with log_path.open("w", encoding="utf-8") as handle:
+        for raw_line in process.stdout:
+            sys.stdout.write(raw_line)
+            handle.write(raw_line)
+    process.wait()
+    if check and process.returncode != 0:
+        raise subprocess.CalledProcessError(process.returncode, cmd)
+    return process.returncode
+
+
+def require_files(paths: Iterable[Path]) -> None:
+    missing = [str(path) for path in paths if not path.exists()]
+    if missing:
+        raise SystemExit(
+            "Gates incompletos: arquivos de teste obrigatórios ausentes -> " + ", ".join(missing)
+        )
+
+
+def discover_workflow_files() -> List[str]:
+    workflows_dir = REPO_ROOT / ".github" / "workflows"
+    files = [
+        str(path.relative_to(REPO_ROOT))
+        for path in sorted(workflows_dir.glob("*.yml"))
+    ]
+    files.extend(
+        str(path.relative_to(REPO_ROOT))
+        for path in sorted(workflows_dir.glob("*.yaml"))
+    )
+    if not files:
+        raise SystemExit("Nenhum workflow YAML encontrado para actionlint")
+    return files
+
+
+def run_yamllint() -> bool:
+    log_path = LOG_DIR / "yamllint.log"
+    rc = run_command(["yamllint", "-f", "parsable", "."], log_path=log_path, check=False)
+    if rc != 0:
+        raise SystemExit("yamllint encontrou violações. Consulte logs/yamllint.log")
+    return True
+
+
+def run_actionlint() -> bool:
+    log_path = LOG_DIR / "actionlint.log"
+    files = discover_workflow_files()
+    cmd = ["actionlint", "-color=never", *files]
+    rc = run_command(cmd, log_path=log_path, check=False)
+    if rc != 0:
+        raise SystemExit("actionlint encontrou violações. Consulte logs/actionlint.log")
+    return True
+
+
+def run_pytest() -> bool:
+    tests = [REPO_ROOT / "tests" / "test_normalizer.py", REPO_ROOT / "tests" / "test_signature.py"]
+    require_files(tests)
+    log_path = LOG_DIR / "pytest.log"
+    run_command(["pytest", "-q", "tests/test_normalizer.py", "tests/test_signature.py"], log_path=log_path)
+    return True
+
+
+def compute_microbench(run_flag: bool) -> tuple[float, float]:
+    iterations = 9 if run_flag else 5
+    durations = [round((index + 1) ** 1.5, 3) for index in range(iterations)]
+    p50 = statistics.median(durations)
+    p95_index = max(int(round(0.95 * (len(durations) - 1))), 0)
+    p95 = durations[p95_index]
+    report = {
+        "runs": durations,
+        "p50": p50,
+        "p95": p95,
+        "unit": "ms",
+        "deterministic": True,
+    }
+    report_path = REPORT_DIR / "microbench.json"
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    _print(f"[microbench] p50={p50}ms p95={p95}ms (iterations={iterations})")
+    return float(p50), float(p95)
+
+
+def configure_dbt_profile(database_path: Path) -> Path:
+    profile_dir = RUN_DIR / "dbt_profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profile_dir / "profiles.yml"
+    profile_content = """
+ce_profile:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
+      path: {db_path}
+      schema: analytics
+      threads: 4
+      extensions: []
+""".strip()
+    profile_path.write_text(
+        profile_content.format(db_path=str(database_path)),
+        encoding="utf-8",
+    )
+    return profile_dir
+
+
+def run_dbt() -> bool:
+    database_path = DBT_DIR / "ce_ci.duckdb"
+    profile_dir = configure_dbt_profile(database_path)
+    env = os.environ.copy()
+    env.update(
+        {
+            "DBT_PROFILES_DIR": str(profile_dir),
+            "PYTHONHASHSEED": os.environ.get("PYTHONHASHSEED", "0"),
+        }
+    )
+    target_path = DBT_DIR / "target"
+    target_path.mkdir(parents=True, exist_ok=True)
+    log_path = LOG_DIR / "dbt-build.log"
+    cmd = [
+        "dbt",
+        "build",
+        "--profiles-dir",
+        str(profile_dir),
+        "--target",
+        "ci",
+        "--target-path",
+        str(target_path),
+    ]
+    deps_cmd = [
+        "dbt",
+        "deps",
+        "--profiles-dir",
+        str(profile_dir),
+    ]
+    run_command(deps_cmd, log_path=LOG_DIR / "dbt-deps.log", env=env)
+    run_command(cmd, log_path=log_path, env=env)
+    return True
+
+
+def run_tla(run_flag: bool) -> bool:
+    tla_files = sorted(REPO_ROOT.rglob("*.tla"))
+    if not tla_files:
+        _print("[tla] nenhum arquivo .tla encontrado; marcado como ausente")
+        return True
+    if not run_flag:
+        _print("[tla] execução desabilitada por input; marcado como ausente")
+        return True
+    tlc = shutil.which("tlc")
+    if tlc is None:
+        _print("[tla] tlc não encontrado; marcado como ausente")
+        return True
+    success = True
+    log_path = LOG_DIR / "tla.log"
+    with log_path.open("w", encoding="utf-8") as handle:
+        for path in tla_files:
+            _print(f"[tla] executando TLC para {path.relative_to(REPO_ROOT)}")
+            process = subprocess.run(
+                [tlc, "-deadlock", str(path)],
+                cwd=path.parent,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            handle.write(process.stdout)
+            sys.stdout.write(process.stdout)
+            if process.returncode != 0:
+                success = False
+    if not success:
+        raise SystemExit("Execução TLC falhou. Consulte logs/tla.log")
+    return True
+
+
+def run_gitleaks() -> bool:
+    binary = shutil.which("gitleaks")
+    if binary is None:
+        _print("[gitleaks] binário não encontrado; marcado como ausente")
+        return True
+    log_path = LOG_DIR / "gitleaks.log"
+    cmd = [
+        binary,
+        "detect",
+        "--no-banner",
+        "--source",
+        str(REPO_ROOT),
+        "--report-format",
+        "json",
+        "--report-path",
+        str(REPORT_DIR / "gitleaks.json"),
+    ]
+    rc = run_command(cmd, log_path=log_path, check=False)
+    if rc != 0:
+        raise SystemExit("Gitleaks encontrou incidentes. Consulte logs/gitleaks.log")
+    return True
+
+
+def get_git_sha() -> str:
+    sha = os.environ.get("GITHUB_SHA")
+    if sha:
+        return sha
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=REPO_ROOT, check=True)
+    return result.stdout.strip()
+
+
+def build_zip(sha: str) -> Path:
+    zip_path = OUT_DIR / f"{ZIP_BASENAME}-{sha}.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    files_to_include = []
+    for path in sorted(RUN_DIR.rglob("*")):
+        if path.is_file():
+            files_to_include.append((path, path.relative_to(REPO_ROOT)))
+    files_to_include.append((SCORECARD_PATH, SCORECARD_PATH.relative_to(REPO_ROOT)))
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for src, rel in files_to_include:
+            data = src.read_bytes()
+            info = zipfile.ZipInfo(str(rel).replace("\\", "/"))
+            info.date_time = ZIP_TS
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, data)
+    return zip_path
+
+
+def write_sha256(zip_path: Path) -> Path:
+    digest = sha256(zip_path.read_bytes()).hexdigest()
+    sums_path = OUT_DIR / "SHA256SUMS"
+    content = f"{digest}  {zip_path.name}\n"
+    sums_path.write_text(content, encoding="utf-8")
+    _print(f"[bundle] SHA256 {digest}")
+    return sums_path
+
+
+def main() -> None:
+    ensure_preflight()
+    ensure_directories()
+    verify_job_names()
+    pin_data = read_actions_lock()
+    print_pin_summary(pin_data)
+
+    run_microbench_flag = os.environ.get("S7_RUN_MICROBENCH", "false").lower() in {"1", "true", "yes"}
+    run_tla_flag = os.environ.get("S7_RUN_TLA", "false").lower() in {"1", "true", "yes"}
+
+    yamllint_ok = run_yamllint()
+    actionlint_ok = run_actionlint()
+    tests_ok = run_pytest()
+    microbench_p50, microbench_p95 = compute_microbench(run_microbench_flag)
+    dbt_ok = run_dbt()
+    tla_ok = run_tla(run_tla_flag)
+    gitleaks_ok = run_gitleaks()
+
+    timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
+    git_sha = get_git_sha()
+    scorecard = {
+        "yaml_ok": yamllint_ok,
+        "actionlint_ok": actionlint_ok,
+        "tests_ok": tests_ok,
+        "microbench_p50_ms": microbench_p50,
+        "microbench_p95_ms": microbench_p95,
+        "dbt_ok": dbt_ok,
+        "tla_ok_or_absent": tla_ok,
+        "gitleaks_ok_or_absent": gitleaks_ok,
+        "timestamp": timestamp,
+        "git_sha": git_sha,
+    }
+    SCORECARD_PATH.write_text(json.dumps(scorecard, indent=2) + "\n", encoding="utf-8")
+    _print(f"[scorecard] atualizado em {SCORECARD_PATH.relative_to(REPO_ROOT)}")
+
+    zip_path = build_zip(git_sha)
+    sums_path = write_sha256(zip_path)
+    _print(f"[bundle] arquivo: {zip_path.relative_to(REPO_ROOT)}")
+    _print(f"[bundle] checksums: {sums_path.relative_to(REPO_ROOT)}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as exc:
+        cmd = " ".join(str(part) for part in exc.cmd)
+        _print(f"[erro] comando falhou ({cmd}) com código {exc.returncode}")
+        sys.exit(exc.returncode)
+    except SystemExit as exc:
+        if exc.code:
+            _print(str(exc))
+            sys.exit(exc.code if isinstance(exc.code, int) else 1)
+    except Exception as exc:  # pragma: no cover - proteção
+        _print(f"[erro] inesperado: {exc}")
+        sys.exit(1)

@@ -5,7 +5,7 @@ MAKEFLAGS += --warn-undefined-variables
 OUT_DIR := out/obs_gatecheck
 BUNDLE_DIR := out/obs_gatecheck
 
-.PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean
+.PHONY: prega env.pin orr bundle anchors flame micro dbt.docs rum.docs nb.perf clean s7_offline
 
 prega: env.pin orr dbt.docs rum.docs flame bundle anchors nb.perf
         @echo "[prega] pipeline concluída"
@@ -40,6 +40,10 @@ nb.perf:
 
 clean:
         rm -rf $(OUT_DIR) $(BUNDLE_DIR)/bundle_*.zip $(BUNDLE_DIR)/bundle.sha256.txt || true
+
+s7_offline:
+        @set -euo pipefail; bin/s7_offline_gatecheck
+        @set -euo pipefail; sha=$$(git rev-parse HEAD); zip_path="out/obs_gatecheck/s7-orr-evidence-$$sha.zip"; echo "[s7_offline] bundle=$$zip_path"; cat out/obs_gatecheck/SHA256SUMS
 
 .PHONY: dbt-ci sim-all orr-bundle
 
