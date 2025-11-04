@@ -1,4 +1,4 @@
-name: "S7 — ORR (callee)"
+name: "S7 - ORR (callee)"
 
 on:
   workflow_call:
@@ -43,8 +43,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
-      - name: Gate T0 — manifest integrity
+      - name: Gate T0 - manifest integrity
         id: manifest
         run: |
           set -euo pipefail
@@ -72,7 +71,7 @@ result = {
 if not man.exists() or man.stat().st_size == 0:
     result["missing"].append(str(man))
 else:
-    jq_proc = subprocess.run(["jq", "-c", ".[]? // .", str(man)], capture_output=True, text=True)
+    jq_proc = subprocess.run(["jq","-c",".[]? // .",str(man)], capture_output=True, text=True)
     if jq_proc.returncode != 0:
         result["badhash"].append({
             "path": str(man),
@@ -99,7 +98,7 @@ else:
             if not path.is_file():
                 result["missing"].append(str(path))
                 continue
-            hash_proc = subprocess.run(["git", "hash-object", "--", str(path)], capture_output=True, text=True)
+            hash_proc = subprocess.run(["git","hash-object","--",str(path)], capture_output=True, text=True)
             if hash_proc.returncode != 0:
                 result["badhash"].append({
                     "path": str(path),
@@ -144,7 +143,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Install actionlint (tarball)
         run: |
           set -euo pipefail
@@ -186,7 +184,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: '3.11'
@@ -246,7 +243,6 @@ for line in LOG_PATH.read_text(encoding='utf-8', errors='ignore').splitlines():
     targets.setdefault(path, set()).add(rule)
 
 from ruamel.yaml import YAML
-
 yaml = YAML()
 yaml.preserve_quotes = True
 yaml.width = 4096
@@ -263,7 +259,7 @@ for path, rules in targets.items():
         continue
     try:
         data = yaml.load(text)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         entry["status"] = "error"
         entry["error"] = f"load:{exc}"
         results.append(entry)
@@ -276,7 +272,7 @@ for path, rules in targets.items():
         with path.open('w', encoding='utf-8') as handle:
             yaml.dump(data, handle)
         entry["status"] = "formatted"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         entry["status"] = "error"
         entry["error"] = f"dump:{exc}"
     results.append(entry)
@@ -329,7 +325,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -386,15 +381,14 @@ for finding in findings:
         'file': finding.get('file'),
         'start_line': finding.get('startLine'),
         'end_line': finding.get('endLine'),
-        'secret': bool(finding.get('secret')),  # redacted already
+        'secret': bool(finding.get('secret')),
         'rule': finding.get('ruleID'),
     })
 
 summary = {
-        'total_findings': len(entries),
-        'entries': entries,
+    'total_findings': len(entries),
+    'entries': entries,
 }
-
 summary_path.write_text(json.dumps(summary, indent=2), encoding='utf-8')
 PY
       - if: always()
@@ -422,7 +416,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: scan pins
         id: scan
         run: |
@@ -437,7 +430,7 @@ PY
               echo "rg failed with exit code $rg_rc" >&2
               exit "$rg_rc"
             fi
-          else:
+          else
             echo "[skip] ripgrep (rg) not installed" | tee out/evidence/T3_pins/pins.txt
           fi
           python - <<'PY'
@@ -534,7 +527,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -566,24 +558,24 @@ random.seed(SEED)
 
 try:
     import numpy  # noqa: F401
-except Exception:  # noqa: BLE001
+except Exception:
     numpy = None
 if numpy is not None:
     try:
         numpy.random.seed(SEED)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 try:
     import torch
-except Exception:  # noqa: BLE001
+except Exception:
     torch = None
 if torch is not None:
     try:
         torch.manual_seed(SEED)
         if hasattr(torch, 'cuda'):
             torch.cuda.manual_seed_all(SEED)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 os.environ.setdefault("TZ", "UTC")
@@ -644,7 +636,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: Placeholder properties report
         id: placeholder
         run: |
@@ -674,7 +665,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
         with:
           python-version: ${{ matrix.py }}
@@ -701,34 +691,31 @@ SEED = int(os.environ.get("DETERMINISTIC_SEED", "1337"))
 random.seed(SEED)
 
 try:
-    import numpy  # noqa: F401
-except Exception:  # noqa: BLE001
+    import numpy
+except Exception:
     numpy = None
 if numpy is not None:
     try:
         numpy.random.seed(SEED)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 try:
     import torch
-except Exception:  # noqa: BLE001
+except Exception:
     torch = None
 if torch is not None:
     try:
         torch.manual_seed(SEED)
         if hasattr(torch, 'cuda'):
             torch.cuda.manual_seed_all(SEED)
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
 os.environ.setdefault("TZ", "UTC")
 PY
           status=$(python - <<'PY'
-import json
-import os
-import subprocess
-import sys
+import json, os, subprocess, sys
 from pathlib import Path
 
 out_dir = Path(os.environ['OUT_DIR'])
@@ -736,13 +723,9 @@ out_dir.mkdir(parents=True, exist_ok=True)
 seed = int(os.environ.get('DETERMINISTIC_SEED', '1337'))
 
 code = """
-import json
-import os
-import random
-
-SEED = int(os.environ.get('DETERMINISTIC_SEED', '1337'))
+import json, os, random
+SEED = int(os.environ.get('DETERMINISTIC_SEED','1337'))
 random.seed(SEED)
-
 try:
     import numpy as _np
 except Exception:
@@ -752,40 +735,21 @@ if _np is not None:
         _np.random.seed(SEED)
     except Exception:
         pass
-
-payload = {
-    'seed': SEED,
-    'series': [random.random() for _ in range(10)],
-}
+payload={'seed':SEED,'series':[random.random() for _ in range(10)]}
 if _np is not None:
-    payload['matrix'] = _np.random.rand(3, 3).tolist()
-print(json.dumps(payload, separators=(',', ':')))
+    payload['matrix']=_np.random.rand(3,3).tolist()
+print(json.dumps(payload,separators=(',',':')))
 """
-
-def run_attempt() -> dict:
+def run_attempt():
     env = os.environ.copy()
     env['DETERMINISTIC_SEED'] = str(seed)
-    completed = subprocess.run(
-        [sys.executable, '-c', code],
-        capture_output=True,
-        text=True,
-        check=True,
-        env=env,
-    )
+    completed = subprocess.run([sys.executable,'-c',code], capture_output=True, text=True, check=True, env=env)
     return json.loads(completed.stdout)
 
 attempts = [run_attempt(), run_attempt()]
 status = 'PASS' if attempts[0] == attempts[1] else 'FAIL'
-
-report = {
-    'gate': 'T6',
-    'python_version': os.environ.get('PY_VERSION'),
-    'status': status,
-    'attempts': attempts,
-}
-
-(out_dir / 'det_report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
-(out_dir / 'status.txt').write_text(f"{status}\n", encoding='utf-8')
+(out_dir/'det_report.json').write_text(json.dumps({'gate':'T6','python_version':os.environ.get('PY_VERSION'),'status':status,'attempts':attempts}, indent=2), encoding='utf-8')
+(out_dir/'status.txt').write_text(f"{status}\n", encoding='utf-8')
 print(status)
 PY
 )
@@ -810,7 +774,6 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: append-only guard
         id: guard
         run: |
@@ -819,153 +782,78 @@ PY
           mkdir -p obs/guards/append_only/baseline
           mkdir -p obs/guards/append_only_exceptions
           status=$(python - <<'PY'
-import json
-import os
-import shutil
-import subprocess
+import json, os, shutil, subprocess
 from pathlib import Path
 
 BASE_DIR = Path('obs/guards/append_only/baseline')
 LEDGER_DIR = Path('obs/guards/append_only_exceptions')
 REPORT_TXT = Path('out/evidence/T7_append_only/report.txt')
 REPORT_JSON = Path('out/evidence/T7_append_only/report.json')
-
 BASE_DIR.mkdir(parents=True, exist_ok=True)
 LEDGER_DIR.mkdir(parents=True, exist_ok=True)
 
-def git_ls(patterns: list[str]) -> list[Path]:
-    cmd = ['git', 'ls-files', *patterns]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if result.returncode not in (0, 1):
+def git_ls(patterns):
+    result = subprocess.run(['git','ls-files',*patterns], capture_output=True, text=True, check=False)
+    if result.returncode not in (0,1):
         raise RuntimeError(f'git ls-files failed: {result.stderr}')
     return [Path(line) for line in result.stdout.splitlines() if line.strip()]
 
-targets = git_ls(['data/**/*.jsonl', 'data/**/*.ndjson'])
-
-ledger_entries: dict[str, list[dict[str, str]]] = {}
+targets = git_ls(['data/**/*.jsonl','data/**/*.ndjson'])
+ledger_entries = {}
 for entry_path in sorted(LEDGER_DIR.glob('*.json')):
     try:
         payload = json.loads(entry_path.read_text(encoding='utf-8'))
     except json.JSONDecodeError as exc:
-        ledger_entries.setdefault('__ledger_errors__', []).append({
-            'file': str(entry_path),
-            'error': f'json:{exc.msg}',
-        })
+        ledger_entries.setdefault('__ledger_errors__', []).append({'file': str(entry_path), 'error': f'json:{exc.msg}'})
         continue
     items = payload if isinstance(payload, list) else [payload]
     for item in items:
-        path = item.get('path')
-        sha1 = (item.get('sha1') or '').lower()
-        signature = item.get('signature')
+        path = item.get('path'); sha1 = (item.get('sha1') or '').lower(); signature = item.get('signature')
         if not path or not sha1 or not signature:
-            ledger_entries.setdefault('__ledger_errors__', []).append({
-                'file': str(entry_path),
-                'error': 'missing_fields',
-            })
+            ledger_entries.setdefault('__ledger_errors__', []).append({'file': str(entry_path), 'error': 'missing_fields'})
             continue
-        ledger_entries.setdefault(path, []).append({
-            'sha1': sha1,
-            'signature': signature,
-        })
+        ledger_entries.setdefault(path, []).append({'sha1': sha1, 'signature': signature})
 
-entries = []
-overall_status = 'PASS'
-
-def compute_sha(path: Path) -> str:
-    result = subprocess.run(
-        ['git', 'hash-object', '--', str(path)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return result.stdout.strip().lower()
-
-def normalise_lines(path: Path) -> list[str]:
-    return [line.rstrip('\n').rstrip() for line in path.read_text(encoding='utf-8').splitlines()]
+entries = []; overall_status = 'PASS'
+def compute_sha(p): return subprocess.run(['git','hash-object','--',str(p)], capture_output=True, text=True, check=True).stdout.strip().lower()
+def normalise_lines(p): return [line.rstrip('\n').rstrip() for line in p.read_text(encoding='utf-8').splitlines()]
 
 if not targets:
-    overall_status = 'SKIP'
-    REPORT_TXT.write_text('no append-only targets found\n', encoding='utf-8')
+    overall_status = 'SKIP'; REPORT_TXT.write_text('no append-only targets found\n', encoding='utf-8')
 else:
     lines = []
     for target in targets:
-        safe_name = target.as_posix().replace('/', '__') + '.baseline'
+        safe_name = target.as_posix().replace('/','__') + '.baseline'
         baseline = BASE_DIR / safe_name
-        current_entry = {
-            'path': target.as_posix(),
-            'baseline': baseline.as_posix(),
-            'status': 'UNKNOWN',
-            'exception_used': None,
-        }
+        current_entry = {'path': target.as_posix(), 'baseline': baseline.as_posix(), 'status': 'UNKNOWN', 'exception_used': None}
         if not target.exists():
-            current_entry['status'] = 'MISSING'
-            overall_status = 'FAIL'
-            entries.append(current_entry)
-            lines.append(f"FAIL: missing target {target.as_posix()}")
-            continue
+            current_entry['status'] = 'MISSING'; overall_status = 'FAIL'; entries.append(current_entry); lines.append(f"FAIL: missing target {target.as_posix()}"); continue
         if not baseline.exists():
-            baseline.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(target, baseline)
-            current_entry['status'] = 'BASELINE_CREATED'
-            overall_status = 'FAIL'
-            entries.append(current_entry)
-            lines.append(f"FAIL: baseline generated for {target.as_posix()}")
-            continue
-        baseline_lines = normalise_lines(baseline)
-        target_lines = normalise_lines(target)
-        baseline_sha = compute_sha(baseline)
-        target_sha = compute_sha(target)
-        current_entry['baseline_sha1'] = baseline_sha
-        current_entry['current_sha1'] = target_sha
+            baseline.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(target, baseline)
+            current_entry['status'] = 'BASELINE_CREATED'; overall_status = 'FAIL'; entries.append(current_entry); lines.append(f"FAIL: baseline generated for {target.as_posix()}"); continue
+        baseline_lines = normalise_lines(baseline); target_lines = normalise_lines(target)
+        baseline_sha = compute_sha(baseline); target_sha = compute_sha(target)
+        current_entry['baseline_sha1'] = baseline_sha; current_entry['current_sha1'] = target_sha
         if len(target_lines) < len(baseline_lines) or target_lines[:len(baseline_lines)] != baseline_lines:
-            ledger = ledger_entries.get(target.as_posix(), [])
-            exception = next((item for item in ledger if item['sha1'] == target_sha), None)
+            ledger = ledger_entries.get(target.as_posix(), []); exception = next((i for i in ledger if i['sha1'] == target_sha), None)
             if exception:
-                current_entry['status'] = 'EXCEPTION'
-                current_entry['exception_used'] = exception
-                lines.append(
-                    f"WARN: non-append change allowed for {target.as_posix()} via {exception['signature']}"
-                )
+                current_entry['status'] = 'EXCEPTION'; current_entry['exception_used'] = exception; lines.append(f"WARN: non-append change allowed for {target.as_posix()} via {exception['signature']}")
             else:
-                current_entry['status'] = 'FAIL'
-                overall_status = 'FAIL'
-                lines.append(f"FAIL: non-append change detected in {target.as_posix()}")
+                current_entry['status'] = 'FAIL'; overall_status = 'FAIL'; lines.append(f"FAIL: non-append change detected in {target.as_posix()}")
         else:
-            current_entry['status'] = 'PASS'
-            lines.append(f"OK: append-only preserved {target.as_posix()}")
+            current_entry['status'] = 'PASS'; lines.append(f"OK: append-only preserved {target.as_posix()}")
         entries.append(current_entry)
-
-    # detect stale baselines
     for baseline_file in BASE_DIR.glob('*.baseline'):
-        rel = baseline_file.name[:-9].replace('__', '/')
+        rel = baseline_file.name[:-9].replace('__','/')
         if not Path(rel).exists():
-            overall_status = 'FAIL'
-            entries.append({
-                'path': rel,
-                'baseline': baseline_file.as_posix(),
-                'status': 'ORPHAN_BASELINE',
-                'exception_used': None,
-            })
-            lines.append(f"FAIL: baseline has no matching target for {rel}")
-
+            overall_status = 'FAIL'; entries.append({'path': rel, 'baseline': baseline_file.as_posix(), 'status': 'ORPHAN_BASELINE', 'exception_used': None}); lines.append(f"FAIL: baseline has no matching target for {rel}")
     REPORT_TXT.write_text('\n'.join(lines) + ('\n' if lines else ''), encoding='utf-8')
 
 if ledger_entries.get('__ledger_errors__'):
     overall_status = 'FAIL'
-    entries.extend({
-        'path': '__ledger__',
-        'baseline': '',
-        'status': 'LEDGER_ERROR',
-        'error': error,
-        'exception_used': None,
-    } for error in ledger_entries['__ledger_errors__'])
+    entries.extend({'path':'__ledger__','baseline':'','status':'LEDGER_ERROR','error':error,'exception_used':None} for error in ledger_entries['__ledger_errors__'])
 
-summary = {
-    'gate': 'T7',
-    'status': overall_status,
-    'entries': entries,
-}
-
+summary = {'gate':'T7','status':overall_status,'entries':entries}
 REPORT_JSON.write_text(json.dumps(summary, indent=2), encoding='utf-8')
 print(overall_status)
 PY
@@ -1017,58 +905,33 @@ PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
-          ref: "${{ inputs.ref != '' && inputs.ref || github.sha }}"
       - name: pack bundle
         run: |
           set -euo pipefail
           mkdir -p out/orr_bundle
           python - <<'PY'
-import json
-import os
+import json, os
 from pathlib import Path
 
-def resolve_status(status_env: str | None, result_env: str | None) -> str:
+def resolve_status(status_env, result_env):
     status_env = (status_env or "").strip()
     if status_env:
         return status_env
     result_env = (result_env or "").strip().lower()
-    mapping = {
-        "success": "PASS",
-        "failure": "FAIL",
-        "failed": "FAIL",
-        "cancelled": "CANCELLED",
-        "skipped": "SKIP",
-    }
+    mapping = {"success":"PASS","failure":"FAIL","failed":"FAIL","cancelled":"CANCELLED","skipped":"SKIP"}
     return mapping.get(result_env, result_env.upper() if result_env else "UNKNOWN")
 
 gates = []
-for gate, artifact in [
-    ("T0", "s7-t0-evidence"),
-    ("T1B", "s7-t1b-actionlint"),
-    ("T1", "s7-t1-yaml"),
-    ("T2", "s7-t2-security"),
-    ("T3", "s7-t3-pins"),
-    ("T4", "s7-t4-tests"),
-    ("T5", "s7-t5-props"),
-    ("T6", "s7-t6-determinism"),
-    ("T7", "s7-t7-append-only"),
-]:
+for gate, artifact in [("T0","s7-t0-evidence"),("T1B","s7-t1b-actionlint"),("T1","s7-t1-yaml"),("T2","s7-t2-security"),("T3","s7-t3-pins"),("T4","s7-t4-tests"),("T5","s7-t5-props"),("T6","s7-t6-determinism"),("T7","s7-t7-append-only")]:
     status = resolve_status(os.getenv(f"{gate}_STATUS"), os.getenv(f"{gate}_RESULT"))
-    gates.append({
-        "gate": gate,
-        "status": status,
-        "artifact": artifact,
-    })
-counts: dict[str, int] = {}
+    gates.append({"gate":gate,"status":status,"artifact":artifact})
+
+counts = {}
 for entry in gates:
     counts[entry["status"]] = counts.get(entry["status"], 0) + 1
-summary = {
-    "run_id": os.getenv("GITHUB_RUN_ID"),
-    "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
-    "gates": gates,
-    "status_counts": counts,
-}
-Path("out/orr_bundle/summary.json").write_text(json.dumps(summary, indent=2), encoding='utf-8')
+
+summary = {"run_id": os.getenv("GITHUB_RUN_ID"), "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"), "gates": gates, "status_counts": counts}
+Path("out/orr_bundle/summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
