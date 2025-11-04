@@ -1,0 +1,36 @@
+name: "S7 — ORR Exec V2"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
+      run_microbench:
+        type: boolean
+        required: false
+        default: false
+      run_tla:
+        type: boolean
+        required: false
+        default: false
+  pull_request: {}
+
+permissions:
+  contents: read
+  actions: read
+  id-token: none
+
+concurrency:
+  group: s7-orr-v2
+  cancel-in-progress: false
+
+jobs:
+  call-orr:
+    uses: ./.github/workflows/_s7-orr.v2.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+      run_microbench: ${{ github.event_name == 'workflow_dispatch' && inputs.run_microbench || false }}
+      run_tla: ${{ github.event_name == 'workflow_dispatch' && inputs.run_tla || false }}
+    secrets: inherit
