@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: s7-orr-${{ github.ref }}
+  group: ${{ github.ref }}
   cancel-in-progress: true
 
 defaults:
@@ -35,9 +35,9 @@ jobs:
     uses: ./.github/workflows/_s7-orr.yml
     secrets: inherit
     with:
-      ref: ${{ github.event.inputs.ref }}
-      run_microbench: ${{ fromJSON(github.event.inputs.run_microbench || 'false') }}
-      run_tla: ${{ fromJSON(github.event.inputs.run_tla || 'false') }}
+      ref: ${{ inputs.ref }}
+      run_microbench: ${{ fromJSON(inputs.run_microbench == 'true' ? 'true' : 'false') }}
+      run_tla: ${{ fromJSON(inputs.run_tla == 'true' ? 'true' : 'false') }}
 
   t0_echo:
     needs: run
