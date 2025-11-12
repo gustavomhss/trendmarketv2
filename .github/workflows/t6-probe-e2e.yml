@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 15
     env:
       COLLECTOR_IMAGE: otel/opentelemetry-collector-contrib:0.96.0
-      REQUIRED_METRIC_NAME: system_cpu_time
+      REQUIRED_METRIC_NAME: otelcol_process_uptime
       HEALTH_ENDPOINT: http://127.0.0.1:13133/healthz
       METRICS_ENDPOINT: http://127.0.0.1:9464/metrics
     steps:
@@ -46,12 +46,16 @@ jobs:
             batch: {}
           exporters:
             prometheus:
-              endpoint: 0.0.0.0:9464
+              endpoint: 0.0.0.0:9465
           extensions:
             health_check:
               endpoint: 0.0.0.0:13133
               path: /healthz
           service:
+            telemetry:
+              metrics:
+                address: 0.0.0.0:9464
+                level: normal
             extensions: [health_check]
             pipelines:
               metrics:
@@ -115,7 +119,7 @@ jobs:
         env:
           HEALTHZ_URL: ${{ env.HEALTH_ENDPOINT }}
           METRICS_URL: ${{ env.METRICS_ENDPOINT }}
-          REQUIRED_METRICS: ${{ env.REQUIRED_METRIC_NAME }}
+          REQUIRED_METRICS: "otelcol_process_uptime system_cpu_time"
           PROBE_TIMEOUT_SECS: "60"
         run: |
           set -euo pipefail
