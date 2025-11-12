@@ -3,13 +3,13 @@ set -euo pipefail
 export LC_ALL=C
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:9464/metrics}"
 HEALTHZ_URL="${HEALTHZ_URL:-http://127.0.0.1:13133/healthz}"
-REQUIRED_METRICS_STR="${REQUIRED_METRICS:-amm_op_latency_seconds hook_executions_total data_freshness_seconds cdc_lag_seconds}"
+REQUIRED_METRICS_STR="${REQUIRED_METRICS:-otelcol_process_uptime amm_op_latency_seconds hook_executions_total data_freshness_seconds cdc_lag_seconds}"
 PROBE_TIMEOUT_SECS="${PROBE_TIMEOUT_SECS:-60}"
 if ! [[ "$PROBE_TIMEOUT_SECS" =~ ^[0-9]+$ ]] || [[ "$PROBE_TIMEOUT_SECS" -le 0 ]]; then
   PROBE_TIMEOUT_SECS=60
 fi
 if [[ -z "$REQUIRED_METRICS_STR" ]]; then
-  REQUIRED_METRICS_STR="amm_op_latency_seconds hook_executions_total data_freshness_seconds cdc_lag_seconds"
+  REQUIRED_METRICS_STR="otelcol_process_uptime amm_op_latency_seconds hook_executions_total data_freshness_seconds cdc_lag_seconds"
 fi
 if ! command -v curl >/dev/null 2>&1; then
   printf '{"healthz_url":"%s","metrics_url":"%s","healthz_http":0,"metrics_http":0,"found_metrics":[],"passed":false}\n' "$HEALTHZ_URL" "$METRICS_URL"
