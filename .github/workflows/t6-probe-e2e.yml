@@ -1,0 +1,150 @@
+name: T6 Probe E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - bin/orr_t6.sh
+      - .github/workflows/t6-probe-e2e.yml
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - bin/orr_t6.sh
+      - .github/workflows/t6-probe-e2e.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t6-probe-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      COLLECTOR_IMAGE: otel/opentelemetry-collector-contrib:0.96.0
+      REQUIRED_METRIC_NAME: otelcol_process_uptime
+      HEALTH_ENDPOINT: http://127.0.0.1:13133/healthz
+      METRICS_ENDPOINT: http://127.0.0.1:9464/metrics
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.1.7
+
+      - name: Generate collector configuration
+        run: |
+          cat <<'EOF' > collector-config.yaml
+          receivers:
+            hostmetrics:
+              collection_interval: 2s
+              scrapers:
+                cpu: {}
+                memory: {}
+          processors:
+            batch: {}
+          exporters:
+            prometheus:
+              endpoint: 0.0.0.0:9465
+          extensions:
+            health_check:
+              endpoint: 0.0.0.0:13133
+              path: /healthz
+          service:
+            telemetry:
+              metrics:
+                address: 0.0.0.0:9464
+                level: normal
+            extensions: [health_check]
+            pipelines:
+              metrics:
+                receivers: [hostmetrics]
+                processors: [batch]
+                exporters: [prometheus]
+          EOF
+
+      - name: Pull collector image
+        run: docker pull "$COLLECTOR_IMAGE"
+
+      - name: Start collector container
+        run: |
+          docker run -d --name t6-collector \
+            -p 13133:13133 \
+            -p 9464:9464 \
+            -v "$PWD/collector-config.yaml":/etc/otelcol/config.yaml:ro \
+            "$COLLECTOR_IMAGE" \
+            --config /etc/otelcol/config.yaml
+
+      - name: Wait for health endpoint
+        run: |
+          for attempt in {1..60}; do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' "$HEALTH_ENDPOINT" || true)
+            if [[ "$code" == "200" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "healthz did not reach 200 within 60s" >&2
+          docker logs t6-collector || true
+          exit 1
+
+      - name: Wait for metrics endpoint
+        run: |
+          for attempt in {1..60}; do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' "$METRICS_ENDPOINT" || true)
+            if [[ "$code" == "200" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "metrics endpoint did not reach 200 within 60s" >&2
+          docker logs t6-collector || true
+          exit 1
+
+      - name: Ensure required metric present
+        run: |
+          for attempt in {1..60}; do
+            body=$(curl -fsS "$METRICS_ENDPOINT" || true)
+            if [[ -n "$body" ]] && printf '%s\n' "$body" | grep -Eq "^${REQUIRED_METRIC_NAME}(\\{| )"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "metrics endpoint never exposed ${REQUIRED_METRIC_NAME}" >&2
+          docker logs t6-collector || true
+          exit 1
+
+      - name: Run T6 probe script
+        env:
+          HEALTHZ_URL: ${{ env.HEALTH_ENDPOINT }}
+          METRICS_URL: ${{ env.METRICS_ENDPOINT }}
+          REQUIRED_METRICS: "otelcol_process_uptime system_cpu_time"
+          PROBE_TIMEOUT_SECS: "60"
+        run: |
+          set -euo pipefail
+          bin/orr_t6.sh > t6-result.json
+          if [[ $(jq -r '.passed' t6-result.json) != "true" ]]; then
+            echo "T6 probe reported failure" >&2
+            jq '.' t6-result.json
+            exit 1
+          fi
+          jq '.' t6-result.json
+
+      - name: Collect collector logs
+        if: always()
+        run: docker logs t6-collector > collector.log 2>&1 || true
+
+      - name: Upload probe artifacts
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: t6-probe-artifacts
+          path: |
+            t6-result.json
+            collector.log
+          retention-days: 10
+
+      - name: Cleanup collector container
+        if: always()
+        run: docker rm -f t6-collector >/dev/null 2>&1 || true
