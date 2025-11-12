@@ -37,7 +37,7 @@ jobs:
           cat <<'EOF' > collector-config.yaml
           receivers:
             hostmetrics:
-              collection_interval: 5s
+              collection_interval: 2s
               scrapers:
                 cpu: {}
                 memory: {}
@@ -94,6 +94,19 @@ jobs:
             sleep 1
           done
           echo "metrics endpoint did not reach 200 within 60s" >&2
+          docker logs t6-collector || true
+          exit 1
+
+      - name: Ensure required metric present
+        run: |
+          for attempt in {1..60}; do
+            body=$(curl -fsS "$METRICS_ENDPOINT" || true)
+            if [[ -n "$body" ]] && printf '%s\n' "$body" | grep -Eq "^${REQUIRED_METRIC_NAME}(\\{| )"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "metrics endpoint never exposed ${REQUIRED_METRIC_NAME}" >&2
           docker logs t6-collector || true
           exit 1
 
