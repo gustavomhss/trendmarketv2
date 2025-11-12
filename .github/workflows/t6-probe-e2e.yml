@@ -6,6 +6,7 @@ on:
     paths:
       - bin/orr_t6.sh
       - .github/workflows/t6-probe-e2e.yml
+  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
